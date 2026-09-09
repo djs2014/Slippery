@@ -1,4 +1,4 @@
 ### Test call for Open Meteo API
-GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature&past_days=1&forecast_days=2&timezone=auto&timeformat=unixtime
+GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature&past_days=1&forecast_days=1&timezone=auto&timeformat=unixtime
 
 ###

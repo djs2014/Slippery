@@ -152,3 +152,23 @@ function getLongTimeString(moment as Time.Moment?) as String {
   }
   return "";
 }
+
+// Convert a Unix epoch timestamp (in seconds)
+function formatUnixTime(unixTimestamp as Lang.Number) as Lang.String {
+    // 1. Initialize a Moment with the Unix timestamp
+    var moment = new Time.Moment(unixTimestamp);
+
+    // 2. Extract date/time components
+    // Use Gregorian.info() for Local Time, or Gregorian.utcInfo() for UTC
+    var dateInfo = Gregorian.info(moment, Time.FORMAT_SHORT);
+
+    // 3. Format into a readable string (YYYY-MM-DD HH:MM:SS)
+    return Lang.format("$1$-$2$-$3$ $4$:$5$:$6$", [
+        dateInfo.year.format("%04d"),
+        dateInfo.month.format("%02d"),
+        dateInfo.day.format("%02d"),
+        dateInfo.hour.format("%02d"),
+        dateInfo.min.format("%02d"),
+        dateInfo.sec.format("%02d")
+    ]);
+}
