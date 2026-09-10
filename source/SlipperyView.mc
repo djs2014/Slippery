@@ -9,8 +9,10 @@ class SlipperyView extends WatchUi.DataField {
     var mEdgeField as EdgeField = EfSmall;
     var mIsDark as Boolean = false;
     var mLat as Float = 0.0;
+
     private var mWeatherMetrics as WeatherMetrics;
     private var mRiskAssessment as RiskAssessment;
+    private var mHasWeatherData as Boolean = false; // TODO then all color grey
 
     hidden var mFontsNumbers as Array = [
         Graphics.FONT_XTINY,
@@ -50,17 +52,18 @@ class SlipperyView extends WatchUi.DataField {
         if (weatherMetrics == null) {
             return;
         }
-        System.println(weatherMetrics.toString());
+        // System.println(weatherMetrics.toString());
         mWeatherMetrics = weatherMetrics;
         mRiskAssessment = $.calculateRiskAssessment(weatherMetrics);
         System.println(mRiskAssessment.toString());
+        mHasWeatherData = true;
     }
 
     // Set your layout here. Anytime the size of obscurity of
     // the draw context is changed this will be called.
     function onLayout(dc as Dc) as Void {
         dc.clearClip();
-     
+
         mEdgeField = $.getEdgeField(dc);
     }
 
@@ -82,18 +85,22 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(getBackgroundColor(), getBackgroundColor());
         dc.clear();
 
-        
-
         if (mEdgeField == EfOne) {
-            drawEdgeOneField(dc, width, height, mIsDark);
+            drawEdgeOneFieldWithSparkline(dc, width, height, mIsDark);
         } else if (mEdgeField == EfSmall) {
             drawEdgeSmallField(dc, width, height, mIsDark);
         } else if (mEdgeField == EfLarge) {
-            drawEdgeLargeField(dc, width, height, mIsDark);
+            drawEdgeLargeFieldWithSparkline(dc, width, height, mIsDark);
         } else if (mEdgeField == EfWide) {
-            drawEdgeWideField(dc, width, height, mIsDark);
+            drawEdgeWideFieldWithSparkline(dc, width, height, mIsDark);
         }
 
+        if (
+            mBGServiceHandler.getRequestCounter() > 0 &&
+            !mBGServiceHandler.hasError()
+        ) {
+            return;
+        }
         // TODO sep method or refactor a bit to improve readability
         var stats = "";
         if (mEdgeField == EfSmall) {
@@ -171,7 +178,7 @@ class SlipperyView extends WatchUi.DataField {
                 statsWH[1] + 4,
                 4
             );
-            
+
             dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 width / 2,
@@ -183,28 +190,159 @@ class SlipperyView extends WatchUi.DataField {
         }
     }
 
+    private function drawEdgeOneFieldWithSparkline(
+        dc as Graphics.Dc,
+        width as Number,
+        height as Number,
+        isDark as Boolean
+    ) as Void {
+        // 1. Reserve bottom 25% of total height for the 12h Sparkline
+        var sparklineHeight = (height * 0.2).toNumber();
+        var topGridHeight = height - sparklineHeight;
+
+        // Minimum height check: ensure sparkline gets at least 32px to render legibly
+        if (sparklineHeight < 32) {
+            sparklineHeight = 32;
+            topGridHeight = height - sparklineHeight;
+        }
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeOneField(dc, 0, 0, width, topGridHeight, isDark);
+
+        // 3. Draw Divider Line
+        var dividerColor = isDark
+            ? Graphics.COLOR_DK_GRAY
+            : Graphics.COLOR_LT_GRAY;
+        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+
+        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
+        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        var paddingX = 6;
+        PredictiveSparkline.draw(
+            dc,
+            paddingX,
+            topGridHeight + 2,
+            width - paddingX * 2,
+            sparklineHeight - 4,
+            mWeatherMetrics.rainForecast,
+            mWeatherMetrics.windForecast,
+            mWeatherMetrics.windDirForecast,
+            mWeatherMetrics.tempForecast,
+            isDark
+        );
+    }
+    private function drawEdgeLargeFieldWithSparkline(
+        dc as Graphics.Dc,
+        width as Number,
+        height as Number,
+        isDark as Boolean
+    ) as Void {
+        // 1. Reserve bottom 25% of total height for the 12h Sparkline
+        var sparklineHeight = (height * 0.25).toNumber();
+        var topGridHeight = height - sparklineHeight;
+
+        // Minimum height check: ensure sparkline gets at least 32px to render legibly
+        if (sparklineHeight < 32) {
+            sparklineHeight = 32;
+            topGridHeight = height - sparklineHeight;
+        }
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeLargeField(dc, 0, 0, width, topGridHeight, isDark);
+
+        // 3. Draw Divider Line
+        var dividerColor = isDark
+            ? Graphics.COLOR_DK_GRAY
+            : Graphics.COLOR_LT_GRAY;
+        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+
+        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
+        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        var paddingX = 6;
+        PredictiveSparkline.draw(
+            dc,
+            paddingX,
+            topGridHeight + 2,
+            width - paddingX * 2,
+            sparklineHeight - 4,
+            mWeatherMetrics.rainForecast,
+            mWeatherMetrics.windForecast,
+            mWeatherMetrics.windDirForecast,
+            mWeatherMetrics.tempForecast,
+            isDark
+        );
+    }
+
+    private function drawEdgeWideFieldWithSparkline(
+        dc as Graphics.Dc,
+        width as Number,
+        height as Number,
+        isDark as Boolean
+    ) as Void {
+        // 1. Reserve bottom 42% of total height for the 12h Sparkline
+        var sparklineHeight = (height * 0.42).toNumber();
+        var topGridHeight = height - sparklineHeight;
+
+        // Minimum height check: ensure sparkline gets at least 32px to render legibly
+        if (sparklineHeight < 32) {
+            sparklineHeight = 32;
+            topGridHeight = height - sparklineHeight;
+        }
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeWideField(dc, 0, 0, width, topGridHeight, isDark);
+
+        // 3. Draw Divider Line
+        var dividerColor = isDark
+            ? Graphics.COLOR_DK_GRAY
+            : Graphics.COLOR_LT_GRAY;
+        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+
+        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
+        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        var paddingX = 6;
+        PredictiveSparkline.draw(
+            dc,
+            paddingX,
+            topGridHeight + 2,
+            width - paddingX * 2,
+            sparklineHeight - 4,
+            mWeatherMetrics.rainForecast,
+            mWeatherMetrics.windForecast,
+            mWeatherMetrics.windDirForecast,
+            mWeatherMetrics.tempForecast,
+            isDark
+        );
+    }
+
     private function drawEdgeOneField(
         dc as Graphics.Dc,
+        x as Number,
+        y as Number,
         w as Number,
         h as Number,
         isDark as Boolean
     ) as Void {
-        var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
-        var riskLabel = getRiskLevelString(mRiskAssessment.riskLevel);
-
-        var headerBg = riskColor;
-        var headerText = riskLabel;
+        var headerBg = getRiskColor(mRiskAssessment.riskLevel, isDark);
+        var headerText = getRiskLevelString(mRiskAssessment.riskLevel);
+        var riskLabelTextColor = getRiskTextColor(
+            mRiskAssessment.riskLevel,
+            isDark
+        );
 
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.22).toNumber();
         dc.setColor(headerBg, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(0, 0, w, headerHeight);
+        dc.fillRectangle(x, y, w, headerHeight);
 
         // Header Text
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(riskLabelTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            w / 2,
-            headerHeight / 2,
+            x + w / 2,
+            y + headerHeight / 2,
             Graphics.FONT_MEDIUM,
             headerText,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
@@ -224,36 +362,34 @@ class SlipperyView extends WatchUi.DataField {
         // Cell 1: Air Temp
         drawGridCell(
             dc,
-            0,
-            gridTop,
+            x,
+            y + gridTop,
             colWidth,
             rowHeight,
             "AIR TEMP",
             Lang.format("$1$°C", [mWeatherMetrics.airTemp.format("%.1f")]),
             labelColor,
-            textColor
+            mWeatherMetrics.airTemp <= 0 ? Graphics.COLOR_RED : textColor
         );
 
         // Cell 2: Surface Temp
-        var surfColor =
-            mWeatherMetrics.surfaceTemp <= 0 ? Graphics.COLOR_RED : textColor;
         drawGridCell(
             dc,
-            colWidth,
-            gridTop,
+            x + colWidth,
+            y + gridTop,
             colWidth,
             rowHeight,
             "SURFACE",
             Lang.format("$1$°C", [mWeatherMetrics.surfaceTemp.format("%.1f")]),
             labelColor,
-            surfColor
+            mWeatherMetrics.surfaceTemp <= 0 ? Graphics.COLOR_RED : textColor
         );
 
         // Cell 3: Dew Point
         drawGridCell(
             dc,
-            0,
-            gridTop + rowHeight,
+            x,
+            y + gridTop + rowHeight,
             colWidth,
             rowHeight,
             "DEW POINT",
@@ -265,51 +401,57 @@ class SlipperyView extends WatchUi.DataField {
         // Cell 4: Humidity
         drawGridCell(
             dc,
-            colWidth,
-            gridTop + rowHeight,
+            x + colWidth,
+            y + gridTop + rowHeight,
             colWidth,
             rowHeight,
             "HUMIDITY",
             Lang.format("$1$%", [mWeatherMetrics.humidity]),
             labelColor,
-            textColor
+            mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor
         );
 
         // Grid Separator Lines
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(colWidth, gridTop, colWidth, gridTop + gridHeight); // Vertical
-        dc.drawLine(0, gridTop + rowHeight, w, gridTop + rowHeight); // Horizontal
-        dc.drawLine(0, gridTop + gridHeight, w, gridTop + gridHeight); // Bottom
+        dc.drawLine(x + colWidth, y + gridTop, x + colWidth, y + gridTop + gridHeight); // Vertical
+        dc.drawLine(x, y + gridTop + rowHeight, x + w, y + gridTop + rowHeight); // Horizontal
+        dc.drawLine(x, y + gridTop + gridHeight, x + w, y + gridTop + gridHeight); // Bottom
 
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
-        var footerTop = gridTop + gridHeight + 6;
+        var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+        var linePos = gridTop + gridHeight;
         if (mRiskAssessment.hazards.size() > 0) {
-            var primaryHazardStr = getHazardString(mRiskAssessment.hazards[0]);
-
-            dc.setColor(
-                mIsDark ? 0xe5ff00 : 0xb38f00,
-                Graphics.COLOR_TRANSPARENT
-            );
-            dc.drawText(
-                w / 2,
-                footerTop,
-                Graphics.FONT_XTINY,
-                primaryHazardStr,
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
+            for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
+                linePos += lineHeight;
+                var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
+                dc.setColor(
+                    mIsDark ? 0xe5ff00 : 0xb38f00,
+                    Graphics.COLOR_TRANSPARENT
+                );
+                dc.drawText(
+                    w / 2,
+                    linePos,
+                    Graphics.FONT_XTINY,
+                    hazardStr,
+                    Graphics.TEXT_JUSTIFY_CENTER
+                );
+            }
         }
 
         if (mRiskAssessment.advice.size() > 0) {
-            var primaryAdviceStr = getAdviceString(mRiskAssessment.advice[0]);
+            for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
+                linePos += lineHeight;
+                var adviceStr = getAdviceString(mRiskAssessment.advice[i]);
 
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                w / 2,
-                footerTop + 18,
-                Graphics.FONT_XTINY,
-                primaryAdviceStr,
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
+                dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    w / 2,
+                    linePos,
+                    Graphics.FONT_XTINY,
+                    adviceStr,
+                    Graphics.TEXT_JUSTIFY_CENTER
+                );
+            }
         }
     }
 
@@ -373,9 +515,25 @@ class SlipperyView extends WatchUi.DataField {
         var textX = badgeWidth + 6;
         var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
 
-        // 1: Surface Temp
         var y = 2;
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
+        // 1: Air Temperature
+        var airStr = Lang.format("AIR $1$°C", [
+            mWeatherMetrics.airTemp.format("%.1f"),
+        ]);
+        dc.setColor(
+            mWeatherMetrics.airTemp <= 0 ? Graphics.COLOR_RED : textColor,
+            Graphics.COLOR_TRANSPARENT
+        );
+        dc.drawText(
+            textX,
+            y,
+            Graphics.FONT_XTINY,
+            airStr,
+            Graphics.TEXT_JUSTIFY_LEFT
+        );
+
+        // 2: Surface Temperature
         var surfStr = Lang.format("SURF $1$°C", [
             mWeatherMetrics.surfaceTemp.format("%.1f"),
         ]);
@@ -385,12 +543,12 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y,
+            y + lineHeight,
             Graphics.FONT_XTINY,
             surfStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
-        // 2: Humidity
+        // 3: Humidity
         var humidityStr = Lang.format("HUM $1$%", [
             mWeatherMetrics.humidity.format("%.1f"),
         ]);
@@ -400,33 +558,37 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y + lineHeight,
+            y + 2 * lineHeight,
             Graphics.FONT_XTINY,
             humidityStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
 
-        // 3: All Hazard strings (shortened)
+        // 4: All Hazard strings (shortened)
         if (mRiskAssessment.hazards.size() > 0) {
             for (var i = 0; i < mRiskAssessment.hazards.size(); i += 1) {
-                var hazardStr = getShortHazardString(mRiskAssessment.hazards[i]);
+                var hazardStr = getShortHazardString(
+                    mRiskAssessment.hazards[i]
+                );
                 dc.setColor(
                     isDark ? Graphics.COLOR_LT_GRAY : Graphics.COLOR_DK_GRAY,
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
                     textX,
-                    h - 16 + i * lineHeight,
+                    h - lineHeight - i * lineHeight,
                     Graphics.FONT_XTINY,
                     hazardStr,
                     Graphics.TEXT_JUSTIFY_LEFT
                 );
-            }            
+            }
         }
     }
 
     function drawEdgeWideField(
         dc as Graphics.Dc,
+        x as Number,
+        y as Number,
         w as Number,
         h as Number,
         isDark as Boolean
@@ -441,12 +603,12 @@ class SlipperyView extends WatchUi.DataField {
         // Left Column (35%): Risk Block & Hazard
         var leftWidth = (w * 0.35).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(0, 0, leftWidth, (h * 0.55).toNumber());
+        dc.fillRectangle(x, y, leftWidth, (h * 0.55).toNumber());
 
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            leftWidth / 2,
-            (h * 0.27).toNumber(),
+            x + leftWidth / 2,
+            y + (h * 0.27).toNumber(),
             Graphics.FONT_MEDIUM,
             riskLabel,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
@@ -454,19 +616,33 @@ class SlipperyView extends WatchUi.DataField {
 
         // Hazard text underneath badge
         if (mRiskAssessment.hazards.size() > 0) {
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                leftWidth / 2,
-                h - 18,
-                Graphics.FONT_XTINY,
-                getHazardString(mRiskAssessment.hazards[0]),
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
+            var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
+                var hazardStr = getShortHazardString(
+                    mRiskAssessment.hazards[i]
+                );
+                dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    x + 2,
+                    y + h - lineHeight * (mRiskAssessment.hazards.size() - i),
+                    Graphics.FONT_XTINY,
+                    hazardStr,
+                    Graphics.TEXT_JUSTIFY_LEFT
+                );
+            }
+            // dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+            // dc.drawText(
+            //     x + 2,
+            //     y + h - lineHeight,
+            //     Graphics.FONT_XTINY,
+            //     getShortHazardString(mRiskAssessment.hazards[0]),
+            //     Graphics.TEXT_JUSTIFY_LEFT
+            // );
         }
 
         // Divider Line
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(leftWidth, 0, leftWidth, h);
+        dc.drawLine(x + leftWidth, y, x + leftWidth, y + h);
 
         // Right Column (65%): 3 Metrics Side-by-Side
         var rightX = leftWidth;
@@ -475,8 +651,8 @@ class SlipperyView extends WatchUi.DataField {
         // Col 1: Air Temp
         drawMetricColumn(
             dc,
-            rightX,
-            0,
+            x + rightX,
+            y,
             colW,
             h,
             "AIR",
@@ -490,8 +666,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.surfaceTemp <= 0 ? Graphics.COLOR_RED : textColor;
         drawMetricColumn(
             dc,
-            rightX + colW,
-            0,
+            x + rightX + colW,
+            y,
             colW,
             h,
             "SURFACE",
@@ -503,8 +679,8 @@ class SlipperyView extends WatchUi.DataField {
         // Col 3: Dew Point
         drawMetricColumn(
             dc,
-            rightX + colW * 2,
-            0,
+            x + rightX + colW * 2,
+            y,
             colW,
             h,
             "DEW PT",
@@ -516,6 +692,8 @@ class SlipperyView extends WatchUi.DataField {
 
     function drawEdgeLargeField(
         dc as Graphics.Dc,
+        x as Number,
+        y as Number,
         w as Number,
         h as Number,
         isDark as Boolean
@@ -531,37 +709,38 @@ class SlipperyView extends WatchUi.DataField {
             getRiskColor(mRiskAssessment.riskLevel, isDark),
             Graphics.COLOR_TRANSPARENT
         );
-        dc.fillRectangle(0, 0, w, headerH);
+        dc.fillRectangle(x, y, w, headerH);
 
+        var htHeight = dc.getFontHeight(Graphics.FONT_LARGE);
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            w / 2,
-            headerH / 2,
+            x + w / 2,
+            y + headerH - htHeight,
             Graphics.FONT_LARGE,
             getRiskLevelString(mRiskAssessment.riskLevel),
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            Graphics.TEXT_JUSTIFY_CENTER // | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
         // 2. Main 2x2 Grid
-        var gridY = headerH + 4;
-        var gridH = (h * 0.4).toNumber();
+        var gridY = y + headerH + 4;
+        var gridH = (h * 0.5).toNumber();
         var halfW = w / 2;
         var rowH = gridH / 2;
 
         drawGridCell(
             dc,
-            0,
+            x,
             gridY,
             halfW,
             rowH,
             "AIR TEMP",
             Lang.format("$1$°C", [mWeatherMetrics.airTemp.format("%.1f")]),
             labelColor,
-            textColor
+            mWeatherMetrics.airTemp <= 0 ? Graphics.COLOR_RED : textColor
         );
         drawGridCell(
             dc,
-            halfW,
+            x + halfW,
             gridY,
             halfW,
             rowH,
@@ -572,7 +751,7 @@ class SlipperyView extends WatchUi.DataField {
         );
         drawGridCell(
             dc,
-            0,
+            x,
             gridY + rowH,
             halfW,
             rowH,
@@ -583,40 +762,41 @@ class SlipperyView extends WatchUi.DataField {
         );
         drawGridCell(
             dc,
-            halfW,
+            x + halfW,
             gridY + rowH,
             halfW,
             rowH,
             "HUMIDITY",
             Lang.format("$1$%", [mWeatherMetrics.humidity]),
             labelColor,
-            textColor
+            mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor
         );
 
         // Grid Dividers
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(halfW, gridY, halfW, gridY + gridH);
-        dc.drawLine(0, gridY + rowH, w, gridY + rowH);
-        dc.drawLine(0, gridY + gridH, w, gridY + gridH);
+        dc.drawLine(x + halfW, gridY, x + halfW, gridY + gridH);
+        dc.drawLine(x, gridY + rowH, x + w, gridY + rowH);
+        dc.drawLine(x, gridY + gridH, x + w, gridY + gridH);
 
         // 3. Secondary Environmental Context Strip
-        var stripY = gridY + gridH + 6;
-        var stripStr = Lang.format("Dry: $1$h | Precip: $2$mm | Season: $3$", [
-            mWeatherMetrics.dryStreak,
-            mWeatherMetrics.precip12hSum.format("%.1f"),
-            getSeasonString(mWeatherMetrics.currentSeason),
-        ]);
-        dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            w / 2,
-            stripY,
-            Graphics.FONT_XTINY,
-            stripStr,
-            Graphics.TEXT_JUSTIFY_CENTER
-        );
-
+        // var stripY = gridY + gridH + 6;
+        // var stripStr = Lang.format("Dry: $1$h | Precip: $2$mm | Season: $3$", [
+        //     mWeatherMetrics.dryStreak,
+        //     mWeatherMetrics.precip12hSum.format("%.1f"),
+        //     getSeasonString(mWeatherMetrics.currentSeason),
+        // ]);
+        // dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
+        // dc.drawText(
+        //     x + w / 2,
+        //     stripY,
+        //     Graphics.FONT_XTINY,
+        //     stripStr,
+        //     Graphics.TEXT_JUSTIFY_CENTER
+        // );
+        var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY);
         // 4. Hazards & Advice Section
-        var footerY = stripY + 22;
+        // var footerY = stripY + 22;
+        var footerY = gridY + gridH;
         dc.setColor(isDark ? 0xe5ff00 : 0xb38f00, Graphics.COLOR_TRANSPARENT);
 
         // Primary & Secondary Hazards
@@ -627,36 +807,51 @@ class SlipperyView extends WatchUi.DataField {
                     ? " / " + getHazardString(mRiskAssessment.hazards[1])
                     : "";
             dc.drawText(
-                w / 2,
+                x + w / 2,
                 footerY,
                 Graphics.FONT_XTINY,
                 h1 + h2,
                 Graphics.TEXT_JUSTIFY_CENTER
             );
+            if (mRiskAssessment.hazards.size() > 2) {
+                footerY += lineHeight;
+                var h3 = getHazardString(mRiskAssessment.hazards[2]);
+                var h4 =
+                    mRiskAssessment.hazards.size() > 3
+                        ? " / " + getHazardString(mRiskAssessment.hazards[3])
+                        : "";
+                dc.drawText(
+                    x + w / 2,
+                    footerY,
+                    Graphics.FONT_XTINY,
+                    h3 + h4,
+                    Graphics.TEXT_JUSTIFY_CENTER
+                );
+            }
         }
         // Actionable Advice
         if (mRiskAssessment.advice.size() > 0) {
+            footerY += lineHeight;
             dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
             var a1 = getAdviceString(mRiskAssessment.advice[0]);
             dc.drawText(
-                w / 2,
-                footerY + 20,
+                x + w / 2,
+                footerY,
                 Graphics.FONT_XTINY,
                 a1,
                 Graphics.TEXT_JUSTIFY_CENTER
             );
-        }
-        // Actionable Advice
-        if (mRiskAssessment.advice.size() > 0) {
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            var a1 = getAdviceString(mRiskAssessment.advice[0]);
-            dc.drawText(
-                w / 2,
-                footerY + 20,
-                Graphics.FONT_XTINY,
-                a1,
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
+            if (mRiskAssessment.advice.size() > 1) {
+                footerY += lineHeight;
+                var a2 = getAdviceString(mRiskAssessment.advice[1]);
+                dc.drawText(
+                    x + w / 2,
+                    footerY,
+                    Graphics.FONT_XTINY,
+                    a2,
+                    Graphics.TEXT_JUSTIFY_CENTER
+                );
+            }
         }
     }
 
@@ -685,13 +880,9 @@ class SlipperyView extends WatchUi.DataField {
 
         // 2. Draw Metric Value (Mild/Medium font centered vertically in remaining space)
 
-        var font = $.getMatchingFont(
-            dc,
-            mFontsNumbers,
-            colWidth,
-            height,
-            value
-          ) as FontType;
+        var font =
+            $.getMatchingFont(dc, mFontsNumbers, colWidth, height, value) as
+            FontType;
 
         dc.setColor(valueColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
@@ -708,27 +899,29 @@ class SlipperyView extends WatchUi.DataField {
     }
 }
 
-
 function getMatchingFont(
-  dc as Dc,
-  fontList as Array,
-  maxWidth as Number,
-  maxHeight as Number,
-  text as String
+    dc as Dc,
+    fontList as Array,
+    maxWidth as Number,
+    maxHeight as Number,
+    text as String
 ) as FontType {
-  var index = fontList.size() - 1;
-  var font = fontList[index] as FontType;
-  // System.println(Lang.format("text[$1$] max w[$2$]h[$3$]",[text, maxWidth, maxHeight]));
-  // wxh
-  var dimensions = dc.getTextDimensions(text, font);
-  // System.println(Lang.format(" dim w[$1$]h[$2$]",dimensions));
-  // while height or width of font too big, find another font
-  while ((dimensions[0] > maxWidth || dimensions[1] > maxHeight) && index > 0) {
-    index = index - 1;
-    font = fontList[index] as FontType;
-    dimensions = dc.getTextDimensions(text, font);
+    var index = fontList.size() - 1;
+    var font = fontList[index] as FontType;
+    // System.println(Lang.format("text[$1$] max w[$2$]h[$3$]",[text, maxWidth, maxHeight]));
+    // wxh
+    var dimensions = dc.getTextDimensions(text, font);
     // System.println(Lang.format(" dim w[$1$]h[$2$]",dimensions));
-  }
-  // System.println("font index: " + index);
-  return font;
+    // while height or width of font too big, find another font
+    while (
+        (dimensions[0] > maxWidth || dimensions[1] > maxHeight) &&
+        index > 0
+    ) {
+        index = index - 1;
+        font = fontList[index] as FontType;
+        dimensions = dc.getTextDimensions(text, font);
+        // System.println(Lang.format(" dim w[$1$]h[$2$]",dimensions));
+    }
+    // System.println("font index: " + index);
+    return font;
 }

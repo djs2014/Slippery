@@ -1,4 +1,18 @@
-### Test call for Open Meteo API
-GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature&past_days=1&forecast_days=1&timezone=auto&timeformat=unixtime
+### Test call for Open Meteo API for prediction slippery conditions
+### past_days=1&forecast_days=1
+### or
+### past_hours=48&forecast_hours=24 
+GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature,wind_speed_10m,wind_gusts_10m&past_hours=48&forecast_hours=24&timezone=auto&timeformat=unixtime
 
-###
+### Test of all Weather Data current hour up to 12 hours &timeformat=unixtime
+### As for What weather data is needed
+### uv index, wind speed, wind direction, wind gust, cloud cover, weather condition, rain minutely
+### etc.
+GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=uv_index,windspeed_10m,winddirection_10m,windgusts_10m,cloudcover,weathercode,rain,temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature&past_days=0&forecast_days=1&timezone=auto&past_hours=0&forecast_hours=24
+
+### Test call for weather alert
+### @@TODO
+GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&alerts=1&timezone=auto
+
+
+,wind_speed_10m,wind_gusts_10m

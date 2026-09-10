@@ -1,30 +1,44 @@
 - Menu
+    options:
+
 - BG call
-    - get weather data
     - cache it
-- Calc slipperyness on bg data event
 
 - View
     show details
     -> display options: ??
 
-- git -> remote
 
 +
 - linux taskbar app for local use
 
 - option to collect lat/lon during commute 
-- for predict commute track
-- reset option after activity done
+    - for predict commute track
+    - reset option after activity done
 
+- no data -> text gray 
+- sync themecolor all field sizes
+- temp/surface/dewp/hum colors sync on all field sizes 
 
-## Parsing the hourly time
+crash on edge?
+background dark - level ..
+title tonen "slippery condition"
 
-How to Calculate Time Offsets In-Memory
-Because Open-Meteo arrays are strictly sequential and hourly aligned:
+if safe current hour then calc until not safe and
+- starttime counter for slippery alert (timesec-nowsec)
 
-Note the start_time (first entry of the array).
+- display small bars rain/snow mm / hour
+- + severity 
 
-The i-th element in any weather array corresponds exactly to start_time + (i * 3600) seconds.
-
-Once you extract the start index in Monkey C, you can immediately discard or ignore the time array in memory.
+- title of app
+- compacter stats 
+    only when no data or error
+    #1 only?
+    labeltext ahv isDarkColor func
+    large + one field with prediction ..
+    icons or abbr for
+    - air temp
+    - surface temp
+    - dew point
+    - humidity
+    
