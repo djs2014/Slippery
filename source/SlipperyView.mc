@@ -88,7 +88,7 @@ class SlipperyView extends WatchUi.DataField {
         if (mEdgeField == EfOne) {
             drawEdgeOneFieldWithSparkline(dc, width, height, mIsDark);
         } else if (mEdgeField == EfSmall) {
-            drawEdgeSmallField(dc, width, height, mIsDark);
+            drawEdgeSmallFieldWithSparkline(dc, width, height, mIsDark);
         } else if (mEdgeField == EfLarge) {
             drawEdgeLargeFieldWithSparkline(dc, width, height, mIsDark);
         } else if (mEdgeField == EfWide) {
@@ -190,6 +190,49 @@ class SlipperyView extends WatchUi.DataField {
         }
     }
 
+    private function drawEdgeSmallFieldWithSparkline(
+        dc as Graphics.Dc,
+        width as Number,
+        height as Number,
+        isDark as Boolean
+    ) as Void {
+        // 1. Reserve bottom 10% of total height for the 12h Sparkline
+        var sparklineHeight = (height * 0.1).toNumber();
+        var topGridHeight = height - sparklineHeight;
+
+        // Minimum height check: ensure sparkline gets at least 20px to render legibly
+        if (sparklineHeight < 20) {
+            sparklineHeight = 20;
+            topGridHeight = height - sparklineHeight;
+        }
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeSmallField(dc, 0, 0, width, topGridHeight, isDark);
+
+        // 3. Draw Divider Line
+        var dividerColor = isDark
+            ? Graphics.COLOR_DK_GRAY
+            : Graphics.COLOR_LT_GRAY;
+        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+
+        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
+        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        var paddingX = 6;
+        PredictiveSparkline.draw(
+            dc,
+            paddingX,
+            topGridHeight + 2,
+            width - paddingX * 2,
+            sparklineHeight - 4,
+            mWeatherMetrics.rainForecast,
+            mWeatherMetrics.windForecast,
+            mWeatherMetrics.windDirForecast,
+            mWeatherMetrics.tempForecast,
+            isDark,
+            false
+        );
+    }
     private function drawEdgeOneFieldWithSparkline(
         dc as Graphics.Dc,
         width as Number,
@@ -229,7 +272,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.windForecast,
             mWeatherMetrics.windDirForecast,
             mWeatherMetrics.tempForecast,
-            isDark
+            isDark,
+            true
         );
     }
     private function drawEdgeLargeFieldWithSparkline(
@@ -271,7 +315,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.windForecast,
             mWeatherMetrics.windDirForecast,
             mWeatherMetrics.tempForecast,
-            isDark
+            isDark,
+            true
         );
     }
 
@@ -314,7 +359,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.windForecast,
             mWeatherMetrics.windDirForecast,
             mWeatherMetrics.tempForecast,
-            isDark
+            isDark,
+            true
         );
     }
 
@@ -413,9 +459,19 @@ class SlipperyView extends WatchUi.DataField {
 
         // Grid Separator Lines
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x + colWidth, y + gridTop, x + colWidth, y + gridTop + gridHeight); // Vertical
+        dc.drawLine(
+            x + colWidth,
+            y + gridTop,
+            x + colWidth,
+            y + gridTop + gridHeight
+        ); // Vertical
         dc.drawLine(x, y + gridTop + rowHeight, x + w, y + gridTop + rowHeight); // Horizontal
-        dc.drawLine(x, y + gridTop + gridHeight, x + w, y + gridTop + gridHeight); // Bottom
+        dc.drawLine(
+            x,
+            y + gridTop + gridHeight,
+            x + w,
+            y + gridTop + gridHeight
+        ); // Bottom
 
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
         var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
@@ -489,6 +545,8 @@ class SlipperyView extends WatchUi.DataField {
 
     function drawEdgeSmallField(
         dc as Graphics.Dc,
+        x as Number,
+        y as Number,
         w as Number,
         h as Number,
         isDark as Boolean
@@ -499,13 +557,13 @@ class SlipperyView extends WatchUi.DataField {
         // Left 30%: Solid risk badge
         var badgeWidth = (w * 0.3).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(0, 0, badgeWidth, h);
+        dc.fillRectangle(x, y, badgeWidth, h);
 
         // Badge text
         dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            badgeWidth / 2,
-            h / 2,
+            x + badgeWidth / 2,
+            y + h / 2,
             Graphics.FONT_TINY,
             riskLabel,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
@@ -515,7 +573,7 @@ class SlipperyView extends WatchUi.DataField {
         var textX = badgeWidth + 6;
         var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
 
-        var y = 2;
+        var yOffset = 2;
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
         // 1: Air Temperature
         var airStr = Lang.format("AIR $1$°C", [
@@ -527,7 +585,7 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y,
+            y + yOffset,
             Graphics.FONT_XTINY,
             airStr,
             Graphics.TEXT_JUSTIFY_LEFT
@@ -543,7 +601,7 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y + lineHeight,
+            y + yOffset + lineHeight,
             Graphics.FONT_XTINY,
             surfStr,
             Graphics.TEXT_JUSTIFY_LEFT
@@ -558,7 +616,7 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y + 2 * lineHeight,
+            y + yOffset + 2 * lineHeight,
             Graphics.FONT_XTINY,
             humidityStr,
             Graphics.TEXT_JUSTIFY_LEFT
@@ -576,7 +634,7 @@ class SlipperyView extends WatchUi.DataField {
                 );
                 dc.drawText(
                     textX,
-                    h - lineHeight - i * lineHeight,
+                    y + h - lineHeight - i * lineHeight,
                     Graphics.FONT_XTINY,
                     hazardStr,
                     Graphics.TEXT_JUSTIFY_LEFT

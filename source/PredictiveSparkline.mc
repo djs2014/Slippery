@@ -13,7 +13,8 @@ class PredictiveSparkline {
         windForecast as Array<Float>, // 12 Float items (km/h)
         windDirForecast as Array<Number>, // 12 Number items (0-359 deg)
         tempForecast as Array<Float>, // 12 Float items (°C surface/air)
-        isDark as Boolean
+        isDark as Boolean,
+        showLabels as Boolean
     ) as Void {
         var numHours = rainForecast.size();
         if (numHours == 0) {
@@ -27,8 +28,17 @@ class PredictiveSparkline {
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
             : Graphics.COLOR_DK_GRAY;
-        var baselineY = y + height - 16; // Reserve 16px at bottom for wind arrows + labels
-        var chartHeight = baselineY - y - 14;
+        var offsetLabels = 16;
+        var offsetChartHeight = 14;
+        var offsetIceBars = 12;
+        if (!showLabels) {
+            offsetLabels = 0;
+            offsetChartHeight = 0;
+            offsetIceBars = 0;
+        }
+        var baselineY = y + height - offsetLabels; // Reserve 16px at bottom for wind arrows + labels
+        var chartHeight = baselineY - y - offsetChartHeight;
+        
 
         // --- 1. FREEZING RISK BACKGROUND TINT ---
         // Highlight ice risk slots where temperature <= 0.0°C
@@ -43,7 +53,7 @@ class PredictiveSparkline {
                     isDark ? 0x003366 : 0xcce6ff,
                     Graphics.COLOR_TRANSPARENT
                 );
-                dc.fillRectangle(bx, y + 12, barWidth, chartHeight + 2);
+                dc.fillRectangle(bx, y + offsetIceBars, barWidth, chartHeight + 2);
             }
         }
 
@@ -51,22 +61,24 @@ class PredictiveSparkline {
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
 
-        dc.drawText(
-            x,
-            baselineY + 3,
-            Graphics.FONT_XTINY,
-            "Now",
-            Graphics.TEXT_JUSTIFY_LEFT
-        );
+        if (showLabels) {
+            dc.drawText(
+                x,
+                baselineY + 3,
+                Graphics.FONT_XTINY,
+                "Now",
+                Graphics.TEXT_JUSTIFY_LEFT
+            );
 
-        dc.drawText(
-            x + width,
-            baselineY + 3,
-            Graphics.FONT_XTINY,
-            Lang.format("+$1$h", [numHours.format("%d")]),
-            Graphics.TEXT_JUSTIFY_RIGHT
-        );
-        
+            dc.drawText(
+                x + width,
+                baselineY + 3,
+                Graphics.FONT_XTINY,
+                Lang.format("+$1$h", [numHours.format("%d")]),
+                Graphics.TEXT_JUSTIFY_RIGHT
+            );
+        }
+
         // --- 3. RAIN PRECIPITATION BARS ---
         var maxRain = 2.0f;
         for (var i = 0; i < numHours; i++) {
@@ -111,7 +123,7 @@ class PredictiveSparkline {
             }
         }
         // Display remaining time until first rain (if any)
-        if (rainStartIdx != -1) {
+        if (showLabels && rainStartIdx != -1) {
             dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 (x + width) / 2,
@@ -170,16 +182,17 @@ class PredictiveSparkline {
             prevY = py;
         }
 
-        // --- 5. TOP HEADER & FREEZE INDICATOR ---
-        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            x,
-            y,
-            Graphics.FONT_XTINY,
-            Lang.format("+$1$H FORECAST", [numHours.format("%d")]),
-            Graphics.TEXT_JUSTIFY_LEFT
-        );
-
+        if (showLabels) {
+            // --- 5. TOP HEADER & FREEZE INDICATOR ---
+            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                x,
+                y,
+                Graphics.FONT_XTINY,
+                Lang.format("+$1$H FORECAST", [numHours.format("%d")]),
+                Graphics.TEXT_JUSTIFY_LEFT
+            );
+        }
         // Show explicit ICE indicator in header if sub-zero temps exist ahead
         var hasIceAhead = false;
         if (tempForecast != null) {
