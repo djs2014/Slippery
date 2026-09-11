@@ -30,6 +30,10 @@ if safe current hour then calc until not safe and
 - display small bars rain/snow mm / hour
 - + severity 
 
+- on hour switch ->
+    - update forecast bar
+    - TODO cache next hour
+    
 - title of app
 - compacter stats 
     only when no data or error
@@ -43,24 +47,3 @@ if safe current hour then calc until not safe and
     - humidity
     
 
-
-    // Inside your header rendering block:
-if (metrics.minutesUntilRain >= 0 && metrics.minutesUntilRain <= 30 && metrics.rainCurrent < 0.1f) {
-    var alertText = (metrics.minutesUntilRain == 0) 
-        ? "RAIN STARTING NOW" 
-        : "RAIN IN " + metrics.minutesUntilRain + " MIN";
-
-    // Draw solid alert box
-    dc.setColor(Gfx.COLOR_BLUE, Gfx.COLOR_TRANSPARENT);
-    dc.fillRectangle(bannerX, bannerY, bannerWidth, bannerHeight);
-
-    // White bold text
-    dc.setColor(Gfx.COLOR_WHITE, Gfx.COLOR_TRANSPARENT);
-    dc.drawText(
-        bannerX + (bannerWidth / 2), 
-        bannerY + (bannerHeight / 2), 
-        Gfx.FONT_SMALL, 
-        alertText, 
-        Gfx.TEXT_JUSTIFY_CENTER | Gfx.TEXT_JUSTIFY_VCENTER
-    );
-}
