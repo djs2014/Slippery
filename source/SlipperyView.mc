@@ -9,10 +9,15 @@ class SlipperyView extends WatchUi.DataField {
     var mEdgeField as EdgeField = EfSmall;
     var mIsDark as Boolean = false;
     var mLat as Float = 0.0;
+    var mAppName = "Slippery";
 
     private var mWeatherMetrics as WeatherMetrics;
     private var mRiskAssessment as RiskAssessment;
     private var mHasWeatherData as Boolean = false; // TODO then all color grey
+
+    private var mMinutesUntilSecondsCounter as Number = 0;
+    private var mMinutesUntilRain as Number = -1;
+    private var mMinutesUntilSnow as Number = -1;
 
     hidden var mFontsNumbers as Array = [
         Graphics.FONT_XTINY,
@@ -52,11 +57,14 @@ class SlipperyView extends WatchUi.DataField {
         if (weatherMetrics == null) {
             return;
         }
-        // System.println(weatherMetrics.toString());
-        mWeatherMetrics = weatherMetrics;
-        mRiskAssessment = $.calculateRiskAssessment(weatherMetrics);
-        System.println(mRiskAssessment.toString());
         mHasWeatherData = true;
+        System.println(weatherMetrics.toString());
+        mWeatherMetrics = weatherMetrics;
+        mRiskAssessment =
+            WeatherService.calculateRiskAssessment(weatherMetrics);
+        System.println(mRiskAssessment.toString());
+
+        initializeMinutesUntilCounters();
     }
 
     // Set your layout here. Anytime the size of obscurity of
@@ -74,6 +82,37 @@ class SlipperyView extends WatchUi.DataField {
         } else {
             $.g_bg_delay_seconds = $.g_bg_delay_seconds - 1;
         }
+        processMinutesUntilCounters();
+    }
+
+    function initializeMinutesUntilCounters() as Void {
+        if (mWeatherMetrics.immediateRain < 0) {
+            mMinutesUntilRain = -1;
+        } else {
+            mMinutesUntilRain = mWeatherMetrics.immediateRain * 15;
+        }
+        if (mWeatherMetrics.immediateSnow < 0) {
+            mMinutesUntilSnow = -1;
+        } else {
+            mMinutesUntilSnow = mWeatherMetrics.immediateSnow * 15;
+        }        
+        mMinutesUntilSecondsCounter = 0;
+    }
+
+    // This will called every second
+    function processMinutesUntilCounters() as Void {
+        // If a minute counter is active, decrement it
+        // Increment the seconds counter
+        mMinutesUntilSecondsCounter = mMinutesUntilSecondsCounter + 1;
+        if (mMinutesUntilSecondsCounter >= 60) {
+            mMinutesUntilSecondsCounter = 0;
+            if (mMinutesUntilRain > 0) {
+                mMinutesUntilRain = mMinutesUntilRain - 1;
+            }
+            if (mMinutesUntilSnow > 0) {
+                mMinutesUntilSnow = mMinutesUntilSnow - 1;
+            }
+        }        
     }
 
     function onUpdate(dc as Dc) as Void {
@@ -225,10 +264,7 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight + 2,
             width - paddingX * 2,
             sparklineHeight - 4,
-            mWeatherMetrics.rainForecast,
-            mWeatherMetrics.windForecast,
-            mWeatherMetrics.windDirForecast,
-            mWeatherMetrics.tempForecast,
+            mWeatherMetrics,
             isDark,
             false
         );
@@ -268,10 +304,7 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight + 2,
             width - paddingX * 2,
             sparklineHeight - 4,
-            mWeatherMetrics.rainForecast,
-            mWeatherMetrics.windForecast,
-            mWeatherMetrics.windDirForecast,
-            mWeatherMetrics.tempForecast,
+            mWeatherMetrics,
             isDark,
             true
         );
@@ -311,10 +344,7 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight + 2,
             width - paddingX * 2,
             sparklineHeight - 4,
-            mWeatherMetrics.rainForecast,
-            mWeatherMetrics.windForecast,
-            mWeatherMetrics.windDirForecast,
-            mWeatherMetrics.tempForecast,
+            mWeatherMetrics,
             isDark,
             true
         );
@@ -355,15 +385,12 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight + 2,
             width - paddingX * 2,
             sparklineHeight - 4,
-            mWeatherMetrics.rainForecast,
-            mWeatherMetrics.windForecast,
-            mWeatherMetrics.windDirForecast,
-            mWeatherMetrics.tempForecast,
+            mWeatherMetrics,
             isDark,
             true
         );
     }
-
+   
     private function drawEdgeOneField(
         dc as Graphics.Dc,
         x as Number,
@@ -372,27 +399,66 @@ class SlipperyView extends WatchUi.DataField {
         h as Number,
         isDark as Boolean
     ) as Void {
-        var headerBg = getRiskColor(mRiskAssessment.riskLevel, isDark);
-        var headerText = getRiskLevelString(mRiskAssessment.riskLevel);
-        var riskLabelTextColor = getRiskTextColor(
-            mRiskAssessment.riskLevel,
-            isDark
-        );
+        var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
+        var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
+        var isRiskColorLight = $.isColorLight(riskColor);
+        var riskTextColor = isRiskColorLight
+            ? Graphics.COLOR_BLACK
+            : Graphics.COLOR_WHITE;
 
+        var textColor = ThemeManager.getThemeColor(:text, isDark);
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.22).toNumber();
-        dc.setColor(headerBg, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, w, headerHeight);
 
-        // Header Text
-        dc.setColor(riskLabelTextColor, Graphics.COLOR_TRANSPARENT);
+        // --- TOP BAR: App Title + Risk Level ---
+        var headerLineHeight = Graphics.getFontHeight(Graphics.FONT_SMALL);
+
+        dc.setColor(riskTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            x + w / 2,
-            y + headerHeight / 2,
-            Graphics.FONT_MEDIUM,
-            headerText,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            x + 6,
+            y + (headerHeight - headerLineHeight) / 2,
+            Graphics.FONT_SMALL,
+            mAppName,
+            Graphics.TEXT_JUSTIFY_LEFT 
         );
+
+        var centerHeaderY = y + (headerHeight - headerLineHeight) / 2; 
+        dc.drawText(
+            x + w - 6,
+            centerHeaderY,
+            Graphics.FONT_SMALL,
+            riskLevelText,
+            Graphics.TEXT_JUSTIFY_RIGHT 
+        );
+
+        // --- BOTTOM ROW: Dynamic Full-Width Rain Warning Strip ---
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            var alertY = centerHeaderY + headerLineHeight + 4;
+            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            var alertH = alertLineHeight + 4;
+            
+            dc.setColor(0x0088cc, Graphics.COLOR_TRANSPARENT); // Deep Cyan
+            dc.fillRectangle(x, alertY, w, alertH);
+            dc.setColor(
+                Graphics.COLOR_WHITE,
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x + w / 2,
+                alertY + alertH / 2,
+                Graphics.FONT_XTINY,
+                $.getPrecipitationAlertMessage(
+                    mMinutesUntilRain,
+                    mMinutesUntilSnow
+                ),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
 
         // --- DRAW 2x2 METRICS GRID ---
         var gridTop = headerHeight + 4;
@@ -400,10 +466,7 @@ class SlipperyView extends WatchUi.DataField {
         var colWidth = w / 2;
         var rowHeight = gridHeight / 2;
 
-        var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
-        var labelColor = isDark
-            ? Graphics.COLOR_LT_GRAY
-            : Graphics.COLOR_DK_GRAY;
+        var labelColor = ThemeManager.getThemeColor(:label, isDark);
 
         // Cell 1: Air Temp
         drawGridCell(
@@ -552,20 +615,26 @@ class SlipperyView extends WatchUi.DataField {
         isDark as Boolean
     ) as Void {
         var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
-        var riskLabel = getShortRiskLabel(mRiskAssessment.riskLevel);
+        var isRiskColorLight = $.isColorLight(riskColor);
+        var badgeTextColor = isRiskColorLight
+            ? Graphics.COLOR_BLACK
+            : Graphics.COLOR_WHITE;
 
         // Left 30%: Solid risk badge
         var badgeWidth = (w * 0.3).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, badgeWidth, h);
 
-        // Badge text
-        dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_TRANSPARENT);
+        var headerText = getImminentPrecipitationText();
+        if (headerText == "") {
+            headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
+        }
+        dc.setColor(badgeTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + badgeWidth / 2,
             y + h / 2,
             Graphics.FONT_TINY,
-            riskLabel,
+            headerText,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
@@ -954,6 +1023,20 @@ class SlipperyView extends WatchUi.DataField {
         // 3. Optional Right Divider Line
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + colWidth, y + 4, x + colWidth, y + height - 4);
+    }
+
+    function getImminentPrecipitationText() as String {
+        if (mMinutesUntilSnow > 0 && mMinutesUntilSnow <= 30) {
+            return mMinutesUntilSnow == 0
+                ? "SNOW NOW"
+                : "SNOW IN " + mMinutesUntilSnow + "M";
+        }
+        if (mMinutesUntilRain > 0 && mMinutesUntilRain <= 30) {
+            return mMinutesUntilRain == 0
+                ? "RAIN NOW"
+                : "RAIN IN " + mMinutesUntilRain + "M";
+        }
+        return "";
     }
 }
 

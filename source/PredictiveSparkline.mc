@@ -1,6 +1,7 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
+import Toybox.Time;
 
 class PredictiveSparkline {
     public static function draw(
@@ -9,13 +10,16 @@ class PredictiveSparkline {
         y as Number,
         width as Number,
         height as Number,
-        rainForecast as Array<Float>, // 12 Float items (mm/h)
-        windForecast as Array<Float>, // 12 Float items (km/h)
-        windDirForecast as Array<Number>, // 12 Number items (0-359 deg)
-        tempForecast as Array<Float>, // 12 Float items (°C surface/air)
+        metrics as WeatherMetrics,
         isDark as Boolean,
         showLabels as Boolean
     ) as Void {
+        var rainForecast = metrics.rainForecast; // Float items (mm/h)
+        var windForecast = metrics.windForecast; // Float items (km/h)
+        var windDirForecast = metrics.windDirForecast; // Number items (0-359 deg)
+        var tempForecast = metrics.tempForecast; // Float items (°C surface/air)
+        var timeStampsForeCast = metrics.timeStampsForeCast; // Number items (unixtime in seconds)
+
         var numHours = rainForecast.size();
         if (numHours == 0) {
             return;
@@ -38,7 +42,6 @@ class PredictiveSparkline {
         }
         var baselineY = y + height - offsetLabels; // Reserve 16px at bottom for wind arrows + labels
         var chartHeight = baselineY - y - offsetChartHeight;
-        
 
         // --- 1. FREEZING RISK BACKGROUND TINT ---
         // Highlight ice risk slots where temperature <= 0.0°C
@@ -53,7 +56,12 @@ class PredictiveSparkline {
                     isDark ? 0x003366 : 0xcce6ff,
                     Graphics.COLOR_TRANSPARENT
                 );
-                dc.fillRectangle(bx, y + offsetIceBars, barWidth, chartHeight + 2);
+                dc.fillRectangle(
+                    bx,
+                    y + offsetIceBars,
+                    barWidth,
+                    chartHeight + 2
+                );
             }
         }
 
@@ -124,14 +132,24 @@ class PredictiveSparkline {
         }
         // Display remaining time until first rain (if any)
         if (showLabels && rainStartIdx != -1) {
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                (x + width) / 2,
-                baselineY + 3,
-                Graphics.FONT_XTINY,
-                Lang.format("first rain in $1$h", [rainStartIdx.format("%d")]),
-                Graphics.TEXT_JUSTIFY_CENTER
-            );
+            // Get timestamp for the first rain event (if available)
+            if (rainStartIdx < timeStampsForeCast.size()) {
+                var firstRainTime = timeStampsForeCast[rainStartIdx];
+                // Difference in hours:minute from current time
+                var diffSec = firstRainTime - Time.now().value();
+                if (diffSec > 0) {
+                    dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(
+                        (x + width) / 2,
+                        baselineY + 3,
+                        Graphics.FONT_XTINY,
+                        Lang.format("first rain in $1$", [
+                            $.secondsToShortTimeString(diffSec,"{h}:{m}:{s}"),
+                        ]),
+                        Graphics.TEXT_JUSTIFY_CENTER
+                    );
+                }
+            }
         }
 
         // --- 4. WIND GUST SPARKLINE & DIRECTION ARROWS ---
@@ -182,17 +200,17 @@ class PredictiveSparkline {
             prevY = py;
         }
 
-        if (showLabels) {
-            // --- 5. TOP HEADER & FREEZE INDICATOR ---
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                x,
-                y,
-                Graphics.FONT_XTINY,
-                Lang.format("+$1$H FORECAST", [numHours.format("%d")]),
-                Graphics.TEXT_JUSTIFY_LEFT
-            );
-        }
+        // if (showLabels) {
+        //     // --- 5. TOP HEADER & FREEZE INDICATOR ---
+        //     dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+        //     dc.drawText(
+        //         x,
+        //         y,
+        //         Graphics.FONT_XTINY,
+        //         Lang.format("+$1$H FORECAST", [numHours.format("%d")]),
+        //         Graphics.TEXT_JUSTIFY_LEFT
+        //     );
+        // }
         // Show explicit ICE indicator in header if sub-zero temps exist ahead
         var hasIceAhead = false;
         if (tempForecast != null) {

@@ -41,6 +41,8 @@ class ThemeManager {
                     return Graphics.COLOR_WHITE;
                 case :background:
                     return Graphics.COLOR_BLACK;
+                case :label:
+                    return Graphics.COLOR_LT_GRAY;
             }
         } else {
             // Light Theme
@@ -71,6 +73,8 @@ class ThemeManager {
                     return Graphics.COLOR_BLACK;
                 case :background:
                     return Graphics.COLOR_WHITE;
+                case :label:
+                    return Graphics.COLOR_DK_GRAY;
             }
         }
         return Graphics.COLOR_WHITE;

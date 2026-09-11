@@ -61,10 +61,13 @@ class BackgroundServiceDelegate extends System.ServiceDelegate {
       var pastHours = 12;
       var forecastHours = Storage.getValue("forecast_hours");
       if (forecastHours == null) {
-        forecastHours = 13;
+        forecastHours = 12;
       }
       forecastHours = forecastHours.toNumber();
 
+      // 1 hour of 15-minute interval forecast data
+      var forecastRain15min = 4;      
+      
       var apiUrl = "https://api.open-meteo.com/v1/forecast";
 
       // convert the lat and lon comma to period
@@ -96,6 +99,8 @@ class BackgroundServiceDelegate extends System.ServiceDelegate {
           "forecast_hours" => forecastHours.toString(),
           "timezone" => "auto", // Convert to local time
           "timeformat" => "unixtime", // payload is smaller
+          "minutely_15" => "rain,snowfall",
+          "forecast_minutely_15" => forecastRain15min.toString()
         }) as Lang.Dictionary<Lang.Object, Lang.Object>;
 
       if (!requestData(apiUrl as String, params)) {

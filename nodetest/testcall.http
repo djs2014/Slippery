@@ -2,7 +2,7 @@
 ### past_days=1&forecast_days=1
 ### or
 ### past_hours=48&forecast_hours=24 
-GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature,wind_speed_10m,wind_gusts_10m&past_hours=48&forecast_hours=24&timezone=auto&timeformat=unixtime
+GET https://api.open-meteo.com/v1/forecast?latitude=52.188950&longitude=4.549666&hourly=temperature_2m,relativehumidity_2m,dewpoint_2m,precipitation,rain,snowfall,surface_temperature,wind_speed_10m,wind_gusts_10m&minutely_15=precipitation,rain,snowfall&forecast_minutely_15=24&past_hours=48&forecast_hours=24&timezone=auto&timeformat=unixtime
 
 ### Test of all Weather Data current hour up to 12 hours &timeformat=unixtime
 ### As for What weather data is needed
