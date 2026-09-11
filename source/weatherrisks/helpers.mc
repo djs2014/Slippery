@@ -310,7 +310,6 @@ function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSn
     var precipType = 0; // 0 = None, 1 = Rain, 2 = Snow, 3 = Freezing Rain
 
     var typeStr = "RAIN";
-    var icon = "🌧️";
     if (minutesUntilRain >= 0 && minutesUntilRain <= 45) {
         precipType = 1;
     }
@@ -332,15 +331,13 @@ function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSn
     
     if (precipType == 2) {
         typeStr = "SNOW";
-        icon = "❄️";
     } else if (precipType == 3) {
         typeStr = "SLEET";
-        icon = "🌧️❄️";
     }
 
     if (minutesUntil == 0) {
-        return icon + " " + typeStr + " STARTING NOW";
+        return typeStr + " STARTING";
     } else {
-        return icon + " " + typeStr + " IN " + minutesUntil + " MIN";
+        return typeStr + " IN " + minutesUntil + " MIN";
     }
 }

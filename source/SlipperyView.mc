@@ -14,6 +14,8 @@ class SlipperyView extends WatchUi.DataField {
     private var mWeatherMetrics as WeatherMetrics;
     private var mRiskAssessment as RiskAssessment;
     private var mHasWeatherData as Boolean = false; // TODO then all color grey
+    private var mHazardStrings as Array<String> = [];
+    private var mAdviceStrings as Array<String> = [];
 
     private var mMinutesUntilSecondsCounter as Number = 0;
     private var mMinutesUntilRain as Number = -1;
@@ -67,7 +69,23 @@ class SlipperyView extends WatchUi.DataField {
             WeatherService.calculateRiskAssessment(weatherMetrics);
         System.println(mRiskAssessment.toString());
 
+        setHazardAndAdviceStrings();
         initializeMinutesUntilCounters();
+        WatchUi.requestUpdate();
+    }
+
+    function setHazardAndAdviceStrings() as Void {
+        var hazardStrings = [];
+        for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
+            hazardStrings.add(getHazardString(mRiskAssessment.hazards[i]));
+        }
+        var adviceStrings = [];
+        for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
+            adviceStrings.add(getAdviceString(mRiskAssessment.advice[i]));
+        }
+        // Atomic swap: Single pointer assignment is thread-safe
+        mHazardStrings = hazardStrings;
+        mAdviceStrings = adviceStrings;
     }
 
     // Set your layout here. Anytime the size of obscurity of
@@ -448,8 +466,6 @@ class SlipperyView extends WatchUi.DataField {
             ? Graphics.COLOR_BLACK
             : Graphics.COLOR_WHITE;
 
-        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
-
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.22).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
@@ -593,56 +609,35 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
-        var lineHeightHazards = Graphics.getFontHeight(Graphics.FONT_XTINY);
+
+        // Capture pointer once at start of frame
+        var localHazards = mHazardStrings;
+        var localAdvice = mAdviceStrings;
         var linePos = gridTop + gridHeight + 2;
-        if (mRiskAssessment.hazards.size() > 0) {
-            for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
-                var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
-                // Optional second hazard
-                // if width allows TODO
-                if (mRiskAssessment.hazards.size() > i + 1) {
-                    hazardStr +=
-                        " / " + getHazardString(mRiskAssessment.hazards[i + 1]);
-                    i++;
-                }
-                dc.setColor(
-                    AppState.activePalette[ThemeManager.COLOR_HAZARD],
-                    Graphics.COLOR_TRANSPARENT
-                );
-                dc.drawText(
-                    w / 2,
-                    linePos,
-                    Graphics.FONT_XTINY,
-                    hazardStr,
-                    Graphics.TEXT_JUSTIFY_CENTER
-                );
-                linePos += lineHeightHazards;
-            }
+        if (localHazards.size() > 0) {
+            linePos += StringListRenderer.drawCenteredWrappedStrings(
+                dc,
+                localHazards,
+                x,
+                linePos,
+                w,
+                localHazards.size(), // maxLines
+                Graphics.FONT_TINY,
+                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+            );
         }
 
-        if (mRiskAssessment.advice.size() > 0) {
-            for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
-                var adviceStr = getAdviceString(mRiskAssessment.advice[i]);
-                // Optional second advice if width allows TODO
-                // if (mRiskAssessment.advice.size() > i + 1) {
-                //     adviceStr +=
-                //         " / " + getAdviceString(mRiskAssessment.advice[i + 1]);
-                //     i++;
-                // }
-
-                dc.setColor(
-                    AppState.activePalette[ThemeManager.COLOR_TEXT],
-                    Graphics.COLOR_TRANSPARENT
-                );
-                dc.drawText(
-                    w / 2,
-                    linePos,
-                    Graphics.FONT_XTINY,
-                    adviceStr,
-                    Graphics.TEXT_JUSTIFY_CENTER
-                );
-                linePos += lineHeightHazards;
-            }
+        if (localAdvice.size() > 0) {
+            linePos += StringListRenderer.drawCenteredWrappedStrings(
+                dc,
+                localAdvice,
+                x,
+                linePos,
+                w,
+                localAdvice.size(), // maxLines
+                Graphics.FONT_XTINY,
+                AppState.activePalette[ThemeManager.COLOR_TEXT]
+            );
         }
     }
 
@@ -669,11 +664,13 @@ class SlipperyView extends WatchUi.DataField {
         var labelHeight = dc.getFontHeight(Graphics.FONT_XTINY);
 
         // Value
+        var font =
+            $.getMatchingFont(dc, mFontsNumbers, w, h, value) as FontType;
         dc.setColor(valueColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + w / 2,
             y + h / 2 + labelHeight / 2,
-            Graphics.FONT_NUMBER_MILD,
+            font,
             value,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
@@ -717,7 +714,7 @@ class SlipperyView extends WatchUi.DataField {
 
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
         var linePos = y + 2;
-       
+
         // 2: Surface Temperature
         var surfStr = Lang.format("SURF $1$°C", [
             mWeatherMetrics.surfaceTemp.format("%.1f"),
@@ -940,12 +937,13 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.TEXT_JUSTIFY_RIGHT
         );
 
-        // --- BOTTOM ROW: Dynamic Full-Width Rain Warning Strip ---
+        // --- Center Alert Strip ---
         if (
             (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
             (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
         ) {
-            var alertY = centerHeaderY + headerLineHeight + 4;
+            var alertX = x + w / 3;
+            var alertY = centerHeaderY; // + headerLineHeight + 4;
             var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
             var alertH = alertLineHeight + 4;
 
@@ -953,10 +951,10 @@ class SlipperyView extends WatchUi.DataField {
                 AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
                 Graphics.COLOR_TRANSPARENT
             ); // Deep Cyan
-            dc.fillRectangle(x, alertY, w, alertH);
+            dc.fillRectangle(alertX, alertY, w / 3, alertH);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
-                x + w / 2,
+                alertX + w / 6,
                 alertY + alertH / 2,
                 Graphics.FONT_XTINY,
                 $.getPrecipitationAlertMessage(
@@ -1026,7 +1024,6 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor
         );
 
-        var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY);
         // 4. Hazards & Advice Section
 
         dc.setColor(
@@ -1035,47 +1032,34 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
-        var lineHeightHazards = Graphics.getFontHeight(Graphics.FONT_XTINY);
+        // Capture pointer once at start of frame
+        var localHazards = mHazardStrings;
+        var localAdvice = mAdviceStrings;
         var linePos = gridTop + gridHeight + 2;
-        if (mRiskAssessment.hazards.size() > 0) {
-            for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
-                var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
-                // Optional second hazard
-                if (mRiskAssessment.hazards.size() > i + 1) {
-                    hazardStr +=
-                        " / " + getHazardString(mRiskAssessment.hazards[i + 1]);
-                    i++;
-                }
-                dc.setColor(
-                    AppState.activePalette[ThemeManager.COLOR_HAZARD],
-                    Graphics.COLOR_TRANSPARENT
-                );
-                dc.drawText(
-                    w / 2,
-                    linePos,
-                    Graphics.FONT_XTINY,
-
-                    hazardStr,
-                    Graphics.TEXT_JUSTIFY_CENTER
-                );
-                linePos += lineHeightHazards;
-            }
+        if (localHazards.size() > 0) {
+            linePos += StringListRenderer.drawCenteredWrappedStrings(
+                dc,
+                localHazards,
+                x,
+                linePos,
+                w,
+                localHazards.size(), // maxLines
+                Graphics.FONT_TINY,
+                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+            );
         }
 
-        if (mRiskAssessment.advice.size() > 0) {
-            for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
-                var adviceStr = getAdviceString(mRiskAssessment.advice[i]);
-
-                dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(
-                    w / 2,
-                    linePos,
-                    Graphics.FONT_XTINY,
-                    adviceStr,
-                    Graphics.TEXT_JUSTIFY_CENTER
-                );
-                linePos += lineHeightHazards;
-            }
+        if (localAdvice.size() > 0) {
+            linePos += StringListRenderer.drawCenteredWrappedStrings(
+                dc,
+                localAdvice,
+                x,
+                linePos,
+                w,
+                localAdvice.size(), // maxLines
+                Graphics.FONT_XTINY,
+                AppState.activePalette[ThemeManager.COLOR_TEXT]
+            );
         }
     }
 
@@ -1159,9 +1143,10 @@ class SlipperyView extends WatchUi.DataField {
         var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
         var message = mAppName + " - " + riskLevelText;
 
-        if (mRiskAssessment.hazards.size() > 0) {
-            for (var i = 0; i < mRiskAssessment.hazards.size(); i = i + 1) {
-                var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
+        var localHazards = mHazardStrings;
+        if (localHazards.size() > 0) {
+            for (var i = 0; i < localHazards.size(); i = i + 1) {
+                var hazardStr = localHazards[i];
                 message = message + "\n - " + hazardStr;
             }
         }

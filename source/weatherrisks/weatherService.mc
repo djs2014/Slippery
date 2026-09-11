@@ -139,25 +139,25 @@ class WeatherService {
         if (metrics.immediateRain >= 0 && metrics.rainCurrent < 0.1f) {
             upgradeRisk(assessment, RiskLevelHigh);
             addHazard(assessment, HazardImminentRain);
-
-            if (metrics.immediateRain == 0) {
-                addAdvice(assessment, AdviceRainStartingNow);
-            } else {
-                // Triggers UI banner: "RAIN IN 15 MIN" or "RAIN IN 30 MIN"
-                addAdvice(assessment, AdviceRainExpectedShortly);
-            }
+            
+            // if (metrics.immediateRain == 0) {
+            //     addAdvice(assessment, AdviceRainStartingNow);
+            // } else {
+            //     // Triggers UI banner: "RAIN IN 15 MIN" or "RAIN IN 30 MIN"
+            //     addAdvice(assessment, AdviceRainExpectedShortly);
+            // }
         }
         // --- 13. IMMEDIATE: Imminent Snow ---
         if (metrics.immediateSnow >= 0 && metrics.snowCurrent < 0.1f) {
             upgradeRisk(assessment, RiskLevelHigh);
             addHazard(assessment, HazardImminentSnow);
 
-            if (metrics.immediateSnow == 0) {
-                addAdvice(assessment, AdviceSnowStartingNow);
-            } else {
-                // Triggers UI banner: "SNOW IN 15 MIN" or "SNOW IN 30 MIN"
-                addAdvice(assessment, AdviceSnowExpectedShortly);
-            }
+            // if (metrics.immediateSnow == 0) {
+            //     addAdvice(assessment, AdviceSnowStartingNow);
+            // } else {
+            //     // Triggers UI banner: "SNOW IN 15 MIN" or "SNOW IN 30 MIN"
+            //     addAdvice(assessment, AdviceSnowExpectedShortly);
+            // }
         }
         return assessment;
     }

@@ -46,11 +46,7 @@ class PredictiveSparkline {
         // --- 1. FREEZING RISK BACKGROUND TINT ---
         // Highlight ice risk slots where temperature <= 0.0°C
         for (var i = 0; i < numHours; i++) {
-            if (
-                tempForecast != null &&
-                tempForecast.size() > i &&
-                tempForecast[i] <= 0.0f
-            ) {
+            if (tempForecast.size() > i && tempForecast[i] <= 0.0f) {
                 var bx = x + i * (barWidth + barGap);
                 dc.setColor(
                     isDark ? 0x003366 : 0xcce6ff,
@@ -144,7 +140,7 @@ class PredictiveSparkline {
                         baselineY + 3,
                         Graphics.FONT_XTINY,
                         Lang.format("first rain in $1$", [
-                            $.secondsToShortTimeString(diffSec,"{h}:{m}:{s}"),
+                            $.secondsToShortTimeString(diffSec, "{h}:{m}:{s}"),
                         ]),
                         Graphics.TEXT_JUSTIFY_CENTER
                     );
@@ -182,11 +178,7 @@ class PredictiveSparkline {
             }
 
             // Draw Wind Direction Arrows every 3 hours (i = 0, 3, 6, 9)
-            if (
-                i % 3 == 0 &&
-                windDirForecast != null &&
-                windDirForecast.size() > i
-            ) {
+            if (i % 3 == 0 && windDirForecast.size() > i) {
                 drawWindArrow(
                     dc,
                     px,
@@ -213,14 +205,13 @@ class PredictiveSparkline {
         // }
         // Show explicit ICE indicator in header if sub-zero temps exist ahead
         var hasIceAhead = false;
-        if (tempForecast != null) {
-            for (var i = 0; i < tempForecast.size(); i++) {
-                if (tempForecast[i] <= 0.0f) {
-                    hasIceAhead = true;
-                    break;
-                }
+        for (var i = 0; i < tempForecast.size(); i++) {
+            if (tempForecast[i] <= 0.0f) {
+                hasIceAhead = true;
+                break;
             }
         }
+
         if (hasIceAhead) {
             dc.setColor(0x00aaff, Graphics.COLOR_TRANSPARENT);
             dc.drawText(

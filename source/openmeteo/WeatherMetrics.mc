@@ -75,7 +75,7 @@ class WeatherMetrics {
 function parseOpenMeteoResponse(
     lat as Float,
     data as Dictionary?
-) as WeatherMetrics? {
+) as WeatherMetrics? {  
     if (data == null || !data.hasKey("hourly")) {
         return null;
     }
@@ -84,6 +84,7 @@ function parseOpenMeteoResponse(
     var times = hourly.get("time") as Array<Number>?;
 
     if (times == null || times.size() == 0) {
+        System.println("No hourly time data available.");
         return null;
     }
 
@@ -115,18 +116,20 @@ function parseOpenMeteoResponse(
     // Extract current metrics directlyp = precips[t
     var metrics = new WeatherMetrics();
 
-    var airTemps = hourly.get("temperature_2m") as Array<Float>;
-    var surfTemps = hourly.get("surface_temperature") as Array<Float>;
-    var dewPoints = hourly.get("dewpoint_2m") as Array<Float>;
-    var humidities = hourly.get("relativehumidity_2m") as Array<Number>;
-    var times = hourly.get("time") as Array<Number>;
-    var rains = hourly.get("rain") as Array<Float>;
-    var precips = hourly.get("precipitation") as Array<Float>;
-    var snows = hourly.get("snowfall") as Array<Float>;
-    var windSpeeds = hourly.get("wind_speed_10m") as Array<Float>;
-    var windGusts = hourly.get("wind_gusts_10m") as Array<Float>;
-    var windDirections = hourly.get("wind_direction_10m") as Array<Number>;
-
+    var airTemps = hourly.get("temperature_2m") as Array<Float>?;
+    var surfTemps = hourly.get("surface_temperature") as Array<Float>?;
+    var dewPoints = hourly.get("dewpoint_2m") as Array<Float>?;
+    var humidities = hourly.get("relativehumidity_2m") as Array<Number>?;
+    var rains = hourly.get("rain") as Array<Float>?;
+    var precips = hourly.get("precipitation") as Array<Float>?;
+    var snows = hourly.get("snowfall") as Array<Float>?;
+    var windSpeeds = hourly.get("wind_speed_10m") as Array<Float>?;
+    var windGusts = hourly.get("wind_gusts_10m") as Array<Float>?;
+    var windDirections = hourly.get("wind_direction_10m") as Array<Number>?;
+    if (airTemps == null || surfTemps == null || dewPoints == null || humidities == null || rains == null || precips == null || snows == null || windSpeeds == null || windGusts == null || windDirections == null) {
+        System.println("One or more required hourly data arrays are missing.");
+        return null;
+    }
     metrics.airTemp = airTemps[targetIdx];
     metrics.surfaceTemp = surfTemps[targetIdx];
     metrics.dewPoint = dewPoints[targetIdx];
@@ -147,10 +150,10 @@ function parseOpenMeteoResponse(
     var sumSnow = 0.0;
 
     for (var j = startIdx; j <= targetIdx; j++) {
-        if (precips != null && j < precips.size()) {
+        if (j < precips.size()) {
             sumPrecip += precips[j];
         }
-        if (snows != null && j < snows.size()) {
+        if (j < snows.size()) {
             sumSnow += snows[j];
         }
     }
@@ -161,7 +164,7 @@ function parseOpenMeteoResponse(
     // Look back at dry streak length (for "first rain after dry spell" effect)
     var dryStreak = 0;
     for (var k = targetIdx; k >= 0; k--) {
-        if (rains != null && k < rains.size() && rains[k] == 0.0) {
+        if (    k < rains.size() && rains[k] == 0.0) {
             dryStreak += 1;
         } else {
             break;
@@ -175,28 +178,27 @@ function parseOpenMeteoResponse(
     // Start with the current hour time index! 
     var maxForecastIdx = times.size();
     for (var l = targetIdx; l < maxForecastIdx; l++) {
-        if (times != null && l < times.size()) {
+        if (l < times.size()) {
             metrics.timeStampsForeCast.add(times[l]);
         }
-        if (rains != null && l < rains.size()) {
+        if (l < rains.size()) {
             metrics.rainForecast.add(rains[l]);
         }
-        if (windSpeeds != null && l < windSpeeds.size()) {
+        if (l < windSpeeds.size()) {
             metrics.windForecast.add(windSpeeds[l]);
         }
-        if (windDirections != null && l < windDirections.size()) {
+        if (l < windDirections.size()) {
             metrics.windDirForecast.add(windDirections[l]);
         }
-        if (airTemps != null && l < airTemps.size()) {
+        if (l < airTemps.size()) {
             metrics.tempForecast.add(airTemps[l]);
         }
     }
 
     var minutelyData = data.get("minutely_15") as Dictionary?;
     if (minutelyData != null) {
-        var timeArray = minutelyData.get("time") as Array<Number>;
-        var rainArray = minutelyData.get("rain") as Array<Float>;
-        var snowArray = minutelyData.get("snowfall") as Array<Float>;
+        var rainArray = minutelyData.get("rain") as Array<Float>?;
+        var snowArray = minutelyData.get("snowfall") as Array<Float>?;
 
         // Gives the rider 15–30 minutes notice before wet asphalt compromises cornering grip
         var threshold = 0.1f;

@@ -83,7 +83,7 @@ class ThemeManager {
     ];
     
     // Ultra-fast O(1) lookup, 0 branching, zero runtime allocations
-    static function getThemeColor(key as ColorKey, isDarkTheme as Boolean) as Number {
+    static function getThemeColor(key as ColorKey, isDarkTheme as Boolean) as Graphics.ColorType {
         var palette = isDarkTheme ? DARK_PALETTE : LIGHT_PALETTE;
         return palette[key as Number];
     }
