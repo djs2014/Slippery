@@ -9,6 +9,5 @@ Nice to have - on hour switch ->
     - TODO cache next hour
    
 
-- demo test weather data
 - werkende icon voor risk level (small screen)
 

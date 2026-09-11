@@ -65,6 +65,17 @@ class SlipperyView extends WatchUi.DataField {
         }
         mHasWeatherData = true;
         System.println(weatherMetrics.toString());
+
+        if ($.gDemo) {
+            // Cache the weather metrics for after the demo is over
+            cachedWeatherMetrics = weatherMetrics;
+            return;
+        }
+        updateRiskAssessment(weatherMetrics);
+        WatchUi.requestUpdate();
+    }
+
+    function updateRiskAssessment(weatherMetrics as WeatherMetrics) as Void {
         mWeatherMetrics = weatherMetrics;
         mRiskAssessment =
             WeatherService.calculateRiskAssessment(weatherMetrics);
@@ -72,7 +83,6 @@ class SlipperyView extends WatchUi.DataField {
 
         setHazardAndAdviceStrings();
         initializeMinutesUntilCounters();
-        WatchUi.requestUpdate();
     }
 
     function setHazardAndAdviceStrings() as Void {
@@ -97,28 +107,39 @@ class SlipperyView extends WatchUi.DataField {
         mEdgeField = $.getEdgeField(dc);
     }
 
+    var cachedWeatherMetrics as WeatherMetrics? = null;
     var demoCounter as Number = 0;
     var recalcRiskAssessment as Boolean = false;
-    function compute(info as Activity.Info) as Void {
+    function processDemo() as Void {
         if ($.gDemo) {
-            recalcRiskAssessment = true;
+            demoCounter = demoCounter + 1;
+            var weatherMetrics =
+                DemoWeatherService.getDemoWeatherMetrics(demoCounter);
+            mWeatherMetrics = weatherMetrics;
             mRiskAssessment =
                 DemoWeatherService.getDemoRiskAssessment(demoCounter);
-            demoCounter = demoCounter + 1;
+            setHazardAndAdviceStrings();
+            initializeMinutesUntilCounters();
             if (demoCounter > 50) {
-                demoCounter = 0;
                 $.gDemo = false;
-                recalcRiskAssessment = false;
-                // Get the current risk assessment based on the actual weather metrics
-                mRiskAssessment =
-                    WeatherService.calculateRiskAssessment(mWeatherMetrics);
+                demoCounter = 0;
+                recalcRiskAssessment = true;
+                return;
             }
         }
         if (recalcRiskAssessment) {
-            // Demo cancelled
-            mRiskAssessment =
-                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+            recalcRiskAssessment = false;
+            if (cachedWeatherMetrics != null) {
+                System.println(
+                    "Recalculating based on cached weather metrics."
+                );
+                updateRiskAssessment(cachedWeatherMetrics);
+            }
         }
+    }
+
+    function compute(info as Activity.Info) as Void {
+        processDemo();
 
         mBGServiceHandler.onCompute(info);
         if ($.g_bg_delay_seconds <= 0) {
@@ -191,7 +212,7 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(getBackgroundColor(), getBackgroundColor());
         dc.clear();
 
-        if (mHasWeatherData) {
+        if (mHasWeatherData || $.gDemo) {
             if (mEdgeField == EfOne) {
                 drawEdgeOneFieldWithSparkline(dc, width, height, mIsDark);
             } else if (mEdgeField == EfSmall) {

@@ -12,17 +12,17 @@ class DataFieldSettingsMenu extends WatchUi.Menu2 {
 
 //! Handles menu input and stores the menu data
 class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
-  hidden var _currentMenuItem as MenuItem?;
-  hidden var _view as DataFieldSettingsView;
+  // hidden var _currentMenuItem as MenuItem?;
+  // hidden var _view as DataFieldSettingsView;
 
-  function initialize(view as DataFieldSettingsView) {
+  function initialize() {
     Menu2InputDelegate.initialize();
-    _view = view;
+    // _view = view;
   }
 
-  function onSelect(menuItem as MenuItem) as Void {
-    _currentMenuItem = menuItem;
-    var id = menuItem.getId();
+  function onSelect(item as MenuItem) as Void {
+    // _currentMenuItem = item;
+    var id = item.getId();
 
     if (id instanceof String && id.equals("background")) {
       var proxyMenu = new WatchUi.Menu2({ :title => "Background config" });
@@ -99,6 +99,11 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         )
       );
 
+      if (id instanceof String && item instanceof ToggleMenuItem) {
+        $.StorageSetValue(id as String, item.isEnabled());
+        return;
+      }
+
       WatchUi.pushView(
         alertMenu,
         new $.GeneralMenuDelegate(),
@@ -137,6 +142,11 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       WatchUi.pushView(advMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
       return;
     }
+
+    if (id instanceof String && item instanceof ToggleMenuItem) {
+      $.StorageSetValue(id as String, item.isEnabled());
+      return;
+    }
   }
 }
 
@@ -166,7 +176,7 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       sp.show();
       return;
     }
-    
+
     if (id instanceof String && item instanceof ToggleMenuItem) {
       Storage.setValue(id as String, item.isEnabled());
       return;
@@ -185,6 +195,7 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       WatchUi.SLIDE_RIGHT
     );
   }
+
 
   function onAcceptNumericinput(value as Numeric, subLabel as String) as Void {
     try {
@@ -238,5 +249,16 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
     value as Application.PropertyValueType
   ) as Void {
     Storage.setValue(storageKey, value);
+  }
+}
+
+function StorageSetValue(
+  key as Application.PropertyKeyType,
+  value as Application.PropertyValueType
+) as Void {
+  try {
+    Toybox.Application.Storage.setValue(key, value);
+  } catch (ex) {
+    ex.printStackTrace();
   }
 }

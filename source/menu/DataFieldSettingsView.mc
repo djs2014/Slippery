@@ -71,7 +71,7 @@ class DataFieldSettingsDelegate extends WatchUi.BehaviorDelegate {
     // menu.addItem(new WatchUi.ToggleMenuItem("Pause app", null, "pause_app", boolean, null));
 
     var view = new $.DataFieldSettingsView();
-    WatchUi.pushView(menu, new $.DataFieldSettingsMenuDelegate(view), WatchUi.SLIDE_IMMEDIATE);
+    WatchUi.pushView(menu, new $.DataFieldSettingsMenuDelegate(), WatchUi.SLIDE_IMMEDIATE);
     return true;
   }
 
