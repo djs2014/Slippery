@@ -32,7 +32,7 @@ class SlipperyView extends WatchUi.DataField {
         Graphics.FONT_SYSTEM_LARGE,
         Graphics.FONT_NUMBER_MILD,
         Graphics.FONT_NUMBER_MEDIUM,
-        // Not needed. 
+        // Not needed.
         // Graphics.FONT_NUMBER_HOT,
         // Graphics.FONT_NUMBER_THAI_HOT,
     ];
@@ -434,7 +434,8 @@ class SlipperyView extends WatchUi.DataField {
                 Graphics.FONT_XTINY,
                 $.getPrecipitationAlertMessage(
                     mMinutesUntilRain,
-                    mMinutesUntilSnow
+                    mMinutesUntilSnow,
+                    false
                 ),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
             );
@@ -612,10 +613,8 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, badgeWidth, h);
 
-        var headerText = getImminentPrecipitationText();
-        if (headerText == "") {
-            headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
-        }
+        var headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
+
         dc.setColor(badgeTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + badgeWidth / 2,
@@ -625,6 +624,35 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            var headerLineHeight = dc.getFontHeight(Graphics.FONT_TINY);
+            var alertY = y + h / 2 + headerLineHeight / 2;
+            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            var alertH = alertLineHeight + 4;
+
+            dc.setColor(
+                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                Graphics.COLOR_TRANSPARENT
+            ); // Deep Cyan
+            dc.fillRectangle(x, alertY, badgeWidth, alertH);
+            // Draw the short precipitation alert message
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                x + badgeWidth / 2,
+                alertY + alertH / 2,
+                Graphics.FONT_XTINY,
+                $.getPrecipitationAlertMessage(
+                    mMinutesUntilRain,
+                    mMinutesUntilSnow,
+                    true
+                ),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
+
         // Right 70%: Surface Temp & Primary Hazard
         var textX = badgeWidth + 6;
         var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
@@ -633,7 +661,7 @@ class SlipperyView extends WatchUi.DataField {
         var linePos = y + 2;
 
         // 2: Surface Temperature
-        var surfStr = Lang.format("SURF $1$°C", [
+        var surfStr = Lang.format("$1$°C SURFACE", [
             mWeatherMetrics.surfaceTemp.format("%.1f"),
         ]);
         dc.setColor(
@@ -649,7 +677,7 @@ class SlipperyView extends WatchUi.DataField {
         );
         linePos += lineHeight;
         // 3: Humidity
-        var humidityStr = Lang.format("HUM $1$%", [
+        var humidityStr = Lang.format("$1$% HUMIDITY", [
             mWeatherMetrics.humidity.format("%.1f"),
         ]);
         dc.setColor(
@@ -796,6 +824,38 @@ class SlipperyView extends WatchUi.DataField {
             labelColor,
             textColor
         );
+
+        // Alert for imminent precipitation, at bottom of the columns
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            // var headerLineHeight = dc.getFontHeight(Graphics.FONT_TINY);
+            var alertX = x + rightX;
+            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            var alertH = alertLineHeight + 4;
+            var alertY = y + h - alertH;
+            var alertW = colW * 3;
+
+            dc.setColor(
+                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                Graphics.COLOR_TRANSPARENT
+            ); // Deep Cyan
+            dc.fillRectangle(alertX, alertY, alertW, alertH);
+            // Draw the short precipitation alert message
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                alertX + alertW / 2,
+                alertY + alertH / 2,
+                Graphics.FONT_XTINY,
+                $.getPrecipitationAlertMessage(
+                    mMinutesUntilRain,
+                    mMinutesUntilSnow,
+                    false
+                ),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
     }
 
     function drawOptionalHsp(dc as Graphics.Dc, isDark as Boolean) as Void {
@@ -876,7 +936,8 @@ class SlipperyView extends WatchUi.DataField {
                 Graphics.FONT_XTINY,
                 $.getPrecipitationAlertMessage(
                     mMinutesUntilRain,
-                    mMinutesUntilSnow
+                    mMinutesUntilSnow,
+                    false
                 ),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
             );
@@ -1021,20 +1082,6 @@ class SlipperyView extends WatchUi.DataField {
         // 3. Optional Right Divider Line
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + colWidth, y + 4, x + colWidth, y + height - 4);
-    }
-
-    function getImminentPrecipitationText() as String {
-        if (mMinutesUntilSnow > 0 && mMinutesUntilSnow <= 30) {
-            return mMinutesUntilSnow == 0
-                ? "SNOW NOW"
-                : "SNOW IN " + mMinutesUntilSnow + "M";
-        }
-        if (mMinutesUntilRain > 0 && mMinutesUntilRain <= 30) {
-            return mMinutesUntilRain == 0
-                ? "RAIN NOW"
-                : "RAIN IN " + mMinutesUntilRain + "M";
-        }
-        return "";
     }
 
     function playAlert() as Void {

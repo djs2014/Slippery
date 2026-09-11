@@ -4,21 +4,11 @@
     - for predict commute track
     - reset option after activity done
 
-- on hour switch ->
+Nice to have - on hour switch ->
     - update forecast bar
     - TODO cache next hour
+   
 
-- compacter stats 
-    only when no data or error
-    #1 only?
-    background white/dark
-    icons or abbr for
-    - air temp
-    - surface temp
-    - dew point
-    - humidity
-    
-
-- 
-- fit cell text getfont..
+- demo test weather data
 - werkende icon voor risk level (small screen)
+

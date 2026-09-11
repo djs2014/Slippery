@@ -242,15 +242,15 @@ function getShortRiskLabel(riskLevel as RiskLevel) as Lang.String {
     if (riskLevel == RiskLevelNoData) {
         return "-";
     } else if (riskLevel == RiskLevelSafe) {
-        return "S";
+        return "OK";
     } else if (riskLevel == RiskLevelSlight) {
-        return "Sl";
+        return "LOW";
     } else if (riskLevel == RiskLevelModerate) {
-        return "M";
+        return "MED";
     } else if (riskLevel == RiskLevelHigh) {
-        return "H";
+        return "HIG";
     } else if (riskLevel == RiskLevelCritical) {
-        return "C";
+        return "CRT";
     }
     return "";
 }
@@ -302,7 +302,7 @@ function getRiskTextColor(
     return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
 }
 
-function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSnow as Number) as String {
+function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSnow as Number, short as Boolean) as String {
     if ((minutesUntilRain < 0 || minutesUntilRain > 45)
     && (minutesUntilSnow < 0 || minutesUntilSnow > 45)) { return ""; }
 
@@ -335,6 +335,13 @@ function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSn
         typeStr = "SLEET";
     }
 
+    if (short) {
+        if (minutesUntil == 0) {
+            return typeStr;
+        } else {
+            return typeStr + "." + minutesUntil;
+        }
+    }
     if (minutesUntil == 0) {
         return typeStr + " STARTING";
     } else {
