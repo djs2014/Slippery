@@ -32,8 +32,9 @@ class SlipperyView extends WatchUi.DataField {
         Graphics.FONT_SYSTEM_LARGE,
         Graphics.FONT_NUMBER_MILD,
         Graphics.FONT_NUMBER_MEDIUM,
-        Graphics.FONT_NUMBER_HOT,
-        Graphics.FONT_NUMBER_THAI_HOT,
+        // Not needed. 
+        // Graphics.FONT_NUMBER_HOT,
+        // Graphics.FONT_NUMBER_THAI_HOT,
     ];
 
     function initialize() {
@@ -202,99 +203,15 @@ class SlipperyView extends WatchUi.DataField {
             }
         }
 
-        // TODO refactor this section to improve readability
-        if (
-            mBGServiceHandler.getRequestCounter() > 0 &&
-            !mBGServiceHandler.hasError()
-        ) {
-            return;
-        }
-        var stats = "";
-        if (mEdgeField == EfSmall) {
-            stats = "#" + mBGServiceHandler.getCounterStats();
-        } else {
-            var counter = "#" + mBGServiceHandler.getCounterStats();
-            var next = mBGServiceHandler.getWhenNextRequest("");
-            if ($.g_bg_delay_seconds > 0) {
-                next = $.g_bg_delay_seconds.format("%d");
-            }
-            var status = "";
-            if (mBGServiceHandler.hasError()) {
-                status = mBGServiceHandler.getError();
-            } else {
-                status = mBGServiceHandler.getStatus();
-            }
-            stats =
-                mBGServiceHandler.getErrorMessage() +
-                " " +
-                counter +
-                " " +
-                status +
-                "(" +
-                next +
-                ")";
-        }
-
-        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
-        var backColor = AppState.activePalette[ThemeManager.COLOR_BG];
-
-        var statsWH = dc.getTextDimensions(stats, Graphics.FONT_XTINY);
-        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
+        // Only show background service stats if there are errors or no requests yet
+        $.drawBackgroundServiceStats(
+            dc,
             width,
-            height - statsWH[1],
-            Graphics.FONT_XTINY,
-            stats,
-            Graphics.TEXT_JUSTIFY_RIGHT
+            height,
+            mBGServiceHandler,
+            mEdgeField == EfSmall,
+            true
         );
-
-        if (mBGServiceHandler.getRequestCounter() == 0) {
-            // No data yet
-            var next = mBGServiceHandler.getWhenNextRequest("");
-            var status = "";
-            if (mBGServiceHandler.hasError()) {
-                status = mBGServiceHandler.getError();
-            } else {
-                status = mBGServiceHandler.getStatus();
-            }
-            stats =
-                mBGServiceHandler.getErrorMessage() +
-                " " +
-                status +
-                "(" +
-                next +
-                ")";
-            if (mBGServiceHandler.isDisabled()) {
-                stats = "App paused!";
-            }
-            // Draw rounded border around the stats text (if needed)
-            statsWH = dc.getTextDimensions(stats, Graphics.FONT_SYSTEM_SMALL);
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillRoundedRectangle(
-                (width - statsWH[0]) / 2 - 6,
-                (height - statsWH[1]) / 2 - 4,
-                statsWH[0] + 12,
-                statsWH[1] + 8,
-                4
-            );
-            dc.setColor(backColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillRoundedRectangle(
-                (width - statsWH[0]) / 2 - 4,
-                (height - statsWH[1]) / 2 - 2,
-                statsWH[0] + 8,
-                statsWH[1] + 4,
-                4
-            );
-
-            dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                width / 2,
-                height / 2,
-                Graphics.FONT_SYSTEM_SMALL,
-                stats,
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-        }
     }
 
     private function drawEdgeSmallFieldWithSparkline(
