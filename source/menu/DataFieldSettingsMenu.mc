@@ -24,8 +24,8 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
     _currentMenuItem = menuItem;
     var id = menuItem.getId();
 
-    if (id instanceof String && id.equals("proxy")) {
-      var proxyMenu = new WatchUi.Menu2({ :title => "Poi server config" });
+    if (id instanceof String && id.equals("background")) {
+      var proxyMenu = new WatchUi.Menu2({ :title => "Background config" });
 
       var mi = new WatchUi.MenuItem(
         "Minimal GPS",
@@ -47,17 +47,6 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       );
       mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
       proxyMenu.addItem(mi);
-      mi = new WatchUi.MenuItem(
-        "Max range meters",
-        null,
-        "maxRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      proxyMenu.addItem(mi);
-      mi = new WatchUi.MenuItem("Max waypoints", null, "maxWaypoints", null);
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      proxyMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
         "Background timeout sec",
@@ -77,13 +66,6 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
       proxyMenu.addItem(mi);
 
-      // Dataset poiset
-
-      // mi = new WatchUi.MenuItem("Dataset", null, "poiSet", null);
-      // value = getStorageValue(mi.getId() as String, POISET_RIVM) as Number;
-      // mi.setSubLabel($.getPOIsetText(value));
-      // proxyMenu.addItem(mi);
-
       WatchUi.pushView(
         proxyMenu,
         new $.GeneralMenuDelegate(),
@@ -91,325 +73,27 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       );
       return;
     }
-    if (id instanceof String && id.equals("largefield")) {
-      var lfMenu = new WatchUi.Menu2({ :title => "Large field" });
 
-      var boolean = Storage.getValue("lf_showWptDirection") ? true : false;
-      lfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint direction",
-          null,
-          "lf_showWptDirection",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("lf_showWptDistance") ? true : false;
-      lfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint distance",
-          null,
-          "lf_showWptDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("lf_ShowCircleDistance") ? true : false;
-      lfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Distance label",
-          null,
-          "lf_ShowCircleDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("lf_ShowTrack") ? true : false;
-      lfMenu.addItem(
-        new WatchUi.ToggleMenuItem("Track", null, "lf_ShowTrack", boolean, null)
-      );
-      boolean = Storage.getValue("lf_ShowBearing") ? true : false;
-      lfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Bearing",
-          null,
-          "lf_ShowBearing",
-          boolean,
-          null
-        )
-      );
-
-      var mi = new WatchUi.MenuItem(
-        "Extra range meters",
-        null,
-        "lf_extraRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      lfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Fixed range meters",
-        null,
-        "lf_fixedRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      lfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom # waypoints",
-        null,
-        "lf_zoomMinWaypoints",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      lfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom on 1 meters",
-        null,
-        "lf_zoomOneMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      lfMenu.addItem(mi);
-
-      WatchUi.pushView(lfMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
-      return;
-    }
-    if (id instanceof String && id.equals("smallfield")) {
-      var sfMenu = new WatchUi.Menu2({ :title => "Small field" });
-
-      var boolean = Storage.getValue("sf_showWptDirection") ? true : false;
-      sfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint direction",
-          null,
-          "sf_showWptDirection",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("sf_showWptDistance") ? true : false;
-      sfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint distance",
-          null,
-          "sf_showWptDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("sf_ShowCircleDistance") ? true : false;
-      sfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Distance label",
-          null,
-          "sf_ShowCircleDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("sf_ShowTrack") ? true : false;
-      sfMenu.addItem(
-        new WatchUi.ToggleMenuItem("Track", null, "sf_ShowTrack", boolean, null)
-      );
-      boolean = Storage.getValue("sf_ShowBearing") ? true : false;
-      sfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Bearing",
-          null,
-          "sf_ShowBearing",
-          boolean,
-          null
-        )
-      );
-
-      var mi = new WatchUi.MenuItem(
-        "Extra range meters",
-        null,
-        "sf_extraRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      sfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Fixed range meters",
-        null,
-        "sf_fixedRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      sfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom # waypoints",
-        null,
-        "sf_zoomMinWaypoints",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      sfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom on 1 meters",
-        null,
-        "sf_zoomOneMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      sfMenu.addItem(mi);
-
-      WatchUi.pushView(sfMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
-      return;
-    }
-    if (id instanceof String && id.equals("widefield")) {
-      var tfMenu = new WatchUi.Menu2({ :title => "Wide field" });
-
-      var boolean = Storage.getValue("wf_showWptDirection") ? true : false;
-      tfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint direction",
-          null,
-          "wf_showWptDirection",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("wf_showWptDistance") ? true : false;
-      tfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Waypoint distance",
-          null,
-          "wf_showWptDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("wf_ShowCircleDistance") ? true : false;
-      tfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Distance label",
-          null,
-          "wf_ShowCircleDistance",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("wf_ShowTrack") ? true : false;
-      tfMenu.addItem(
-        new WatchUi.ToggleMenuItem("Track", null, "wf_ShowTrack", boolean, null)
-      );
-      boolean = Storage.getValue("wf_ShowBearing") ? true : false;
-      tfMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Bearing",
-          null,
-          "wf_ShowBearing",
-          boolean,
-          null
-        )
-      );
-
-      var mi = new WatchUi.MenuItem(
-        "Extra range meters",
-        null,
-        "wf_extraRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      tfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Fixed range meters",
-        null,
-        "wf_fixedRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      tfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom # waypoints",
-        null,
-        "wf_zoomMinWaypoints",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      tfMenu.addItem(mi);
-
-      mi = new WatchUi.MenuItem(
-        "Zoom on 1 meters",
-        null,
-        "wf_zoomOneMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      tfMenu.addItem(mi);
-
-      WatchUi.pushView(tfMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
-      return;
-    }
     if (id instanceof String && id.equals("alerts")) {
       var alertMenu = new WatchUi.Menu2({ :title => "Alerts" });
 
-      var mi = new WatchUi.MenuItem(
-        "Close range meters",
-        null,
-        "alert_closeRangeMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      alertMenu.addItem(mi);
-
-      var boolean = Storage.getValue("alert_closeRange") ? true : false;
+      var boolean = Storage.getValue("alert_beep") ? true : false;
       alertMenu.addItem(
         new WatchUi.ToggleMenuItem(
-          "Beep close range",
+          "Beep on alert",
           null,
-          "alert_closeRange",
+          "alert_beep",
           boolean,
           null
         )
       );
 
-      mi = new WatchUi.MenuItem(
-        "Proximity meters",
-        null,
-        "alert_proximityMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      alertMenu.addItem(mi);
-
-      boolean = Storage.getValue("alert_proximity") ? true : false;
+      boolean = Storage.getValue("alert_toast") ? true : false;
       alertMenu.addItem(
         new WatchUi.ToggleMenuItem(
-          "Beep proximity",
+          "Toast message on alert",
           null,
-          "alert_proximity",
-          boolean,
-          null
-        )
-      );
-
-      mi = new WatchUi.MenuItem(
-        "Toast proximity meters",
-        null,
-        "toast_proximityMeters",
-        null
-      );
-      mi.setSubLabel($.getStorageNumberAsString(mi.getId() as String));
-      alertMenu.addItem(mi);
-
-      boolean = Storage.getValue("toast_proximity") ? true : false;
-      alertMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Toast proximity",
-          null,
-          "toast_proximity",
+          "alert_toast",
           boolean,
           null
         )
@@ -420,6 +104,37 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         new $.GeneralMenuDelegate(),
         WatchUi.SLIDE_UP
       );
+      return;
+    }
+
+    if (id instanceof String && id.equals("advanced")) {
+      var advMenu = new WatchUi.Menu2({ :title => "Advanced" });
+
+      var mi;
+
+      mi = new WatchUi.MenuItem(
+        "HSP breakpoint|0-255.0(HSP)",
+        null,
+        "hsp_darklight_breakpoint",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      advMenu.addItem(mi);
+
+      var boolean;
+
+      boolean = Storage.getValue("hsp_showvalue") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Show HSP value",
+          null,
+          "hsp_showvalue",
+          boolean,
+          null
+        )
+      );
+
+      WatchUi.pushView(advMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
       return;
     }
   }
@@ -451,42 +166,7 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       sp.show();
       return;
     }
-
-    // if (id instanceof String && id.equals("poiSet")) {
-    //   var sp = new selectionMenuPicker("Data set", id as String);
-    //   for (var i = 0; i < $.maxPOIsets; i++) {
-    //     sp.add($.getPOIsetText(i), null, i);
-    //   }
-    //   sp.setOnSelected(self, :onSelectedSelection, item);
-    //   sp.show();
-    //   return;
-    // }
-
-    // if (id instanceof String && id.equals("alert_startAfterUnits")) {
-    //   var sp = new selectionMenuPicker("Alert after", id as String);
-
-    //   sp.add(
-    //     $.getStartAfterUnitsText(AfterXKilometer),
-    //     null,
-    //     AfterXKilometer
-    //   );
-    //   sp.add($.getStartAfterUnitsText(AfterXMinutes), null, AfterXMinutes);
-
-    //   sp.setOnSelected(self, :onSelectedSelection, item);
-    //   sp.show();
-    //   return;
-    // }
-
-    // if (id instanceof String && id.equals("sound_mode")) {
-    //   var sp = new selectionMenuPicker("Sound level", id as String);
-    //   for (var i = 0; i <= 3; i++) {
-    //     sp.add($.getSoundModeText(i), null, i);
-    //   }sound
-    //   sp.setOnSelected(self, :onSelectedSelection, item);
-    //   sp.show();
-    //   return;
-    // }
-
+    
     if (id instanceof String && item instanceof ToggleMenuItem) {
       Storage.setValue(id as String, item.isEnabled());
       return;

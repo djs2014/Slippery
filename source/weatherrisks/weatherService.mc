@@ -23,8 +23,8 @@ class WeatherService {
         var season = metrics.currentSeason;
         var windSpeed = metrics.windSpeed; // in km/h
         var windGust = metrics.windGust; // in km/h
-        var immediateRain = metrics.immediateRain;
-        var immediateSnow = metrics.immediateSnow;
+        // var immediateRain = metrics.immediateRain;
+        // var immediateSnow = metrics.immediateSnow;
         var surfaceDewSpread = surfaceTemp - dewPoint;
 
         // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---

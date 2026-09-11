@@ -4,7 +4,7 @@ import Toybox.Graphics;
 import Toybox.Time;
 
 class RiskAssessment {
-    var riskLevel = RiskLevelNoData;
+    var riskLevel as RiskLevel= RiskLevelNoData;
     var hazards = [] as Array<WeatherHazard>;
     var advice = [] as Array<WeatherAdvice>;
 

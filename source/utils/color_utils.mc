@@ -3,6 +3,7 @@ import Toybox.Lang;
 import Toybox.Math;
 import Toybox.Graphics;
 import Toybox.Application;
+import Toybox.Application.Storage;
 
 var gCreateColors as Boolean = false;
 var gUseSetFillStroke as Boolean = false;
@@ -82,7 +83,6 @@ function percentageToColorAlt(
   return Graphics.createColor(alpha, red.toNumber(), green.toNumber(), blue.toNumber());
 }
 
-var gHspDarklightBreakpoint as Float = 127.5;
 // Returns true if the color is light (needs black text), false if dark (needs white text)
 // HSP 0 is darkest (black), 255 is lightest (white). The threshold is set at 127.5 by default, but can be adjusted via settings.
 function isColorLight(garminColor as Graphics.ColorType) as Boolean {
@@ -101,8 +101,25 @@ function isColorLight(garminColor as Graphics.ColorType) as Boolean {
 
     // 4. Return true if light, false if dark
     // 127.5 is the midpoint of the 0-255 range, which is a common threshold for determining light vs dark colors
-    if ($.gHspDarklightBreakpoint == null || $.gHspDarklightBreakpoint < 0 || $.gHspDarklightBreakpoint > 255) {
-        $.gHspDarklightBreakpoint = 127.5; // Default to midpoint if not set
+    var breakpoint = Storage.getValue("hsp_darklight_breakpoint");
+    if (breakpoint == null || breakpoint < 0 || breakpoint > 255) {
+        //breakpoint = 127.5; // Default to midpoint if not set
+        breakpoint = 145; // Default to midpoint if not set
     }
-    return hsp > $.gHspDarklightBreakpoint;
+    return hsp > breakpoint;
+}
+
+function calculateHSP(garminColor as Graphics.ColorType) as Float {
+    // 1. Bit-shift to extract RGB channels
+    var r = (garminColor >> 16) & 0xff;
+    var g = (garminColor >> 8) & 0xff;
+    var b = garminColor & 0xff;
+
+    // 2. Square the channels to match your HSP formula
+    var rSq = (r * r).toFloat();
+    var gSq = (g * g).toFloat();
+    var bSq = (b * b).toFloat();
+
+    // 3. Apply standard perceptual weights
+    return Math.sqrt(0.299 * rSq + 0.587 * gSq + 0.114 * bSq);
 }

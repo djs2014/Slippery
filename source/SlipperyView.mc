@@ -19,6 +19,9 @@ class SlipperyView extends WatchUi.DataField {
     private var mMinutesUntilRain as Number = -1;
     private var mMinutesUntilSnow as Number = -1;
 
+    hidden var mAlertProcessedForLevel as RiskLevel = RiskLevelNoData;
+    hidden var mToastIcon as BitmapResource?;
+
     hidden var mFontsNumbers as Array = [
         Graphics.FONT_XTINY,
         Graphics.FONT_TINY,
@@ -75,7 +78,29 @@ class SlipperyView extends WatchUi.DataField {
         mEdgeField = $.getEdgeField(dc);
     }
 
+    var demoCounter as Number = 0;
+    var recalcRiskAssessment as Boolean = false;
     function compute(info as Activity.Info) as Void {
+        if ($.gDemo) {
+            recalcRiskAssessment = true;
+            mRiskAssessment =
+                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+            demoCounter = demoCounter + 1;
+            if (demoCounter > 50) {
+                demoCounter = 0;
+                $.gDemo = false;
+                recalcRiskAssessment = false;
+                // Get the current risk assessment based on the actual weather metrics
+                mRiskAssessment =
+                    WeatherService.calculateRiskAssessment(mWeatherMetrics);
+            }
+        }
+        if (recalcRiskAssessment) {
+            // Demo cancelled
+            mRiskAssessment =
+                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+        }
+
         mBGServiceHandler.onCompute(info);
         if ($.g_bg_delay_seconds <= 0) {
             mBGServiceHandler.autoScheduleService();
@@ -83,6 +108,7 @@ class SlipperyView extends WatchUi.DataField {
             $.g_bg_delay_seconds = $.g_bg_delay_seconds - 1;
         }
         processMinutesUntilCounters();
+        processAlerts();
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -112,6 +138,26 @@ class SlipperyView extends WatchUi.DataField {
             if (mMinutesUntilSnow > 0) {
                 mMinutesUntilSnow = mMinutesUntilSnow - 1;
             }
+        }
+    }
+
+    function processAlerts() as Void {
+        if (mRiskAssessment.riskLevel > mAlertProcessedForLevel) {
+            mAlertProcessedForLevel = mRiskAssessment.riskLevel;
+            // Add your alert processing logic here
+            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);
+            if ($.gBeepOnAlert) {
+                playAlert();
+            }
+            if ($.gToastOnAlert) {
+                showToastForAlert();
+            }
+        } else if (mRiskAssessment.riskLevel != mAlertProcessedForLevel) {
+            // Reset to current risk level
+            mAlertProcessedForLevel = mRiskAssessment.riskLevel;
+            Toybox.System.println(
+                "Reset alert processing to level " + mAlertProcessedForLevel
+            );
         }
     }
 
@@ -249,13 +295,8 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight = height - sparklineHeight;
         }
 
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeSmallField(dc, 0, 0, width, topGridHeight, isDark);
-
         // 3. Draw Divider Line
-        var dividerColor = isDark
-            ? Graphics.COLOR_DK_GRAY
-            : Graphics.COLOR_LT_GRAY;
+        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -272,6 +313,9 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             false
         );
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeSmallField(dc, 0, 0, width, topGridHeight, isDark);
     }
     private function drawEdgeOneFieldWithSparkline(
         dc as Graphics.Dc,
@@ -289,13 +333,8 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight = height - sparklineHeight;
         }
 
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeOneField(dc, 0, 0, width, topGridHeight, isDark);
-
         // 3. Draw Divider Line
-        var dividerColor = isDark
-            ? Graphics.COLOR_DK_GRAY
-            : Graphics.COLOR_LT_GRAY;
+        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -312,6 +351,9 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             true
         );
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeOneField(dc, 0, 0, width, topGridHeight, isDark);
     }
     private function drawEdgeLargeFieldWithSparkline(
         dc as Graphics.Dc,
@@ -329,13 +371,8 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight = height - sparklineHeight;
         }
 
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeLargeField(dc, 0, 0, width, topGridHeight, isDark);
-
         // 3. Draw Divider Line
-        var dividerColor = isDark
-            ? Graphics.COLOR_DK_GRAY
-            : Graphics.COLOR_LT_GRAY;
+        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -352,6 +389,9 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             true
         );
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeLargeField(dc, 0, 0, width, topGridHeight, isDark);
     }
 
     private function drawEdgeWideFieldWithSparkline(
@@ -370,13 +410,8 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight = height - sparklineHeight;
         }
 
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeWideField(dc, 0, 0, width, topGridHeight, isDark);
-
         // 3. Draw Divider Line
-        var dividerColor = isDark
-            ? Graphics.COLOR_DK_GRAY
-            : Graphics.COLOR_LT_GRAY;
+        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -393,6 +428,9 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             true
         );
+
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        drawEdgeWideField(dc, 0, 0, width, topGridHeight, isDark);
     }
 
     private function drawEdgeOneField(
@@ -437,6 +475,10 @@ class SlipperyView extends WatchUi.DataField {
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
         );
+
+        if ($.gHSPshowValue) {
+            drawOptionalHsp(dc, isDark);
+        }
 
         // --- BOTTOM ROW: Dynamic Full-Width Rain Warning Strip ---
         if (
@@ -556,6 +598,13 @@ class SlipperyView extends WatchUi.DataField {
         if (mRiskAssessment.hazards.size() > 0) {
             for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
                 var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
+                // Optional second hazard
+                // if width allows TODO
+                if (mRiskAssessment.hazards.size() > i + 1) {
+                    hazardStr +=
+                        " / " + getHazardString(mRiskAssessment.hazards[i + 1]);
+                    i++;
+                }
                 dc.setColor(
                     AppState.activePalette[ThemeManager.COLOR_HAZARD],
                     Graphics.COLOR_TRANSPARENT
@@ -574,6 +623,12 @@ class SlipperyView extends WatchUi.DataField {
         if (mRiskAssessment.advice.size() > 0) {
             for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
                 var adviceStr = getAdviceString(mRiskAssessment.advice[i]);
+                // Optional second advice if width allows TODO
+                // if (mRiskAssessment.advice.size() > i + 1) {
+                //     adviceStr +=
+                //         " / " + getAdviceString(mRiskAssessment.advice[i + 1]);
+                //     i++;
+                // }
 
                 dc.setColor(
                     AppState.activePalette[ThemeManager.COLOR_TEXT],
@@ -660,24 +715,9 @@ class SlipperyView extends WatchUi.DataField {
         var textX = badgeWidth + 6;
         var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
 
-        var yOffset = 2;
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
-        // 1: Air Temperature
-        var airStr = Lang.format("AIR $1$°C", [
-            mWeatherMetrics.airTemp.format("%.1f"),
-        ]);
-        dc.setColor(
-            mWeatherMetrics.airTemp <= 0 ? Graphics.COLOR_RED : textColor,
-            Graphics.COLOR_TRANSPARENT
-        );
-        dc.drawText(
-            textX,
-            y + yOffset,
-            Graphics.FONT_XTINY,
-            airStr,
-            Graphics.TEXT_JUSTIFY_LEFT
-        );
-
+        var linePos = y + 2;
+       
         // 2: Surface Temperature
         var surfStr = Lang.format("SURF $1$°C", [
             mWeatherMetrics.surfaceTemp.format("%.1f"),
@@ -688,11 +728,12 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y + yOffset + lineHeight,
+            linePos,
             Graphics.FONT_XTINY,
             surfStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
+        linePos += lineHeight;
         // 3: Humidity
         var humidityStr = Lang.format("HUM $1$%", [
             mWeatherMetrics.humidity.format("%.1f"),
@@ -703,11 +744,12 @@ class SlipperyView extends WatchUi.DataField {
         );
         dc.drawText(
             textX,
-            y + yOffset + 2 * lineHeight,
+            linePos,
             Graphics.FONT_XTINY,
             humidityStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
+        linePos += lineHeight;
 
         // 4: All Hazard strings (shortened)
         if (mRiskAssessment.hazards.size() > 0) {
@@ -721,11 +763,12 @@ class SlipperyView extends WatchUi.DataField {
                 );
                 dc.drawText(
                     textX,
-                    y + h - lineHeight - i * lineHeight,
+                    linePos,
                     Graphics.FONT_XTINY,
                     hazardStr,
                     Graphics.TEXT_JUSTIFY_LEFT
                 );
+                linePos += lineHeight;
             }
         }
     }
@@ -798,6 +841,8 @@ class SlipperyView extends WatchUi.DataField {
         var colW = (w - leftWidth) / 3;
 
         // Col 1: Air Temp
+        var airColor =
+            mWeatherMetrics.airTemp <= 0 ? Graphics.COLOR_RED : textColor;
         drawMetricColumn(
             dc,
             x + rightX,
@@ -807,7 +852,7 @@ class SlipperyView extends WatchUi.DataField {
             "AIR",
             Lang.format("$1$°C", [mWeatherMetrics.airTemp.format("%.1f")]),
             labelColor,
-            textColor
+            airColor
         );
 
         // Col 2: Surface Temp
@@ -839,6 +884,20 @@ class SlipperyView extends WatchUi.DataField {
         );
     }
 
+    function drawOptionalHsp(dc as Graphics.Dc, isDark as Boolean) as Void {
+        // Implementation for drawing optional HSP (Hazard, Safety, Precaution) information
+
+        var color = getRiskColor(mRiskAssessment.riskLevel, isDark);
+        // place the HSP value in the top left corner
+        var hsp = $.calculateHSP(color);
+        dc.drawText(
+            1,
+            1,
+            Graphics.FONT_XTINY,
+            hsp.format("%.1f"),
+            Graphics.TEXT_JUSTIFY_LEFT
+        );
+    }
     function drawEdgeLargeField(
         dc as Graphics.Dc,
         x as Number,
@@ -1075,6 +1134,39 @@ class SlipperyView extends WatchUi.DataField {
                 : "RAIN IN " + mMinutesUntilRain + "M";
         }
         return "";
+    }
+
+    function playAlert() as Void {
+        if (!(Attention has :playTone) || !System.getDeviceSettings().tonesOn) {
+            return;
+        }
+
+        Attention.playTone(Attention.TONE_ALERT_HI);
+        return;
+    }
+
+    function showToastForAlert() as Void {
+        if (!(WatchUi has :showToast)) {
+            return;
+        }
+
+        if (mToastIcon == null) {
+            mToastIcon =
+                Application.loadResource(Rez.Drawables.warningIcon) as
+                BitmapResource;
+        }
+
+        var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
+        var message = mAppName + " - " + riskLevelText;
+
+        if (mRiskAssessment.hazards.size() > 0) {
+            for (var i = 0; i < mRiskAssessment.hazards.size(); i = i + 1) {
+                var hazardStr = getHazardString(mRiskAssessment.hazards[i]);
+                message = message + "\n - " + hazardStr;
+            }
+        }
+
+        WatchUi.showToast(message, { :icon => mToastIcon });
     }
 }
 

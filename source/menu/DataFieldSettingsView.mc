@@ -46,32 +46,29 @@ class DataFieldSettingsDelegate extends WatchUi.BehaviorDelegate {
   //! @return true if handled, false otherwise
   function onMenu() as Boolean {
     var menu = new $.DataFieldSettingsMenu();
-    var mi = new WatchUi.MenuItem("Proxy", "Poi server config", "proxy", null);
+
+    var mi = new WatchUi.MenuItem("Background", "Background config", "background", null);
     menu.addItem(mi);
-    mi = new WatchUi.MenuItem("Large field", null, "largefield", null);
-    menu.addItem(mi);
-    mi = new WatchUi.MenuItem("Wide field", null, "widefield", null);
-    menu.addItem(mi);
-    mi = new WatchUi.MenuItem("Small field", null, "smallfield", null);
-    menu.addItem(mi);
+    
     mi = new WatchUi.MenuItem("Alerts", null, "alerts", null);
     menu.addItem(mi);
-    mi = new WatchUi.MenuItem("Sound", null, "sound", null);
-    menu.addItem(mi);
+
     mi = new WatchUi.MenuItem("Advanced", null, "advanced", null);
     menu.addItem(mi);
-    mi = new WatchUi.MenuItem("Help", null, "help", null);
-    menu.addItem(mi);
+
+    // mi = new WatchUi.MenuItem("Help", null, "help", null);
+    // menu.addItem(mi);
 
     var boolean = false;
 
-    boolean = Storage.getValue("debug") ? true : false;
-    menu.addItem(new WatchUi.ToggleMenuItem("Debug", null, "debug", boolean, null));
+    // boolean = Storage.getValue("debug") ? true : false;
+    // menu.addItem(new WatchUi.ToggleMenuItem("Debug", null, "debug", boolean, null));
+    boolean = Storage.getValue("demo") ? true : false;
+    menu.addItem(new WatchUi.ToggleMenuItem("Demo", null, "demo", boolean, null));
     boolean = Storage.getValue("resetDefaults") ? true : false;
-    menu.addItem(new WatchUi.ToggleMenuItem("Reset to defaults", null, "resetDefaults", boolean, null));
-    
-    boolean = Storage.getValue("pause_app") ? true : false;
-    menu.addItem(new WatchUi.ToggleMenuItem("Pause app", null, "pause_app", boolean, null));
+    menu.addItem(new WatchUi.ToggleMenuItem("Reset to defaults", null, "resetDefaults", boolean, null));    
+    // boolean = Storage.getValue("pause_app") ? true : false;
+    // menu.addItem(new WatchUi.ToggleMenuItem("Pause app", null, "pause_app", boolean, null));
 
     var view = new $.DataFieldSettingsView();
     WatchUi.pushView(menu, new $.DataFieldSettingsMenuDelegate(view), WatchUi.SLIDE_IMMEDIATE);

@@ -19,12 +19,25 @@ class SlipperyApp extends Application.AppBase {
     //! Return the initial view of your application here
     (:typecheck(disableBackgroundCheck))
     function getInitialView() as [Views] or [Views, InputDelegates] {
+        loadUserSettings();
         return [new SlipperyView()];
+    }
+
+    //! Return the settings view and delegate for the app
+    //! @return Array Pair [View, Delegate]
+    (:typecheck(disableBackgroundCheck))
+    function getSettingsView() as
+        [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] or Null
+    {
+        return [
+            new $.DataFieldSettingsView(),
+            new $.DataFieldSettingsDelegate(),
+        ];
     }
 
     (:typecheck(disableBackgroundCheck))
     function onSettingsChanged() as Void {
-        // loadUserSettings();
+        loadUserSettings();
     }
 
     (:typecheck(disableBackgroundCheck))
@@ -44,6 +57,10 @@ class SlipperyApp extends Application.AppBase {
                 System.println("Reset user settings");
                 Storage.setValue("resetDefaults", false);
                 Storage.setValue("checkIntervalMinutes", 5);
+                Storage.setValue("demo", false);
+                Storage.setValue("alert_beep", false);
+                Storage.setValue("alert_toast", false);
+                Storage.setValue("hsp_showvalue", false);                
             }
 
             $.g_bg_timeout_seconds =
@@ -67,6 +84,17 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("checkIntervalMinutes", interval);
             }
             bgHandler.setUpdateFrequencyInMinutes(interval);
+
+            $.gDemo = $.getStorageValue("demo", false) as Boolean;
+            if ($.gDemo) {
+                Storage.setValue("demo", false);
+            }
+            $.gBeepOnAlert = $.getStorageValue("alert_beep", false) as Boolean;
+            $.gToastOnAlert =
+                $.getStorageValue("alert_toast", false) as Boolean;
+
+            $.gHSPshowValue =
+                $.getStorageValue("hsp_showvalue", false) as Boolean;
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();
@@ -101,3 +129,8 @@ function getApp() as SlipperyApp {
 
 var _BGServiceHandler as BGServiceHandler?;
 var gMinimalGPSquality as Number = 3;
+var gDemo as Boolean = false;
+
+var gBeepOnAlert as Boolean = false;
+var gToastOnAlert as Boolean = false;
+var gHSPshowValue as Boolean = false;
