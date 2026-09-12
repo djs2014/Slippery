@@ -11,8 +11,8 @@ class SlipperyView extends WatchUi.DataField {
     var mLat as Float = 0.0;
     var mAppName = "Slippery";
 
-    private var mWeatherMetrics as WeatherMetrics;
-    private var mRiskAssessment as RiskAssessment;
+    private var mWeatherMetrics as WeatherMetrics = new WeatherMetrics();
+    private var mRiskAssessment as RiskAssessment = new RiskAssessment();
     private var mHasWeatherData as Boolean = false; // TODO then all color grey
     private var mHazardStrings as Array<String> = [];
     private var mAdviceStrings as Array<String> = [];
@@ -22,6 +22,8 @@ class SlipperyView extends WatchUi.DataField {
     private var mMinutesUntilSnow as Number = -1;
 
     hidden var mAlertProcessedForLevel as RiskLevel = RiskLevelNoData;
+    hidden var mAlertIncomingRain as Number = -1;
+    hidden var mAlertIncomingSnow as Number = -1;
     hidden var mToastIcon as BitmapResource?;
 
     hidden var mFontsNumbers as Array = [
@@ -39,9 +41,7 @@ class SlipperyView extends WatchUi.DataField {
 
     function initialize() {
         DataField.initialize();
-        mWeatherMetrics = new WeatherMetrics();
-        mRiskAssessment = new RiskAssessment();
-
+        
         $.checkFeatures();
 
         mCurrentLocation.setOnLocationChanged(self, :onLocationChanged);
@@ -59,30 +59,26 @@ class SlipperyView extends WatchUi.DataField {
     }
 
     function onBackgroundData(data as Dictionary?) as Void {
-        var weatherMetrics = $.parseOpenMeteoResponse(mLat, data);
-        if (weatherMetrics == null) {
+        if (!WeatherService.parseOpenMeteoResponse(mLat, data)) {
             return;
-        }
+        }        
         mHasWeatherData = true;
-        System.println(weatherMetrics.toString());
-
         if ($.gDemo) {
-            // Cache the weather metrics for after the demo is over
-            cachedWeatherMetrics = weatherMetrics;
             return;
         }
-        updateRiskAssessment(weatherMetrics);
+        updateWeatherAndRisks(WeatherService.getMetrics(), WeatherService.getRisks());
         WatchUi.requestUpdate();
     }
 
-    function updateRiskAssessment(weatherMetrics as WeatherMetrics) as Void {
+    function updateWeatherAndRisks(weatherMetrics as WeatherMetrics, riskAssessment as RiskAssessment) as Void {
         mWeatherMetrics = weatherMetrics;
-        mRiskAssessment =
-            WeatherService.calculateRiskAssessment(weatherMetrics);
+        System.println(weatherMetrics.toString());
+        mRiskAssessment = riskAssessment;
         System.println(mRiskAssessment.toString());
 
         setHazardAndAdviceStrings();
         initializeMinutesUntilCounters();
+        processAlerts();
     }
 
     function setHazardAndAdviceStrings() as Void {
@@ -107,17 +103,13 @@ class SlipperyView extends WatchUi.DataField {
         mEdgeField = $.getEdgeField(dc);
     }
 
-    var cachedWeatherMetrics as WeatherMetrics? = null;
     var demoCounter as Number = 0;
     var recalcRiskAssessment as Boolean = false;
     function processDemo() as Void {
         if ($.gDemo) {
             demoCounter = demoCounter + 1;
-            var weatherMetrics =
-                DemoWeatherService.getDemoWeatherMetrics(demoCounter);
-            mWeatherMetrics = weatherMetrics;
-            mRiskAssessment =
-                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+            mWeatherMetrics = DemoWeatherService.getDemoWeatherMetrics(demoCounter);
+            mRiskAssessment =                DemoWeatherService.getDemoRiskAssessment(demoCounter);
             setHazardAndAdviceStrings();
             initializeMinutesUntilCounters();
             if (demoCounter > 50) {
@@ -129,12 +121,7 @@ class SlipperyView extends WatchUi.DataField {
         }
         if (recalcRiskAssessment) {
             recalcRiskAssessment = false;
-            if (cachedWeatherMetrics != null) {
-                System.println(
-                    "Recalculating based on cached weather metrics."
-                );
-                updateRiskAssessment(cachedWeatherMetrics);
-            }
+            updateWeatherAndRisks(WeatherService.getMetrics(), WeatherService.getRisks());
         }
     }
 
@@ -147,8 +134,7 @@ class SlipperyView extends WatchUi.DataField {
         } else {
             $.g_bg_delay_seconds = $.g_bg_delay_seconds - 1;
         }
-        processMinutesUntilCounters();
-        processAlerts();
+        processMinutesUntilCounters();        
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -182,22 +168,40 @@ class SlipperyView extends WatchUi.DataField {
     }
 
     function processAlerts() as Void {
+        var newAlert = false;        
+        // Check for new alerts based on risk level
         if (mRiskAssessment.riskLevel > mAlertProcessedForLevel) {
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
             // Add your alert processing logic here
-            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);
-            if ($.gBeepOnAlert) {
-                playAlert();
-            }
-            if ($.gToastOnAlert) {
-                showToastForAlert();
-            }
+            newAlert = true;
+            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);            
         } else if (mRiskAssessment.riskLevel != mAlertProcessedForLevel) {
             // Reset to current risk level
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
             Toybox.System.println(
                 "Reset alert processing to level " + mAlertProcessedForLevel
             );
+        }
+        // Check for incoming rain and snow alerts
+        if (mAlertIncomingRain < 0 && mMinutesUntilRain >= 0) {
+            mAlertIncomingRain = mMinutesUntilRain;
+            newAlert = true;
+        } else {
+            mAlertIncomingRain = -1;            
+        }
+        if (mAlertIncomingSnow < 0 && mMinutesUntilSnow >= 0) {
+            mAlertIncomingSnow = mMinutesUntilSnow;
+            newAlert = true;
+        } else {
+            mAlertIncomingSnow = -1;            
+        }
+        if (newAlert) {
+            if ($.gBeepOnAlert) {
+                playAlert();
+            }
+            if ($.gToastOnAlert) {
+                showToastForAlert();
+            }
         }
     }
 
@@ -266,6 +270,7 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             sparklineHeight - 4,
             mWeatherMetrics,
+            mRiskAssessment.hourlyRisksLevels,
             isDark,
             false
         );
@@ -304,6 +309,7 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             sparklineHeight - 4,
             mWeatherMetrics,
+            mRiskAssessment.hourlyRisksLevels,
             isDark,
             true
         );
@@ -342,6 +348,7 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             sparklineHeight - 4,
             mWeatherMetrics,
+            mRiskAssessment.hourlyRisksLevels,
             isDark,
             true
         );
@@ -381,6 +388,7 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             sparklineHeight - 4,
             mWeatherMetrics,
+            mRiskAssessment.hourlyRisksLevels,
             isDark,
             true
         );
@@ -1132,8 +1140,16 @@ class SlipperyView extends WatchUi.DataField {
         if (localHazards.size() > 0) {
             for (var i = 0; i < localHazards.size(); i = i + 1) {
                 var hazardStr = localHazards[i];
-                message = message + "\n - " + hazardStr;
+                message = message + "-" + hazardStr;
             }
+        }
+
+        // Show incoming rain and snow alerts if applicable
+        if (mAlertIncomingRain >= 0) {
+            message = message + "Rain in " + mAlertIncomingRain + " minutes";
+        }
+        if (mAlertIncomingSnow >= 0) {
+            message = message + "Snow in " + mAlertIncomingSnow + " minutes";
         }
 
         WatchUi.showToast(message, { :icon => mToastIcon });

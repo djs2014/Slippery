@@ -7,6 +7,7 @@ class RiskAssessment {
     var riskLevel as RiskLevel= RiskLevelNoData;
     var hazards = [] as Array<WeatherHazard>;
     var advice = [] as Array<WeatherAdvice>;
+    var hourlyRisksLevels = [] as Array<RiskLevel>;
 
     public function toString() as String {
         return (
@@ -17,6 +18,8 @@ class RiskAssessment {
             hazards +
             ", advice=" +
             advice +
+            ", hourlyRisksLevels=" +
+            hourlyRisksLevels +
             "}"
         );
     }

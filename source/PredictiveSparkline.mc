@@ -11,6 +11,7 @@ class PredictiveSparkline {
         width as Number,
         height as Number,
         metrics as WeatherMetrics,
+        riskProfile as Array<RiskLevel>,
         isDark as Boolean,
         showLabels as Boolean
     ) as Void {
@@ -61,7 +62,32 @@ class PredictiveSparkline {
             }
         }
 
-        // --- 2. BASELINE & TIMELINE HOUR LABELS ---
+        // --- . DRAW 12-HOUR RISK HEATMAP BAR ALONG THE BOTTOM ---
+        var blockW = (width.toFloat() / numHours) + 0.5f; // Small overlap to avoid pixel gaps
+        var sparklineH = height - chartHeight - 4;
+        var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
+        for (var i = 0; i < riskProfile.size(); i++) {
+            var blockX = x + (i * (width.toFloat() / numHours));
+            var blockY = y + sparklineH + 2;
+            var riskColor = $.getRiskColor(riskProfile[i], isDark);
+
+            dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillRectangle(blockX.toNumber(), blockY, blockW.toNumber(), chartHeight);
+            // Draw the hour label below the risk bar // TODO get current hour
+            if (showLabels) {
+                var hourLabel = Lang.format("+$1$", [i.format("%d")]);
+                dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    blockX.toNumber() + blockW.toNumber() / 2,
+                    blockY + chartHeight / 2,
+                    Graphics.FONT_XTINY,
+                    hourLabel,
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+            }
+        }
+
+        // --- 3. BASELINE & TIMELINE HOUR LABELS ---
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
 
@@ -83,7 +109,7 @@ class PredictiveSparkline {
             );
         }
 
-        // --- 3. RAIN PRECIPITATION BARS ---
+        // --- 4. RAIN PRECIPITATION BARS ---
         var maxRain = 2.0f;
         for (var i = 0; i < numHours; i++) {
             if (rainForecast[i] > maxRain) {
@@ -148,7 +174,7 @@ class PredictiveSparkline {
             }
         }
 
-        // --- 4. WIND GUST SPARKLINE & DIRECTION ARROWS ---
+        // --- 5. WIND GUST SPARKLINE & DIRECTION ARROWS ---
         var maxWind = 60.0f;
         var prevX = -1;
         var prevY = -1;
