@@ -128,7 +128,7 @@ class BGServiceHandler {
       mError == CustomErrors.ERROR_BG_GPS_LEVEL ||
       mError == CustomErrors.ERROR_BG_NO_PHONE ||
       mError == CustomErrors.ERROR_BG_NO_POSITION ||
-      mError == CustomErrors.ERROR_BG_EXCEPTION
+      mError == CustomErrors.ERROR_BG_EXCEPTION      
     ) {
       mError = CustomErrors.ERROR_BG_NONE;
     }

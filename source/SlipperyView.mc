@@ -39,6 +39,7 @@ class SlipperyView extends WatchUi.DataField {
         // Graphics.FONT_NUMBER_THAI_HOT,
     ];
 
+    private var mCurrentHour as Number = -1;
     function initialize() {
         DataField.initialize();
         
@@ -134,7 +135,8 @@ class SlipperyView extends WatchUi.DataField {
         } else {
             $.g_bg_delay_seconds = $.g_bg_delay_seconds - 1;
         }
-        processMinutesUntilCounters();        
+        handleHourChange();      
+        processMinutesUntilCounters();  
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -205,6 +207,17 @@ class SlipperyView extends WatchUi.DataField {
         }
     }
 
+    function handleHourChange() as Void {
+        var currentHour = System.getClockTime().hour;
+        if (mCurrentHour < 0) {
+            // First time initialization of the current hour
+            mCurrentHour = currentHour;
+        } else if (currentHour != mCurrentHour) {
+            System.println("Hour changed from " + mCurrentHour + " to " + currentHour);
+            mCurrentHour = currentHour;
+            WeatherService.recalculateOpenMeteoData(mLat);
+        }
+    }
     function onUpdate(dc as Dc) as Void {
         var width = dc.getWidth();
         var height = dc.getHeight();
@@ -390,7 +403,7 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            true
+            false
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)

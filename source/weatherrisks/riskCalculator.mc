@@ -27,7 +27,7 @@ public class RiskCalculator {
         return _advice;
     }
     private static function reset() as Void {
-        _riskLevel = RiskLevelNoData;
+        _riskLevel = RiskLevelSafe;
         _hazards = [];
         _advice = [];
     }

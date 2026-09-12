@@ -4,9 +4,6 @@
     - for predict commute track
     - reset option after activity done
 
-Nice to have - on hour switch ->
-    - update forecast bar
-    - TODO cache next hour
    
 
 - werkende icon voor risk level (small screen)
@@ -18,64 +15,27 @@ Nice to have - on hour switch ->
     - border around bar and display level + colorpill under
 
 
+104 reset when connected
+gust levels med/etc.
 
-import Toybox.Graphics as Gfx;
-import Toybox.Lang;
+when in safe mode / no hazards
+- rain in x min
+- snow in x min
+- gusts in x min
+- toon weather data
+..
 
-class PredictiveSparkline {
 
-    public static function drawSparklineWithRisk(
-        dc as Gfx.Dc,
-        x as Number,
-        y as Number,
-        width as Number,
-        height as Number,
-        trendData as Array<Float>,       // 12 float values (e.g., surface temp or wetness)
-        riskProfile as Array<RiskLevel> // 12 RiskLevel values
-    ) as Void {
-        var count = trendData.size();
-        if (count < 2) { return; }
 
-        var barHeight = 6;
-        var sparklineH = height - barHeight - 4;
-        var stepX = width.toFloat() / (count - 1);
+If times is strictly linear hourly steps (each entry is exactly $3600$ seconds apart), you can eliminate the for loop completely with single-line integer math:
+var nowSec = Time.now().value();
 
-        // --- 1. DRAW 12-HOUR RISK HEATMAP BAR ALONG THE BOTTOM ---
-        var blockW = (width.toFloat() / count) + 0.5f; // Small overlap to avoid pixel gaps
+// Calculate index offset directly from start epoch
+var targetIdx = (nowSec - times[0]) / 3600;
 
-        for (var i = 0; i < count; i++) {
-            var blockX = x + (i * (width.toFloat() / count));
-            var blockY = y + sparklineH + 2;
-            var riskColor = ThemeManager.getRiskColor(riskProfile[i]);
-
-            dc.setColor(riskColor, Gfx.COLOR_TRANSPARENT);
-            dc.fillRectangle(blockX.toNumber(), blockY, blockW.toNumber(), barHeight);
-        }
-
-        // --- 2. DRAW PREDICTIVE TREND LINE OVER THE HEATMAP ---
-        // Find min/max for line scaling
-        var min = trendData[0];
-        var max = trendData[0];
-        for (var i = 1; i < count; i++) {
-            if (trendData[i] < min) { min = trendData[i]; }
-            if (trendData[i] > max) { max = trendData[i]; }
-        }
-        
-        var range = (max - min == 0) ? 1.0f : (max - min);
-
-        dc.setColor(AppState.activePalette[ThemeManager.COLOR_TEXT], Gfx.COLOR_TRANSPARENT);
-
-        var prevX = x;
-        var prevY = y + sparklineH - (((trendData[0] - min) / range) * sparklineH).toNumber();
-
-        for (var i = 1; i < count; i++) {
-            var currX = x + (i * stepX).toNumber();
-            var currY = y + sparklineH - (((trendData[i] - min) / range) * sparklineH).toNumber();
-
-            dc.drawLine(prevX, prevY, currX, currY);
-
-            prevX = currX;
-            prevY = currY;
-        }
-    }
+// Clamp bounds [0, times.size() - 1]
+if (targetIdx < 0) { 
+    targetIdx = 0; 
+} else if (targetIdx >= times.size()) { 
+    targetIdx = times.size() - 1; 
 }

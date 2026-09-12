@@ -4,7 +4,7 @@ import Toybox.Lang;
 class StringListRenderer {
 
     // Pre-calculated spacing constants to avoid repeated width calls
-    private const SEPARATOR = " / ";
+    private static const SEPARATOR = " / ";
 
     /// Draws an array of strings wrapped within a specified width and line limit.
     /// Returns the total height occupied by the rendered text.
@@ -24,7 +24,7 @@ class StringListRenderer {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
 
         var fontHeight = dc.getFontHeight(font);
-        var separatorWidth = dc.getTextWidthInPixels(self.SEPARATOR, font);
+        var separatorWidth = dc.getTextWidthInPixels(StringListRenderer.SEPARATOR, font);
 
         var currentY = y;
         var currentLineWidth = 0;
@@ -45,7 +45,7 @@ class StringListRenderer {
             if (isFirstItemOnLine || (currentLineWidth + neededWidth <= maxWidth)) {
                 // Draw separator if it's not the first item on this line
                 if (!isFirstItemOnLine) {
-                    dc.drawText(x + currentLineWidth, currentY, font, self.SEPARATOR, Graphics.TEXT_JUSTIFY_LEFT);
+                    dc.drawText(x + currentLineWidth, currentY, font, StringListRenderer.SEPARATOR, Graphics.TEXT_JUSTIFY_LEFT);
                     currentLineWidth += separatorWidth;
                 }
 
@@ -89,7 +89,7 @@ class StringListRenderer {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
 
         var fontHeight = dc.getFontHeight(font);
-        var separatorWidth = dc.getTextWidthInPixels(self.SEPARATOR, font);
+        var separatorWidth = dc.getTextWidthInPixels(StringListRenderer.SEPARATOR, font);
 
         // Fixed array to track how many items land on each line (maxLines capacity)
         var lineItemCounts = new [maxLines];
@@ -142,7 +142,7 @@ class StringListRenderer {
                 var item = items[itemIndex];
                 
                 if (i > 0) {
-                    dc.drawText(currentX, currentY, font, self.SEPARATOR, Graphics.TEXT_JUSTIFY_LEFT);
+                    dc.drawText(currentX, currentY, font, StringListRenderer.SEPARATOR, Graphics.TEXT_JUSTIFY_LEFT);
                     currentX += separatorWidth;
                 }
 

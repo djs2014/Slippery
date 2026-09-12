@@ -138,13 +138,15 @@ class PredictiveSparkline {
                         rainStartIdx = i;
                     }
                 } else if (rain >= 0.5f) {
+                    // deep sky blue
                     dc.setColor(0x00aaff, Graphics.COLOR_TRANSPARENT);
                     if (rainStartIdx == -1) {
                         rainStartIdx = i;
                     }
                 } else {
+                    // light blue  Columbia Blue
                     dc.setColor(
-                        Graphics.COLOR_YELLOW,
+                        0x99ddff,
                         Graphics.COLOR_TRANSPARENT
                     );
                 }

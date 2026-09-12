@@ -3,7 +3,7 @@ import Toybox.Lang;
 
 // Initialize active palette pointer once when theme updates
 class AppState {
-    public static var activePalette as Array<Number> = ThemeManager.DARK_PALETTE;
+    public static var activePalette as Array<ColorType> = ThemeManager.DARK_PALETTE;
 
     public static function updateTheme(isDark as Boolean) as Void {
         activePalette = isDark ? ThemeManager.DARK_PALETTE : ThemeManager.LIGHT_PALETTE;
@@ -40,7 +40,7 @@ class ThemeManager {
     }
 
     // Direct indexed palettes for Dark and Light themes
-    public static const DARK_PALETTE as Array<Number> = [
+    public static const DARK_PALETTE as Array<ColorType> = [
         0x00AAFF,            // 0: BLUE
         0x00D5FF,            // 1: CYAN_BLUE
         Graphics.COLOR_WHITE,// 2: ROYAL_BLUE (fallback)
@@ -61,7 +61,7 @@ class ThemeManager {
         0x0088CC             // 17: DEEP_CYAN
     ];
 
-    public static const LIGHT_PALETTE as Array<Number> = [
+    public static const LIGHT_PALETTE as Array<ColorType> = [
         0x00AAFF,            // 0: BLUE
         Graphics.COLOR_WHITE,// 1: CYAN_BLUE (fallback)
         0x0044CC,            // 2: ROYAL_BLUE
