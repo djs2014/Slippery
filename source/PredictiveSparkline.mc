@@ -15,7 +15,7 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         isDark as Boolean,
         showLabels as Boolean,
-        showForecastHour as ShowForecastHour,
+        showForecastHour as ShowForecastHour
     ) as Void {
         var timeStampsForeCast = metrics.timeStampsForeCast;
         var numHours = timeStampsForeCast.size();
@@ -30,9 +30,13 @@ class PredictiveSparkline {
         var windGustForecast = metrics.windGustForecast; // Float (km/h)
         var surfaceTempForecast = metrics.surfaceTempForecast; // Float (°C surface)
 
-        var barGap = 2;
+        var smallWidth = width < 180;
+        var barGap = smallWidth ? 1 : 2;
         var totalGaps = (numHours - 1) * barGap;
         var barWidth = (width - totalGaps) / numHours;
+        if (barWidth < 2) {
+            barWidth = 2;
+        }
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
@@ -75,12 +79,7 @@ class PredictiveSparkline {
             var riskColor = $.getRiskColor(riskProfile[i], isDark);
             var riskBlockHeight = (chartHeight * 0.66).toNumber();
             dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(
-                blockX,
-                blockY,
-                blockW,
-                riskBlockHeight
-            );
+            dc.fillRectangle(blockX, blockY, blockW, riskBlockHeight);
 
             if (showLabels && showForecastHour != ForecastHourNone) {
                 var hourLabel;
@@ -90,7 +89,7 @@ class PredictiveSparkline {
                     var hour = (currentHour + i) % 24; // Display the hour relative to the current hour
                     hourLabel = Lang.format("$1$", [hour.format("%d")]);
                 }
-                
+
                 dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(
                     blockX + blockW / 2,
@@ -350,23 +349,37 @@ class PredictiveSparkline {
             }
 
             // --- CONDITIONAL ARROW DRAWING ---
+            var arrowStep = 1; //smallWidth ? 2 : 1;
             // Draw vector ONLY if wind is fast (>=20 km/h), gust is heavy (>=25 km/h),
             // or there is notable gust turbulence (gust >= 1.3 * base wind)
             var relGustRatio = windSpd > 1.0f ? gust / windSpd : 1.0f;
             var shouldDrawArrow =
-                windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f;
+                i % arrowStep == 0 &&
+                (windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f);
 
             // Line height is wind strength
             if (shouldDrawArrow && windDirForecast.size() > i) {
-                drawWindArrow(
-                    dc,
-                    px,
-                    py, //baselineY - 4,
-                    windDirForecast[i],
-                    windSpd,
-                    gust,
-                    isDark
-                );
+                if (smallWidth) {
+                    drawWindArrow_line(
+                        dc,
+                        px,
+                        py,
+                        windDirForecast[i],
+                        windSpd,
+                        gust,
+                        isDark
+                    );
+                } else {
+                    drawWindArrow(
+                        dc,
+                        px,
+                        py, //baselineY - 4,
+                        windDirForecast[i],
+                        windSpd,
+                        gust,
+                        isDark
+                    );
+                }
             }
 
             prevX = px;
@@ -542,13 +555,12 @@ class PredictiveSparkline {
         isDark as Boolean
     ) as Void {
         // 1. SHAFT LENGTH BASED ON BASE WIND SPEED (Range: 8px to 14px)
-        var len = 8;
+        var isCompact = dc.getHeight() < 120;
+        var len = isCompact ? 6 : 8;
         if (windSpeed >= 35.0f) {
-            len = 14;
+            len = isCompact ? 10 : 14;
         } else if (windSpeed >= 25.0f) {
-            len = 12;
-        } else if (windSpeed >= 18.0f) {
-            len = 10;
+            len = isCompact ? 8 : 12;
         }
 
         // Direction unit vector (0 deg = North)
@@ -636,5 +648,5 @@ class PredictiveSparkline {
             dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
             dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
         }
-    }
+    }    
 }

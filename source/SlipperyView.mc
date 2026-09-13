@@ -297,24 +297,6 @@ class SlipperyView extends WatchUi.DataField {
         }
     }
 
-    private function drawCurrentWindArrow(
-        dc as Graphics.Dc,
-        centerX as Number,
-        centerY as Number,
-        isDark as Boolean
-    ) as Void {
-        CurrentWindWidget.draw(
-            dc,
-            centerX, // Widget X center
-            centerY, // Widget Y center
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            isDark
-        );
-    }
     private function drawEdgeSmallFieldWithSparkline(
         dc as Graphics.Dc,
         width as Number,
@@ -339,6 +321,9 @@ class SlipperyView extends WatchUi.DataField {
         // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 6;
+        if (!$.gHasHighResScreen) {
+            paddingX = 2;
+        }
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -519,7 +504,17 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // --- CURRENT WIND ARROW CENTERED IN HEADER ---
-        drawCurrentWindArrow(dc, w / 2, centerHeaderY, isDark);
+        CurrentWindWidget.draw(
+            dc,
+            x + w / 2, // Widget X center
+            y + headerHeight / 2, // Widget Y center
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark
+        );
 
         if ($.gHSPshowValue) {
             drawOptionalHsp(dc, isDark);
@@ -739,7 +734,17 @@ class SlipperyView extends WatchUi.DataField {
 
         // --- CURRENT WIND ARROW CENTERED ---
         linePos = y + h / 2;
-        drawCurrentWindArrow(dc, x + badgeWidth / 2, linePos, isDark);
+        CurrentWindWidget.draw(
+            dc,
+            x + badgeWidth / 2, // Widget X center
+            y + h / 2, // Widget Y center
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark
+        );
 
         if (
             (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
@@ -898,7 +903,17 @@ class SlipperyView extends WatchUi.DataField {
             y + heightRiskBlock + ((h - heightRiskBlock) / 2).toNumber();
         var arrowAreaCenterX = x + (leftWidth / 2).toNumber();
 
-        drawCurrentWindArrow(dc, arrowAreaCenterX, arrowAreaCenterY, isDark);
+        CurrentWindWidget.draw(
+            dc,
+            arrowAreaCenterX, // Widget X center
+            arrowAreaCenterY, // Widget Y center
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark
+        );
 
         // Divider Line between Left & Right Columns
         var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
@@ -1160,8 +1175,17 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // --- CURRENT WIND ARROW CENTERED IN GRID ---
-        drawCurrentWindArrow(dc, w / 2, gridTop + gridHeight / 2, isDark);
-
+        CurrentWindWidget.draw(
+            dc,
+            w / 2, // Widget X center
+            gridTop + gridHeight / 2, // Widget Y center
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark
+        );
         // 4. Hazards & Advice Section
 
         dc.setColor(
@@ -1284,7 +1308,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         WatchUi.showToast(message, { :icon => mToastIcon });
-    }
+    }    
 }
 
 function getMatchingFont(

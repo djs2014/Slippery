@@ -12,13 +12,9 @@
     - alert
     - border around bar and display level + colorpill under
 
-
 switch hours -> will also need other minute rain data-> need 8 * 15 min ->
 
 104 reset when connected
-
-
-
 
 If times is strictly linear hourly steps (each entry is exactly $3600$ seconds apart), you can eliminate the for loop completely with single-line integer math:
 var nowSec = Time.now().value();
