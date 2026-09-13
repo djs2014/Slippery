@@ -61,6 +61,7 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("alert_beep", false);
                 Storage.setValue("alert_toast", false);
                 Storage.setValue("hsp_showvalue", false);                
+                Storage.setValue("hsp_darklight_breakpoint", 180);                
             }
 
             $.g_bg_timeout_seconds =
@@ -117,9 +118,9 @@ class SlipperyApp extends Application.AppBase {
         }
 
         var bgHandler = getBGServiceHandler();
-        bgHandler.onBackgroundData(data); //, self, :updateBgData);
+        bgHandler.onBackgroundData(data); //, self, :updateBgData);   
 
-        WatchUi.requestUpdate();
+        WatchUi.requestUpdate();     
     }
 }
 

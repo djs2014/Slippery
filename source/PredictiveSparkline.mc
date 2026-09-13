@@ -100,13 +100,13 @@ class PredictiveSparkline {
                 Graphics.TEXT_JUSTIFY_LEFT
             );
 
-            dc.drawText(
-                x + width,
-                baselineY + 3,
-                Graphics.FONT_XTINY,
-                Lang.format("+$1$h", [numHours.format("%d")]),
-                Graphics.TEXT_JUSTIFY_RIGHT
-            );
+            // dc.drawText(
+            //     x + width,
+            //     baselineY + 3,
+            //     Graphics.FONT_XTINY,
+            //     Lang.format("+$1$h", [(numHours-1).format("%d")]),
+            //     Graphics.TEXT_JUSTIFY_RIGHT
+            // );
         }
 
         // --- 4. RAIN PRECIPITATION BARS ---
@@ -155,26 +155,26 @@ class PredictiveSparkline {
             }
         }
         // Display remaining time until first rain (if any)
-        if (showLabels && rainStartIdx != -1) {
-            // Get timestamp for the first rain event (if available)
-            if (rainStartIdx < timeStampsForeCast.size()) {
-                var firstRainTime = timeStampsForeCast[rainStartIdx];
-                // Difference in hours:minute from current time
-                var diffSec = firstRainTime - Time.now().value();
-                if (diffSec > 0) {
-                    dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-                    dc.drawText(
-                        (x + width) / 2,
-                        baselineY + 3,
-                        Graphics.FONT_XTINY,
-                        Lang.format("first rain in $1$", [
-                            $.secondsToShortTimeString(diffSec, "{h}:{m}:{s}"),
-                        ]),
-                        Graphics.TEXT_JUSTIFY_CENTER
-                    );
-                }
-            }
-        }
+        // if (showLabels && rainStartIdx != -1) {
+        //     // Get timestamp for the first rain event (if available)
+        //     if (rainStartIdx < timeStampsForeCast.size()) {
+        //         var firstRainTime = timeStampsForeCast[rainStartIdx];
+        //         // Difference in hours:minute from current time
+        //         var diffSec = firstRainTime - Time.now().value();
+        //         if (diffSec > 0) {
+        //             dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+        //             dc.drawText(
+        //                 (x + width) / 2,
+        //                 baselineY + 3,
+        //                 Graphics.FONT_XTINY,
+        //                 Lang.format("first rain in $1$", [
+        //                     $.secondsToShortTimeString(diffSec, "{h}:{m}:{s}"),
+        //                 ]),
+        //                 Graphics.TEXT_JUSTIFY_CENTER
+        //             );
+        //         }
+        //     }
+        // }
 
         // --- 5. WIND GUST SPARKLINE & DIRECTION ARROWS ---
         var maxWind = 60.0f;

@@ -104,7 +104,7 @@ function isColorLight(garminColor as Graphics.ColorType) as Boolean {
     var breakpoint = Storage.getValue("hsp_darklight_breakpoint");
     if (breakpoint == null || breakpoint < 0 || breakpoint > 255) {
         //breakpoint = 127.5; // Default to midpoint if not set
-        breakpoint = 145; // Default to midpoint if not set
+        breakpoint = 180; // Default for garmin edge devices
     }
     return hsp > breakpoint;
 }

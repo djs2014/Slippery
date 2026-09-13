@@ -42,7 +42,7 @@ class SlipperyView extends WatchUi.DataField {
     private var mCurrentHour as Number = -1;
     function initialize() {
         DataField.initialize();
-        
+
         $.checkFeatures();
 
         mCurrentLocation.setOnLocationChanged(self, :onLocationChanged);
@@ -62,16 +62,21 @@ class SlipperyView extends WatchUi.DataField {
     function onBackgroundData(data as Dictionary?) as Void {
         if (!WeatherService.parseOpenMeteoResponse(mLat, data)) {
             return;
-        }        
+        }
         mHasWeatherData = true;
         if ($.gDemo) {
             return;
         }
-        updateWeatherAndRisks(WeatherService.getMetrics(), WeatherService.getRisks());
-        WatchUi.requestUpdate();
+        updateWeatherAndRisks(
+            WeatherService.getMetrics(),
+            WeatherService.getRisks()
+        );        
     }
 
-    function updateWeatherAndRisks(weatherMetrics as WeatherMetrics, riskAssessment as RiskAssessment) as Void {
+    function updateWeatherAndRisks(
+        weatherMetrics as WeatherMetrics,
+        riskAssessment as RiskAssessment
+    ) as Void {
         mWeatherMetrics = weatherMetrics;
         System.println(weatherMetrics.toString());
         mRiskAssessment = riskAssessment;
@@ -109,8 +114,10 @@ class SlipperyView extends WatchUi.DataField {
     function processDemo() as Void {
         if ($.gDemo) {
             demoCounter = demoCounter + 1;
-            mWeatherMetrics = DemoWeatherService.getDemoWeatherMetrics(demoCounter);
-            mRiskAssessment =                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+            mWeatherMetrics =
+                DemoWeatherService.getDemoWeatherMetrics(demoCounter);
+            mRiskAssessment =
+                DemoWeatherService.getDemoRiskAssessment(demoCounter);
             setHazardAndAdviceStrings();
             initializeMinutesUntilCounters();
             if (demoCounter > 50) {
@@ -122,7 +129,10 @@ class SlipperyView extends WatchUi.DataField {
         }
         if (recalcRiskAssessment) {
             recalcRiskAssessment = false;
-            updateWeatherAndRisks(WeatherService.getMetrics(), WeatherService.getRisks());
+            updateWeatherAndRisks(
+                WeatherService.getMetrics(),
+                WeatherService.getRisks()
+            );
         }
     }
 
@@ -135,20 +145,20 @@ class SlipperyView extends WatchUi.DataField {
         } else {
             $.g_bg_delay_seconds = $.g_bg_delay_seconds - 1;
         }
-        handleHourChange();      
-        processMinutesUntilCounters();  
+        handleHourChange();
+        processMinutesUntilCounters();
     }
 
     function initializeMinutesUntilCounters() as Void {
         if (mWeatherMetrics.immediateRain < 0) {
             mMinutesUntilRain = -1;
         } else {
-            mMinutesUntilRain = mWeatherMetrics.immediateRain * 15;
+            mMinutesUntilRain = mWeatherMetrics.immediateRain;
         }
         if (mWeatherMetrics.immediateSnow < 0) {
             mMinutesUntilSnow = -1;
         } else {
-            mMinutesUntilSnow = mWeatherMetrics.immediateSnow * 15;
+            mMinutesUntilSnow = mWeatherMetrics.immediateSnow;
         }
         mMinutesUntilSecondsCounter = 0;
     }
@@ -170,13 +180,13 @@ class SlipperyView extends WatchUi.DataField {
     }
 
     function processAlerts() as Void {
-        var newAlert = false;        
+        var newAlert = false;
         // Check for new alerts based on risk level
         if (mRiskAssessment.riskLevel > mAlertProcessedForLevel) {
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
             // Add your alert processing logic here
             newAlert = true;
-            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);            
+            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);
         } else if (mRiskAssessment.riskLevel != mAlertProcessedForLevel) {
             // Reset to current risk level
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
@@ -189,13 +199,13 @@ class SlipperyView extends WatchUi.DataField {
             mAlertIncomingRain = mMinutesUntilRain;
             newAlert = true;
         } else {
-            mAlertIncomingRain = -1;            
+            mAlertIncomingRain = -1;
         }
         if (mAlertIncomingSnow < 0 && mMinutesUntilSnow >= 0) {
             mAlertIncomingSnow = mMinutesUntilSnow;
             newAlert = true;
         } else {
-            mAlertIncomingSnow = -1;            
+            mAlertIncomingSnow = -1;
         }
         if (newAlert) {
             if ($.gBeepOnAlert) {
@@ -213,9 +223,16 @@ class SlipperyView extends WatchUi.DataField {
             // First time initialization of the current hour
             mCurrentHour = currentHour;
         } else if (currentHour != mCurrentHour) {
-            System.println("Hour changed from " + mCurrentHour + " to " + currentHour);
+            System.println(
+                "Hour changed from " + mCurrentHour + " to " + currentHour
+            );
             mCurrentHour = currentHour;
-            WeatherService.recalculateOpenMeteoData(mLat);
+            if (WeatherService.recalculateOpenMeteoData(mLat)) {
+                updateWeatherAndRisks(
+                    WeatherService.getMetrics(),
+                    WeatherService.getRisks()
+                );
+            }     
         }
     }
     function onUpdate(dc as Dc) as Void {
@@ -695,15 +712,18 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        // Right 70%: Surface Temp & Primary Hazard
-        var textX = badgeWidth + 6;
-        var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
-
+        // Right 70%: Metrics Grid & Hazards
+        var rightAreaX = x + badgeWidth + 4;
+        var rightAreaWidth = w - badgeWidth - 4;
+        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
         var linePos = y + 2;
 
-        // 2: Surface Temperature
-        var surfStr = Lang.format("$1$°C SURFACE", [
+        // --- ROW 1: Side-by-Side (1x2 Grid) ---
+        var colWidth = rightAreaWidth / 2;
+
+        // Col 1: Surface Temperature
+        var surfStr = Lang.format("ST $1$°", [
             mWeatherMetrics.surfaceTemp.format("%.1f"),
         ]);
         dc.setColor(
@@ -711,31 +731,32 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.COLOR_TRANSPARENT
         );
         dc.drawText(
-            textX,
+            rightAreaX,
             linePos,
             Graphics.FONT_XTINY,
             surfStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
-        linePos += lineHeight;
-        // 3: Humidity
-        var humidityStr = Lang.format("$1$% HUMIDITY", [
-            mWeatherMetrics.humidity.format("%.1f"),
+
+        // Col 2: Humidity
+        var humidityStr = Lang.format("$1$% HUM", [
+            mWeatherMetrics.humidity.format("%d"),
         ]);
         dc.setColor(
             mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor,
             Graphics.COLOR_TRANSPARENT
         );
         dc.drawText(
-            textX,
+            rightAreaX + colWidth,
             linePos,
             Graphics.FONT_XTINY,
             humidityStr,
             Graphics.TEXT_JUSTIFY_LEFT
         );
+
         linePos += lineHeight;
 
-        // 4: All Hazard strings (shortened)
+        // --- ROW 2+: Shortened Hazard Strings ---
         if (mRiskAssessment.hazards.size() > 0) {
             for (var i = 0; i < mRiskAssessment.hazards.size(); i += 1) {
                 var hazardStr = getShortHazardString(
@@ -746,7 +767,7 @@ class SlipperyView extends WatchUi.DataField {
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
-                    textX,
+                    rightAreaX,
                     linePos,
                     Graphics.FONT_XTINY,
                     hazardStr,
