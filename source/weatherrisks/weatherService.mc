@@ -162,28 +162,61 @@ class WeatherService {
 
             metrics.currentSeason = $.getMeteorologicalSeason(lat, Time.now());
 
+            // TODO check that all sizes are the same
+
             // Get the 12 hour forecast for rain, wind, wind direction, and temperature
             // Start with the current hour time index!
             var maxForecastIdx = times.size();
+            // Ensure all have same size
+            var rainSize = rains.size();
+            var windSpeedSize = windSpeeds.size();
+            var windDirectionSize = windDirections.size();
+            var windGustSize = windGusts.size();
+            var airTempSize = airTemps.size();
+            var snowSize = snows.size();
+            var surfTempSize = surfTemps.size();
+            if (
+                rainSize != maxForecastIdx ||
+                windSpeedSize != maxForecastIdx ||
+                windDirectionSize != maxForecastIdx ||
+                windGustSize != maxForecastIdx ||
+                airTempSize != maxForecastIdx ||
+                snowSize != maxForecastIdx ||
+                surfTempSize != maxForecastIdx
+            ) {
+                System.println(
+                    "Warning: Forecast array sizes do not match the times array size."
+                );
+                System.println(
+                    "Sizes: times=" +
+                        times.size() +
+                        ", rains=" +
+                        rains.size() +
+                        ", windSpeeds=" +
+                        windSpeeds.size() +
+                        ", windDirections=" +
+                        windDirections.size() +
+                        ", windGusts=" +
+                        windGusts.size() +
+                        airTemps.size() +
+                        ", snows=" +
+                        snows.size() +
+                        ", surfTemps=" +
+                        surfTemps.size() +
+                        ", airTemps=" +
+                        airTemps.size()
+                );
+            }
+
             for (var l = targetIdx; l < maxForecastIdx; l++) {
-                if (l < times.size()) {
-                    metrics.timeStampsForeCast.add(times[l]);
-                }
-                if (l < rains.size()) {
-                    metrics.rainForecast.add(rains[l]);
-                }
-                if (l < windSpeeds.size()) {
-                    metrics.windForecast.add(windSpeeds[l]);
-                }
-                if (l < windDirections.size()) {
-                    metrics.windDirForecast.add(windDirections[l]);
-                }
-                if (l < windGusts.size()) {
-                    metrics.windGustForecast.add(windGusts[l]);
-                }
-                if (l < airTemps.size()) {
-                    metrics.airTempForecast.add(airTemps[l]);
-                }
+                metrics.timeStampsForeCast.add(times[l]);
+                metrics.rainForecast.add(rains[l]);
+                metrics.windForecast.add(windSpeeds[l]);
+                metrics.windDirForecast.add(windDirections[l]);
+                metrics.windGustForecast.add(windGusts[l]);
+                metrics.airTempForecast.add(airTemps[l]);
+                metrics.snowForecast.add(snows[l]);
+                metrics.surfaceTempForecast.add(surfTemps[l]);
             }
 
             var minutelyData = data.get("minutely_15") as Dictionary?;

@@ -15,18 +15,18 @@ class PredictiveSparkline {
         isDark as Boolean,
         showLabels as Boolean
     ) as Void {
-        var timeStampsForeCast = metrics.timeStampsForeCast; // Number items (unixtime in seconds)
+        var timeStampsForeCast = metrics.timeStampsForeCast;
         var numHours = timeStampsForeCast.size();
         if (numHours == 0) {
             return;
         }
-        var rainForecast = metrics.rainForecast; // Float items (mm/h)
-        var snowForecast = metrics.snowForecast; // Float items (mm/h)
-        var windForecast = metrics.windForecast; // Float items (km/h)
-        var windDirForecast = metrics.windDirForecast; // Number items (0-359 deg)
-        var windGustForecast = metrics.windGustForecast; // Float items (km/h)
-        var airTempForecast = metrics.airTempForecast; // Float items (°C air)
-        var surfaceTempForecast = metrics.surfaceTempForecast; // Float items (°C surface)
+
+        var rainForecast = metrics.rainForecast; // Float (mm/h)
+        var snowForecast = metrics.snowForecast; // Float (mm/h)
+        var windForecast = metrics.windForecast; // Float (km/h)
+        var windDirForecast = metrics.windDirForecast; // Number (0-359 deg)
+        var windGustForecast = metrics.windGustForecast; // Float (km/h)
+        var surfaceTempForecast = metrics.surfaceTempForecast; // Float (°C surface)
 
         var barGap = 2;
         var totalGaps = (numHours - 1) * barGap;
@@ -35,24 +35,22 @@ class PredictiveSparkline {
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
             : Graphics.COLOR_DK_GRAY;
-        var offsetLabels = 16;
-        var offsetChartHeight = 14;
-        var offsetIceBars = 12;
-        if (!showLabels) {
-            offsetLabels = 0;
-            offsetChartHeight = 0;
-            offsetIceBars = 0;
-        }
-        var baselineY = y + height - offsetLabels; // Reserve 16px at bottom for wind arrows + labels
+        var offsetLabels = showLabels ? 16 : 0;
+        var offsetChartHeight = showLabels ? 14 : 0;
+        var offsetIceBars = showLabels ? 12 : 0;
+
+        var baselineY = y + height - offsetLabels;
         var chartHeight = baselineY - y - offsetChartHeight;
 
-        // --- 1. FREEZING RISK BACKGROUND TINT ---
-        // Highlight ice risk slots where temperature <= 0.0°C
+        // --- 1. FREEZING SURFACE TEMP BACKGROUND HIGHLIGHT ---
         for (var i = 0; i < numHours; i++) {
-            if (airTempForecast.size() > i && airTempForecast[i] <= 0.0f) {
+            if (
+                surfaceTempForecast.size() > i &&
+                surfaceTempForecast[i] <= 0.0f
+            ) {
                 var bx = x + i * (barWidth + barGap);
                 dc.setColor(
-                    isDark ? 0x003366 : 0xcce6ff,
+                    isDark ? 0x002244 : 0xdceeff,
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.fillRectangle(
@@ -64,18 +62,24 @@ class PredictiveSparkline {
             }
         }
 
-        // --- . DRAW 12-HOUR RISK HEATMAP BAR ALONG THE BOTTOM ---
-        var blockW = (width.toFloat() / numHours) + 0.5f; // Small overlap to avoid pixel gaps
+        // --- 2. 12-HOUR RISK HEATMAP BAR ---
+        var blockW = width.toFloat() / numHours + 0.5f;
         var sparklineH = height - chartHeight - 4;
         var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
+
         for (var i = 0; i < riskProfile.size(); i++) {
-            var blockX = x + (i * (width.toFloat() / numHours));
+            var blockX = x + i * (width.toFloat() / numHours);
             var blockY = y + sparklineH + 2;
             var riskColor = $.getRiskColor(riskProfile[i], isDark);
 
             dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(blockX.toNumber(), blockY, blockW.toNumber(), chartHeight);
-            // Draw the hour label below the risk bar // TODO get current hour
+            dc.fillRectangle(
+                blockX.toNumber(),
+                blockY,
+                blockW.toNumber(),
+                chartHeight
+            );
+
             if (showLabels) {
                 var hourLabel = Lang.format("+$1$", [i.format("%d")]);
                 dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
@@ -89,7 +93,7 @@ class PredictiveSparkline {
             }
         }
 
-        // --- 3. BASELINE & TIMELINE HOUR LABELS ---
+        // --- 3. BASELINE & LABELS ---
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
 
@@ -101,29 +105,24 @@ class PredictiveSparkline {
                 "Now",
                 Graphics.TEXT_JUSTIFY_LEFT
             );
-
-            // dc.drawText(
-            //     x + width,
-            //     baselineY + 3,
-            //     Graphics.FONT_XTINY,
-            //     Lang.format("+$1$h", [(numHours-1).format("%d")]),
-            //     Graphics.TEXT_JUSTIFY_RIGHT
-            // );
         }
 
-        // --- 4. RAIN PRECIPITATION BARS ---
-        var maxRain = 2.0f;
+        // --- 4. PRECIPITATION BARS (RAIN & SNOW STACKED/DIFFERENTIATED) ---
+        var maxPrecip = 2.0f;
         for (var i = 0; i < numHours; i++) {
-            if (rainForecast[i] > maxRain) {
-                maxRain = rainForecast[i];
+            var totalP = rainForecast[i] + snowForecast[i];
+            if (totalP > maxPrecip) {
+                maxPrecip = totalP;
             }
         }
 
-        var rainStartIdx = -1;
         for (var i = 0; i < numHours; i++) {
             var rain = rainForecast[i];
-            if (rain > 0.05f) {
-                var barH = ((rain / maxRain) * chartHeight).toNumber();
+            var snow = snowForecast[i];
+            var total = rain + snow;
+
+            if (total > 0.05f) {
+                var barH = ((total / maxPrecip) * chartHeight).toNumber();
                 if (barH < 3) {
                     barH = 3;
                 }
@@ -131,39 +130,162 @@ class PredictiveSparkline {
                 var bx = x + i * (barWidth + barGap);
                 var by = baselineY - barH;
 
-                if (rain >= 2.5f) {
+                if (snow > 0.0f) {
+                    // Cyan / Ice-white for snow
                     dc.setColor(
-                        AppState.activePalette[ThemeManager.COLOR_BLUE],
+                        isDark ? Graphics.COLOR_WHITE : 0x00ffff,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    if (rainStartIdx == -1) {
-                        rainStartIdx = i;
-                    }
-                } else if (rain >= 0.5f) {
-                    // deep sky blue
-                    dc.setColor(AppState.activePalette[ThemeManager.COLOR_DEEP_SKY_BLUE], Graphics.COLOR_TRANSPARENT);
-                    if (rainStartIdx == -1) {
-                        rainStartIdx = i;
-                    }
-                } else {
-                    // light blue  Columbia Blue
-                    dc.setColor(
-                        AppState.activePalette[ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE],
-                        Graphics.COLOR_TRANSPARENT
-                    );
-                }
+                    dc.fillRectangle(bx, by, barWidth, barH);
 
-                dc.fillRectangle(bx, by, barWidth, barH);
+                    // Add dotted top to distinguish snow from rain
+                    dc.setColor(
+                        Graphics.COLOR_DK_GRAY,
+                        Graphics.COLOR_TRANSPARENT
+                    );
+                    dc.drawPoint(bx + barWidth / 2, by + 1);
+                } else {
+                    // Rain palette logic
+                    if (rain >= 2.5f) {
+                        dc.setColor(
+                            AppState.activePalette[ThemeManager.COLOR_BLUE],
+                            Graphics.COLOR_TRANSPARENT
+                        );
+                    } else if (rain >= 0.5f) {
+                        dc.setColor(
+                            AppState.activePalette[
+                                ThemeManager.COLOR_DEEP_SKY_BLUE
+                            ],
+                            Graphics.COLOR_TRANSPARENT
+                        );
+                    } else {
+                        dc.setColor(
+                            AppState.activePalette[
+                                ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
+                            ],
+                            Graphics.COLOR_TRANSPARENT
+                        );
+                    }
+                    dc.fillRectangle(bx, by, barWidth, barH);
+                }
             }
         }
-        
-        // --- 5. WIND GUST SPARKLINE & DIRECTION ARROWS ---
+
+        // --- 5. DYNAMIC SURFACE TEMP LINE SCALING ---
+        if (surfaceTempForecast.size() > 0) {
+            // Step A: Find min and max surface temperatures in the forecast
+            var minSt = surfaceTempForecast[0];
+            var maxSt = surfaceTempForecast[0];
+
+            for (var i = 1; i < numHours; i++) {
+                if (i >= surfaceTempForecast.size()) {
+                    break;
+                }
+                var temp = surfaceTempForecast[i];
+                if (temp < minSt) {
+                    minSt = temp;
+                }
+                if (temp > maxSt) {
+                    maxSt = temp;
+                }
+            }
+
+            // Step B: Ensure a minimum span of 5.0°C to prevent flat-line distortion
+            // when temperatures are almost constant
+            var rangeSt = maxSt - minSt;
+            if (rangeSt < 5.0f) {
+                var mid = (maxSt + minSt) / 2.0f;
+                minSt = mid - 2.5f;
+                maxSt = mid + 2.5f;
+                rangeSt = 5.0f;
+            }
+
+            // Step C: Render surface temp line using dynamic min/max range
+            var prevStX = -1;
+            var prevStY = -1;
+
+            for (var i = 0; i < numHours; i++) {
+                if (surfaceTempForecast.size() <= i) {
+                    break;
+                }
+                var st = surfaceTempForecast[i];
+                var px = x + i * (barWidth + barGap) + barWidth / 2;
+
+                // Dynamic normalization: 0.0 at minSt, 1.0 at maxSt
+                var normalizedSt = (st - minSt) / rangeSt;
+                if (normalizedSt < 0.0f) {
+                    normalizedSt = 0.0f;
+                }
+                if (normalizedSt > 1.0f) {
+                    normalizedSt = 1.0f;
+                }
+
+                var py = baselineY - (normalizedSt * chartHeight).toNumber();
+
+                // Highlight sub-zero points in RED; non-freezing in YELLOW / OLIVE
+                dc.setColor(
+                    st <= 0.0f
+                        ? Graphics.COLOR_RED
+                        : isDark
+                          ? Graphics.COLOR_YELLOW
+                          : 0x666600,
+                    Graphics.COLOR_TRANSPARENT
+                );
+
+                if (prevStX != -1) {
+                    dc.drawLine(prevStX, prevStY, px, py);
+                }
+
+                prevStX = px;
+                prevStY = py;
+            }
+        }
+
+        // --- 5. SURFACE TEMP LINE (SURFACE ICE WARNING OVERLAY) ---
+        var prevStX = -1;
+        var prevStY = -1;
+        for (var i = 0; i < numHours; i++) {
+            if (surfaceTempForecast.size() <= i) {
+                break;
+            }
+            var st = surfaceTempForecast[i];
+            var px = x + i * (barWidth + barGap) + barWidth / 2;
+
+            // Map surface temp scale (-5°C to 25°C range window)
+            var normalizedSt = (st + 5.0f) / 30.0f;
+            if (normalizedSt < 0.0f) {
+                normalizedSt = 0.0f;
+            }
+            if (normalizedSt > 1.0f) {
+                normalizedSt = 1.0f;
+            }
+            var py = baselineY - (normalizedSt * chartHeight).toNumber();
+
+            dc.setColor(
+                st <= 0.0f
+                    ? Graphics.COLOR_RED
+                    : isDark
+                      ? Graphics.COLOR_YELLOW
+                      : 0x666600,
+                Graphics.COLOR_TRANSPARENT
+            );
+            if (prevStX != -1) {
+                dc.drawLine(prevStX, prevStY, px, py);
+            }
+            prevStX = px;
+            prevStY = py;
+        }
+
+        // --- 6. WIND GUST SPARKLINE & DIRECTION ARROWS ---
         var maxWind = 60.0f;
         var prevX = -1;
         var prevY = -1;
-
+        var windColor = AppState.activePalette[ThemeManager.COLOR_BG];
         for (var i = 0; i < numHours; i++) {
-            var gust = windForecast[i];
+            var gust =
+                windGustForecast.size() > i
+                    ? windGustForecast[i]
+                    : windForecast[i];
             var px = x + i * (barWidth + barGap) + barWidth / 2;
 
             var gustRatio = gust / maxWind;
@@ -172,27 +294,26 @@ class PredictiveSparkline {
             }
             var py = baselineY - (gustRatio * chartHeight).toNumber();
 
-            // Draw line segment
-            dc.setColor(
-                isDark ? 0xff5500 : 0xcc0000,
-                Graphics.COLOR_TRANSPARENT
-            );
+            // dc.setColor(isDark ? 0xFF5500 : 0xCC0000, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(windColor, Graphics.COLOR_TRANSPARENT);
             if (prevX != -1) {
                 dc.drawLine(prevX, prevY, px, py);
             }
 
-            // Wind spike dot (>35 km/h)
             if (gust >= 35.0f) {
                 dc.fillCircle(px, py, 2);
             }
 
             // Draw Wind Direction Arrows every 3 hours (i = 0, 3, 6, 9)
-            if (i % 3 == 0 && windDirForecast.size() > i) {
+            // if (i % 3 == 0 && windDirForecast.size() > i) {
+            if (windDirForecast.size() > i) {
+                var isHeavyGust = gust >= 35.0f;
                 drawWindArrow(
                     dc,
                     px,
                     baselineY - 4,
                     windDirForecast[i],
+                    isHeavyGust,
                     isDark
                 );
             }
@@ -200,18 +321,18 @@ class PredictiveSparkline {
             prevX = px;
             prevY = py;
         }
-        
-        // Show explicit ICE indicator in header if sub-zero temps exist ahead
+
+        // --- 7. ICE WARNING HEADER ---
         var hasIceAhead = false;
-        for (var i = 0; i < airTempForecast.size(); i++) {
-            if (airTempForecast[i] <= 0.0f) {
+        for (var i = 0; i < surfaceTempForecast.size(); i++) {
+            if (surfaceTempForecast[i] <= 0.0f) {
                 hasIceAhead = true;
                 break;
             }
         }
 
         if (hasIceAhead) {
-            dc.setColor(0x00aaff, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + width,
                 y,
@@ -222,18 +343,18 @@ class PredictiveSparkline {
         }
     }
 
-    // Helper: Draw a vector arrow for wind origin direction
+    // Helper: Draw a vector arrow for wind direction with gust emphasis
     private static function drawWindArrow(
         dc as Graphics.Dc,
         cx as Number,
         cy as Number,
         angleDeg as Number,
+        isHeavyGust as Boolean,
         isDark as Boolean
     ) as Void {
         var rad = Math.toRadians(angleDeg);
-        var len = 5;
+        var len = isHeavyGust ? 7 : 5;
 
-        // Compute line endpoint in direction wind is blowing *towards*
         var dx = (len * Math.sin(rad)).toNumber();
         var dy = (-len * Math.cos(rad)).toNumber();
 
@@ -241,7 +362,14 @@ class PredictiveSparkline {
             isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK,
             Graphics.COLOR_TRANSPARENT
         );
+
+        // Draw normal or thick stem based on gust ratio
         dc.drawLine(cx - dx, cy - dy, cx + dx, cy + dy);
-        dc.fillCircle(cx + dx, cy + dy, 1); // Arrowhead / indicator point
+        if (isHeavyGust) {
+            dc.drawLine(cx - dx + 1, cy - dy, cx + dx + 1, cy + dy);
+        }
+
+        // Arrowhead radius
+        dc.fillCircle(cx + dx, cy + dy, isHeavyGust ? 2 : 1);
     }
 }

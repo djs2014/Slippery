@@ -6,7 +6,7 @@ import Toybox.Lang;
 
 class WeatherMetrics {
     var isValid as Boolean = false;
-    
+
     // Current Instant Metrics
     var airTemp as Float = 0.0; // in °C
     var surfaceTemp as Float = 0.0; // in °C
@@ -34,6 +34,7 @@ class WeatherMetrics {
     var airTempForecast as Array<Float> = []; // Float items (°C air)
     var snowForecast as Array<Float> = []; // Float items (mm/h)
     var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
+
     // Immediate rain in 15-minute intervals
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
     var immediateRain as Number = -1;
@@ -70,13 +71,23 @@ class WeatherMetrics {
             immediateRain +
             ", immediateSnow=" +
             immediateSnow +
+            ", timeStampsForeCast=" +
+            timeStampsForeCast +
+            ", rainForecast=" +
+            rainForecast +
+            ", windForecast=" +
+            windForecast +
+            ", windDirForecast=" +
+            windDirForecast +
+            ", windGustForecast=" +
+            windGustForecast +
+            ", airTempForecast=" +
+            airTempForecast +
+            ", snowForecast=" +
+            snowForecast +
+            ", surfaceTempForecast=" +
+            surfaceTempForecast +
             "}"
         );
     }
 }
-
-
-
-
-
-
