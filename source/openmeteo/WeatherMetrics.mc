@@ -30,8 +30,10 @@ class WeatherMetrics {
     var rainForecast as Array<Float> = []; // Float items (mm/h)
     var windForecast as Array<Float> = []; // Float items (km/h)
     var windDirForecast as Array<Number> = []; // Number items (0-359 deg)
-    var tempForecast as Array<Float> = []; // Float items (°C surface/air)
-
+    var windGustForecast as Array<Float> = []; // Float items (km/h)
+    var airTempForecast as Array<Float> = []; // Float items (°C air)
+    var snowForecast as Array<Float> = []; // Float items (mm/h)
+    var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
     // Immediate rain in 15-minute intervals
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
     var immediateRain as Number = -1;

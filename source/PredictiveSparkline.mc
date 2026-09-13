@@ -15,16 +15,18 @@ class PredictiveSparkline {
         isDark as Boolean,
         showLabels as Boolean
     ) as Void {
-        var rainForecast = metrics.rainForecast; // Float items (mm/h)
-        var windForecast = metrics.windForecast; // Float items (km/h)
-        var windDirForecast = metrics.windDirForecast; // Number items (0-359 deg)
-        var tempForecast = metrics.tempForecast; // Float items (°C surface/air)
         var timeStampsForeCast = metrics.timeStampsForeCast; // Number items (unixtime in seconds)
-
-        var numHours = rainForecast.size();
+        var numHours = timeStampsForeCast.size();
         if (numHours == 0) {
             return;
         }
+        var rainForecast = metrics.rainForecast; // Float items (mm/h)
+        var snowForecast = metrics.snowForecast; // Float items (mm/h)
+        var windForecast = metrics.windForecast; // Float items (km/h)
+        var windDirForecast = metrics.windDirForecast; // Number items (0-359 deg)
+        var windGustForecast = metrics.windGustForecast; // Float items (km/h)
+        var airTempForecast = metrics.airTempForecast; // Float items (°C air)
+        var surfaceTempForecast = metrics.surfaceTempForecast; // Float items (°C surface)
 
         var barGap = 2;
         var totalGaps = (numHours - 1) * barGap;
@@ -47,7 +49,7 @@ class PredictiveSparkline {
         // --- 1. FREEZING RISK BACKGROUND TINT ---
         // Highlight ice risk slots where temperature <= 0.0°C
         for (var i = 0; i < numHours; i++) {
-            if (tempForecast.size() > i && tempForecast[i] <= 0.0f) {
+            if (airTempForecast.size() > i && airTempForecast[i] <= 0.0f) {
                 var bx = x + i * (barWidth + barGap);
                 dc.setColor(
                     isDark ? 0x003366 : 0xcce6ff,
@@ -131,7 +133,7 @@ class PredictiveSparkline {
 
                 if (rain >= 2.5f) {
                     dc.setColor(
-                        Graphics.COLOR_BLUE,
+                        AppState.activePalette[ThemeManager.COLOR_BLUE],
                         Graphics.COLOR_TRANSPARENT
                     );
                     if (rainStartIdx == -1) {
@@ -139,14 +141,14 @@ class PredictiveSparkline {
                     }
                 } else if (rain >= 0.5f) {
                     // deep sky blue
-                    dc.setColor(0x00aaff, Graphics.COLOR_TRANSPARENT);
+                    dc.setColor(AppState.activePalette[ThemeManager.COLOR_DEEP_SKY_BLUE], Graphics.COLOR_TRANSPARENT);
                     if (rainStartIdx == -1) {
                         rainStartIdx = i;
                     }
                 } else {
                     // light blue  Columbia Blue
                     dc.setColor(
-                        0x99ddff,
+                        AppState.activePalette[ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE],
                         Graphics.COLOR_TRANSPARENT
                     );
                 }
@@ -154,28 +156,7 @@ class PredictiveSparkline {
                 dc.fillRectangle(bx, by, barWidth, barH);
             }
         }
-        // Display remaining time until first rain (if any)
-        // if (showLabels && rainStartIdx != -1) {
-        //     // Get timestamp for the first rain event (if available)
-        //     if (rainStartIdx < timeStampsForeCast.size()) {
-        //         var firstRainTime = timeStampsForeCast[rainStartIdx];
-        //         // Difference in hours:minute from current time
-        //         var diffSec = firstRainTime - Time.now().value();
-        //         if (diffSec > 0) {
-        //             dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        //             dc.drawText(
-        //                 (x + width) / 2,
-        //                 baselineY + 3,
-        //                 Graphics.FONT_XTINY,
-        //                 Lang.format("first rain in $1$", [
-        //                     $.secondsToShortTimeString(diffSec, "{h}:{m}:{s}"),
-        //                 ]),
-        //                 Graphics.TEXT_JUSTIFY_CENTER
-        //             );
-        //         }
-        //     }
-        // }
-
+        
         // --- 5. WIND GUST SPARKLINE & DIRECTION ARROWS ---
         var maxWind = 60.0f;
         var prevX = -1;
@@ -219,22 +200,11 @@ class PredictiveSparkline {
             prevX = px;
             prevY = py;
         }
-
-        // if (showLabels) {
-        //     // --- 5. TOP HEADER & FREEZE INDICATOR ---
-        //     dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        //     dc.drawText(
-        //         x,
-        //         y,
-        //         Graphics.FONT_XTINY,
-        //         Lang.format("+$1$H FORECAST", [numHours.format("%d")]),
-        //         Graphics.TEXT_JUSTIFY_LEFT
-        //     );
-        // }
+        
         // Show explicit ICE indicator in header if sub-zero temps exist ahead
         var hasIceAhead = false;
-        for (var i = 0; i < tempForecast.size(); i++) {
-            if (tempForecast[i] <= 0.0f) {
+        for (var i = 0; i < airTempForecast.size(); i++) {
+            if (airTempForecast[i] <= 0.0f) {
                 hasIceAhead = true;
                 break;
             }

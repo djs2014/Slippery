@@ -178,8 +178,11 @@ class WeatherService {
                 if (l < windDirections.size()) {
                     metrics.windDirForecast.add(windDirections[l]);
                 }
+                if (l < windGusts.size()) {
+                    metrics.windGustForecast.add(windGusts[l]);
+                }
                 if (l < airTemps.size()) {
-                    metrics.tempForecast.add(airTemps[l]);
+                    metrics.airTempForecast.add(airTemps[l]);
                 }
             }
 
