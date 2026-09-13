@@ -6,7 +6,8 @@ import Toybox.Lang;
 
 class WeatherMetrics {
     var isValid as Boolean = false;
-
+    var currentHour as Number = 0; // Current hour of the day (0-23)
+    
     // Current Instant Metrics
     var airTemp as Float = 0.0; // in °C
     var surfaceTemp as Float = 0.0; // in °C

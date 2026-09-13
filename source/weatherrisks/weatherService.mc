@@ -85,7 +85,8 @@ class WeatherService {
 
             // Extract current metrics directlyp = precips[t
             var metrics = new WeatherMetrics();
-
+            metrics.currentHour = currentHour;
+            
             var airTemps = hourly.get("temperature_2m") as Array<Float>?;
             var surfTemps = hourly.get("surface_temperature") as Array<Float>?;
             var dewPoints = hourly.get("dewpoint_2m") as Array<Float>?;

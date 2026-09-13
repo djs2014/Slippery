@@ -4,7 +4,7 @@ import Toybox.Graphics;
 import Toybox.Time;
 
 class RiskAssessment {
-    var riskLevel as RiskLevel= RiskLevelNoData;
+    var riskLevel as RiskLevel = RiskLevelNoData;
     var hazards = [] as Array<WeatherHazard>;
     var advice = [] as Array<WeatherAdvice>;
     var hourlyRisksLevels = [] as Array<RiskLevel>;
@@ -305,9 +305,17 @@ function getRiskTextColor(
     return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
 }
 
-function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSnow as Number, short as Boolean) as String {
-    if ((minutesUntilRain < 0 || minutesUntilRain > 45)
-    && (minutesUntilSnow < 0 || minutesUntilSnow > 45)) { return ""; }
+function getPrecipitationAlertMessage(
+    minutesUntilRain as Number,
+    minutesUntilSnow as Number,
+    short as Boolean
+) as String {
+    if (
+        (minutesUntilRain < 0 || minutesUntilRain > 45) &&
+        (minutesUntilSnow < 0 || minutesUntilSnow > 45)
+    ) {
+        return "";
+    }
 
     var minutesUntil = -1;
     var precipType = 0; // 0 = None, 1 = Rain, 2 = Snow, 3 = Freezing Rain
@@ -331,7 +339,7 @@ function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSn
     } else if (precipType == 3) {
         minutesUntil = min(minutesUntilRain, minutesUntilSnow);
     }
-    
+
     if (precipType == 2) {
         typeStr = "SNOW";
     } else if (precipType == 3) {
@@ -350,4 +358,23 @@ function getPrecipitationAlertMessage(minutesUntilRain as Number, minutesUntilSn
     } else {
         return typeStr + " IN " + minutesUntil + " MIN";
     }
+}
+
+MaxForecastHourItems = 3;
+enum ShowForecastHour {
+    ForecastHourNone,
+    ForecastHourRelative,
+    ForecastHourAbsolute,
+}
+
+function getShowForecastHourText(hourOption as ShowForecastHour) as String {
+    switch (hourOption) {
+        case ForecastHourNone:
+            return "None";
+        case ForecastHourRelative:
+            return "Relative";
+        case ForecastHourAbsolute:
+            return "Absolute";
+    }
+    return "-";
 }

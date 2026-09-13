@@ -97,7 +97,9 @@ class SlipperyView extends WatchUi.DataField {
         for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
             var fullHazardStr = getHazardString(mRiskAssessment.hazards[i]);
             hazardStrings.add(fullHazardStr);
-            hazardStringsShortened.add(getShortHazardString(mRiskAssessment.hazards[i]));
+            hazardStringsShortened.add(
+                getShortHazardString(mRiskAssessment.hazards[i])
+            );
         }
         var adviceStrings = [];
         for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
@@ -277,6 +279,22 @@ class SlipperyView extends WatchUi.DataField {
             mEdgeField == EfSmall,
             true
         );
+
+        if ($.gDemo) {
+            // Draw demo enabled
+            dc.setColor(
+                AppState.activePalette[ThemeManager.COLOR_TEXT],
+                Graphics.COLOR_TRANSPARENT
+            );
+
+            dc.drawText(
+                dc.getWidth() / 2,
+                dc.getFontHeight(Graphics.FONT_XTINY),
+                Graphics.FONT_XTINY,
+                "DEMO (" + demoCounter.format("%d") + ")",
+                Graphics.TEXT_JUSTIFY_CENTER
+            );
+        }
     }
 
     private function drawCurrentWindArrow(
@@ -330,7 +348,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            false
+            false,
+            ForecastHourNone
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -369,7 +388,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            true
+            true,
+            $.gShowForecastHour
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -408,7 +428,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            true
+            true,
+            $.gShowForecastHour
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -448,7 +469,8 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            false
+            false,
+            ForecastHourNone
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -876,7 +898,6 @@ class SlipperyView extends WatchUi.DataField {
             y + heightRiskBlock + ((h - heightRiskBlock) / 2).toNumber();
         var arrowAreaCenterX = x + (leftWidth / 2).toNumber();
 
-
         drawCurrentWindArrow(dc, arrowAreaCenterX, arrowAreaCenterY, isDark);
 
         // Divider Line between Left & Right Columns
@@ -961,7 +982,6 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        
         // --- IMMINENT PRECIPITATION ALERT (ANCHORED AT BOTTOM RIGHT) ---
         if (
             (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||

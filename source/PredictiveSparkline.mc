@@ -14,14 +14,15 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         riskProfile as Array<RiskLevel>,
         isDark as Boolean,
-        showLabels as Boolean
+        showLabels as Boolean,
+        showForecastHour as ShowForecastHour,
     ) as Void {
         var timeStampsForeCast = metrics.timeStampsForeCast;
         var numHours = timeStampsForeCast.size();
         if (numHours == 0) {
             return;
         }
-
+        var currentHour = metrics.currentHour;
         var rainForecast = metrics.rainForecast; // Float (mm/h)
         var snowForecast = metrics.snowForecast; // Float (mm/h)
         var windForecast = metrics.windForecast; // Float (km/h)
@@ -63,29 +64,36 @@ class PredictiveSparkline {
             }
         }
 
-        // --- 2. 12-HOUR RISK HEATMAP BAR ---
-        var blockW = width.toFloat() / numHours + 0.5f;
+        // --- 2. 12-HOUR RISK HEATMAP BAR 2/3 of chart height ---
+        var blockW = (width.toFloat() / numHours + 0.5f).toNumber();
         var sparklineH = height - chartHeight - 4;
         var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
 
         for (var i = 0; i < riskProfile.size(); i++) {
-            var blockX = x + i * (width.toFloat() / numHours);
-            var blockY = y + sparklineH + 2;
+            var blockX = (x + i * (width.toFloat() / numHours)).toNumber();
+            var blockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
             var riskColor = $.getRiskColor(riskProfile[i], isDark);
-
+            var riskBlockHeight = (chartHeight * 0.66).toNumber();
             dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(
-                blockX.toNumber(),
+                blockX,
                 blockY,
-                blockW.toNumber(),
-                chartHeight
+                blockW,
+                riskBlockHeight
             );
 
-            if (showLabels) {
-                var hourLabel = Lang.format("+$1$", [i.format("%d")]);
+            if (showLabels && showForecastHour != ForecastHourNone) {
+                var hourLabel;
+                if (showForecastHour == ForecastHourRelative) {
+                    hourLabel = Lang.format("+$1$", [i.format("%d")]);
+                } else if (showForecastHour == ForecastHourAbsolute) {
+                    var hour = (currentHour + i) % 24; // Display the hour relative to the current hour
+                    hourLabel = Lang.format("$1$", [hour.format("%d")]);
+                }
+                
                 dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(
-                    blockX.toNumber() + blockW.toNumber() / 2,
+                    blockX + blockW / 2,
                     blockY + chartHeight / 2,
                     Graphics.FONT_XTINY,
                     hourLabel,

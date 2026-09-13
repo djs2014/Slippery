@@ -61,7 +61,8 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("alert_beep", true);
                 Storage.setValue("alert_toast", false);
                 Storage.setValue("hsp_showvalue", false);                
-                Storage.setValue("hsp_darklight_breakpoint", 180);                
+                Storage.setValue("hsp_darklight_breakpoint", 180);    
+                Storage.setValue("showForecastHour", ForecastHourAbsolute);            
             }
 
             $.g_bg_timeout_seconds =
@@ -96,6 +97,9 @@ class SlipperyApp extends Application.AppBase {
 
             $.gHSPshowValue =
                 $.getStorageValue("hsp_showvalue", false) as Boolean;
+
+            $.gShowForecastHour =
+                $.getStorageValue("showForecastHour", $.gShowForecastHour) as ShowForecastHour;
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();
@@ -135,3 +139,4 @@ var gDemo as Boolean = false;
 var gBeepOnAlert as Boolean = false;
 var gToastOnAlert as Boolean = false;
 var gHSPshowValue as Boolean = false;
+var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;

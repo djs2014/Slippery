@@ -118,6 +118,17 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       var mi;
 
       mi = new WatchUi.MenuItem(
+        "Forecast hours",
+        null,
+        "showForecastHour",
+        null
+      );
+      var value =
+        getStorageValue(mi.getId() as String, $.gShowForecastHour) as Number;
+      mi.setSubLabel($.getShowForecastHourText(value));
+      advMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
         "HSP breakpoint|0-255.0(HSP)",
         null,
         "hsp_darklight_breakpoint",
@@ -176,6 +187,24 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       sp.show();
       return;
     }
+    if (id instanceof String && id.equals("showForecastHour")) {
+      var sp = new selectionMenuPicker("Show Forecast Hour", id as String);
+      for (var i = 0; i < MaxForecastHourItems; i++) {
+        sp.add($.getShowForecastHourText(i), null, i);
+      }
+      sp.setOnSelected(self, :onSelectedSelection, item);
+      sp.show();
+      return;
+    }
+    if (id instanceof String && id.equals("minimalGPSquality")) {
+      var sp = new selectionMenuPicker("Minimal GPS", id as String);
+      for (var i = 0; i <= 4; i++) {
+        sp.add($.getMinimalGPSqualityText(i), null, i);
+      }
+      sp.setOnSelected(self, :onSelectedSelection, item);
+      sp.show();
+      return;
+    }
 
     if (id instanceof String && item instanceof ToggleMenuItem) {
       Storage.setValue(id as String, item.isEnabled());
@@ -195,7 +224,6 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       WatchUi.SLIDE_RIGHT
     );
   }
-
 
   function onAcceptNumericinput(value as Numeric, subLabel as String) as Void {
     try {
