@@ -1,6 +1,7 @@
 import Toybox.System;
 import Toybox.Math;
 import Toybox.Lang;
+import Toybox.Activity;
 
 function getDistanceFromLatLonInKm(
   latFrom as Numeric,
@@ -17,7 +18,10 @@ function getDistanceFromLatLonInKm(
   var dLon = deg2rad(lonTo - lonFrom);
   var a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(latFrom)) * Math.cos(deg2rad(latTo)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos(deg2rad(latFrom)) *
+      Math.cos(deg2rad(latTo)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
   var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   var d = R * c; // Distance in km
   return d as Float;
@@ -39,7 +43,12 @@ function rad2deg(rad as Numeric?) as Double or Float {
 }
 
 // http://www.dougv.com/2009/07/13/calculating-the-bearing-and-compass-rose-direction-between-two-latitude-longitude-coordinates-in-php/
-function getRhumbLineBearing(latFrom as Numeric, lonFrom as Numeric, latTo as Numeric, lonTo as Numeric) as Number {
+function getRhumbLineBearing(
+  latFrom as Numeric,
+  lonFrom as Numeric,
+  latTo as Numeric,
+  lonTo as Numeric
+) as Number {
   if (latFrom == null || lonFrom == null || latTo == null || lonTo == null) {
     return 0;
   }
@@ -48,7 +57,8 @@ function getRhumbLineBearing(latFrom as Numeric, lonFrom as Numeric, latTo as Nu
   var dLon = deg2rad(lonTo) - deg2rad(lonFrom);
   // difference in the phi of latitudinal coordinates
   var dPhi = Math.log(
-    Math.tan(deg2rad(latTo) / 2 + Math.PI / 4) / Math.tan(deg2rad(latFrom) / 2 + Math.PI / 4),
+    Math.tan(deg2rad(latTo) / 2 + Math.PI / 4) /
+      Math.tan(deg2rad(latFrom) / 2 + Math.PI / 4),
     Math.E
   );
 
@@ -125,7 +135,12 @@ function getCompassDirection(bearing as Numeric) as String {
 // https://www.mathsisfun.com/algebra/trigonometry.html
 // trigononmetry degrees  0 is right, 90 is top, 180 is left, 270 is bottom
 // bearing degrees 0 is North, 90 is East, 180 is South, 270 is West
-function getPointOnCircle(x as Number, y as Number, angleInDegrees as Number, radius as Numeric) as Point {
+function getPointOnCircle(
+  x as Number,
+  y as Number,
+  angleInDegrees as Number,
+  radius as Numeric
+) as Point {
   // Convert from degrees to radians
   angleInDegrees = angleInDegrees % 360;
   var px = x + radius * Math.cos((angleInDegrees * Math.PI) / 180);
@@ -134,7 +149,12 @@ function getPointOnCircle(x as Number, y as Number, angleInDegrees as Number, ra
   return new Point(px.toNumber(), py.toNumber());
 }
 
-function getBearingPointOnCircle(x as Number, y as Number, bearingInDegrees as Number, radius as Numeric) as Point {
+function getBearingPointOnCircle(
+  x as Number,
+  y as Number,
+  bearingInDegrees as Number,
+  radius as Numeric
+) as Point {
   // convert to trigonometry
   bearingInDegrees = bearingInDegrees + 90;
   // Convert from degrees to radians
@@ -160,16 +180,48 @@ function convertGeoToPixel(
   var latitudeRad = (latitude * Math.PI) / 180;
   var mapLngDelta = mapLngRight - mapLngLeft;
   if (mapLngDelta == 0l) {
-    return new Point(0,0);
+    return new Point(0, 0);
   }
   var worldMapWidth = ((mapWidth / mapLngDelta) * 360) / (2 * Math.PI);
   var mapOffsetY =
-    (worldMapWidth / 2) * Math.log((1 + Math.sin(mapLatBottomRad)) / (1 - Math.sin(mapLatBottomRad)), Math.E);
+    (worldMapWidth / 2) *
+    Math.log(
+      (1 + Math.sin(mapLatBottomRad)) / (1 - Math.sin(mapLatBottomRad)),
+      Math.E
+    );
 
   var x = (longitude - mapLngLeft) * (mapWidth / mapLngDelta);
   var y =
     mapHeight -
-    ((worldMapWidth / 2) * Math.log((1 + Math.sin(latitudeRad)) / (1 - Math.sin(latitudeRad)), Math.E) - mapOffsetY);
+    ((worldMapWidth / 2) *
+      Math.log(
+        (1 + Math.sin(latitudeRad)) / (1 - Math.sin(latitudeRad)),
+        Math.E
+      ) -
+      mapOffsetY);
 
   return new Point(x.toNumber(), y.toNumber()); // the pixel x,y value of this point on the map image
+}
+
+function getHeadingDegrees(info as Activity.Info?) as Number? {
+  if (info == null) {
+    return null;
+  }
+
+  // Preferred: Magnetic/IMU heading (orientation of the bike frame)
+  var headingRad = info.currentHeading;
+  // Fallback: GPS Track (Course Over Ground) if heading is unavailable
+  if (headingRad == null) {
+    headingRad = info.track;
+  }
+
+  // Convert currentHeading radians [-PI, PI] to degrees [0, 360)
+  if (headingRad != null) {
+    var deg = Math.toDegrees(headingRad);
+    if (deg < 0) {
+      deg += 360.0f;
+    }
+    headingRad = deg.toNumber();
+  }
+  return headingRad;
 }

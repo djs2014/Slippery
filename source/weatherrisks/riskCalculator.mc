@@ -46,7 +46,7 @@ public class RiskCalculator {
         immediateRain as Number,
         immediateSnow as Number,
         surfaceDewSpread as Float,
-        snowCurrent as Float        
+        snowCurrent as Float
     ) as RiskLevel {
         reset();
 
@@ -136,45 +136,60 @@ public class RiskCalculator {
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
-        // --- 10. CRITICAL / HIGH: Gale-Force Crosswinds & Violent Gusts ---
-        if (windSpeed >= 45.0 || windGust >= 60.0) {
+        // --- GUST RATIO CALCULATION ---
+        var gustRatio = windSpeed > 1.0f ? windGust / windSpeed : 1.0f;
+
+        // --- 10. CRITICAL: Gale-Force Winds, Extreme Gusts, or 3-Bar Severe Gust Spikes ---
+        // Matches: Triangle len 18px + 3 Gust Bars (gust >= 45 km/h OR ratio >= 1.7)
+        if (
+            windSpeed >= 45.0f ||
+            windGust >= 60.0f ||
+            (windSpeed >= 35.0f && gustRatio >= 1.7f)
+        ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardGaleForceWinds);
             addAdvice(AdviceBewareOfOpenFieldsAndBridges);
             addAdvice(AdviceHoldHandlebarsFirmly);
             addAdvice(AdviceConsiderLowerProfileWheels);
         }
-        // --- 11. MODERATE: Strong / Gusty Winds ---
-        else if (windSpeed >= 30.0 || windGust >= 45.0) {
-            upgradeRisk(RiskLevelModerate);
+        // --- 11. HIGH: Strong Crosswinds / 2-Bar Heavy Gust Spikes ---
+        // Matches: Triangle len 15px + 2 Gust Bars (gust >= 35 km/h OR ratio >= 1.5)
+        else if (
+            windSpeed >= 35.0f ||
+            windGust >= 45.0f ||
+            (windSpeed >= 25.0f && gustRatio >= 1.5f)
+        ) {
+            upgradeRisk(RiskLevelHigh);
             addHazard(HazardStrongCrosswinds);
             addAdvice(AdviceBewareOfOpenFieldsAndBridges);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
+        // --- 12. MODERATE: Moderate Winds / 1-Bar Gust Spikes ---
+        // Matches: Triangle len 13px + 1 Gust Bar (gust >= 25 km/h OR ratio >= 1.3)
+        else if (
+            windSpeed >= 25.0f ||
+            windGust >= 35.0f ||
+            (windSpeed >= 18.0f && gustRatio >= 1.3f)
+        ) {
+            upgradeRisk(RiskLevelModerate);
+            addHazard(HazardStrongCrosswinds);
+            addAdvice(AdviceHoldHandlebarsFirmly);
+        }
+        // --- 13. SLIGHT: Noticeable Breeze / Single Base Triangle ---
+        // Matches: Base Triangle display (windSpeed >= 20 km/h)
+        else if (windSpeed >= 20.0f) {
+            upgradeRisk(RiskLevelSlight);
+        }
 
-        // --- 12. IMMEDIATE: Imminent Rain ---
+        // --- 14. IMMEDIATE: Imminent Rain ---
         if (immediateRain >= 0 && rainCurrent < 0.1f) {
             upgradeRisk(RiskLevelHigh);
-            addHazard(HazardImminentRain);
-
-            // if (metrics.immediateRain == 0) {
-            //     addAdvice( AdviceRainStartingNow);
-            // } else {
-            //     // Triggers UI banner: "RAIN IN 15 MIN" or "RAIN IN 30 MIN"
-            //     addAdvice( AdviceRainExpectedShortly);
-            // }
+            addHazard(HazardImminentRain);            
         }
-        // --- 13. IMMEDIATE: Imminent Snow ---
+        // --- 15. IMMEDIATE: Imminent Snow ---
         if (immediateSnow >= 0 && snowCurrent < 0.1f) {
             upgradeRisk(RiskLevelHigh);
-            addHazard(HazardImminentSnow);
-
-            // if (metrics.immediateSnow == 0) {
-            //     addAdvice( AdviceSnowStartingNow);
-            // } else {runningPrecip12h
-            //     // Triggers UI banner: "SNOW IN 15 MIN" or "SNOW IN 30 MIN"
-            //     addAdvice( AdviceSnowExpectedShortly);
-            // }
+            addHazard(HazardImminentSnow);            
         }
 
         return _riskLevel;

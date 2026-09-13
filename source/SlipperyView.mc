@@ -2,6 +2,7 @@ import Toybox.Activity;
 import Toybox.Lang;
 import Toybox.WatchUi;
 import Toybox.Graphics;
+import Toybox.Math;
 
 class SlipperyView extends WatchUi.DataField {
     var mBGServiceHandler as BGServiceHandler;
@@ -25,6 +26,8 @@ class SlipperyView extends WatchUi.DataField {
     hidden var mAlertIncomingRain as Number = -1;
     hidden var mAlertIncomingSnow as Number = -1;
     hidden var mToastIcon as BitmapResource?;
+
+    hidden var mHeadingDegrees as Float? = null;
 
     hidden var mFontsNumbers as Array = [
         Graphics.FONT_XTINY,
@@ -70,7 +73,7 @@ class SlipperyView extends WatchUi.DataField {
         updateWeatherAndRisks(
             WeatherService.getMetrics(),
             WeatherService.getRisks()
-        );        
+        );
     }
 
     function updateWeatherAndRisks(
@@ -147,6 +150,8 @@ class SlipperyView extends WatchUi.DataField {
         }
         handleHourChange();
         processMinutesUntilCounters();
+
+        mHeadingDegrees = $.getHeadingDegrees(info);
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -232,7 +237,7 @@ class SlipperyView extends WatchUi.DataField {
                     WeatherService.getMetrics(),
                     WeatherService.getRisks()
                 );
-            }     
+            }
         }
     }
     function onUpdate(dc as Dc) as Void {
@@ -269,6 +274,24 @@ class SlipperyView extends WatchUi.DataField {
         );
     }
 
+    private function drawCurrentWindArrow(
+        dc as Graphics.Dc,
+        centerX as Number,
+        centerY as Number,
+        isDark as Boolean
+    ) as Void {
+        CurrentWindWidget.draw(
+            dc,
+            centerX, // Widget X center
+            centerY, // Widget Y center
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark
+        );
+    }
     private function drawEdgeSmallFieldWithSparkline(
         dc as Graphics.Dc,
         width as Number,
@@ -331,7 +354,7 @@ class SlipperyView extends WatchUi.DataField {
 
         // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
-        var paddingX = 6;
+        var paddingX = 15;
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -467,6 +490,9 @@ class SlipperyView extends WatchUi.DataField {
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
         );
+
+        // --- CURRENT WIND ARROW CENTERED IN HEADER ---
+        drawCurrentWindArrow(dc, w / 2, centerHeaderY, mIsDark);
 
         if ($.gHSPshowValue) {
             drawOptionalHsp(dc, isDark);
@@ -673,35 +699,44 @@ class SlipperyView extends WatchUi.DataField {
         dc.fillRectangle(x, y, badgeWidth, h);
 
         var headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
-
+        var headerLineHeight = dc.getFontHeight(Graphics.FONT_TINY);
+        var linePos = y + headerLineHeight / 2;
         dc.setColor(badgeTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + badgeWidth / 2,
-            y + h / 2,
+            linePos,
             Graphics.FONT_TINY,
             headerText,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
+        // --- CURRENT WIND ARROW CENTERED ---
+        linePos = y + h / 2;
+        drawCurrentWindArrow(dc, x + badgeWidth / 2, linePos, mIsDark);
+
         if (
             (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
             (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
         ) {
-            var headerLineHeight = dc.getFontHeight(Graphics.FONT_TINY);
-            var alertY = y + h / 2 + headerLineHeight / 2;
+            // --- CENTERED AT BOTTOM
             var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-            var alertH = alertLineHeight + 4;
+            linePos = h - alertLineHeight;
 
             dc.setColor(
                 AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
                 Graphics.COLOR_TRANSPARENT
-            ); // Deep Cyan
-            dc.fillRectangle(x, alertY, badgeWidth, alertH);
+            );
+            dc.fillRectangle(
+                x,
+                linePos - alertLineHeight / 2,
+                badgeWidth,
+                alertLineHeight
+            );
             // Draw the short precipitation alert message
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + badgeWidth / 2,
-                alertY + alertH / 2,
+                linePos,
                 Graphics.FONT_XTINY,
                 $.getPrecipitationAlertMessage(
                     mMinutesUntilRain,
@@ -953,6 +988,7 @@ class SlipperyView extends WatchUi.DataField {
         var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.15).toNumber();
+
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, w, headerHeight);
 
@@ -1064,6 +1100,9 @@ class SlipperyView extends WatchUi.DataField {
             labelColor,
             mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor
         );
+
+        // --- CURRENT WIND ARROW CENTERED IN GRID ---
+        drawCurrentWindArrow(dc, w / 2, gridTop + gridHeight / 2, mIsDark);
 
         // 4. Hazards & Advice Section
 

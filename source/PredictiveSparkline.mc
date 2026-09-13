@@ -2,6 +2,7 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
 import Toybox.Time;
+import Toybox.System;
 
 class PredictiveSparkline {
     public static function draw(
@@ -107,7 +108,7 @@ class PredictiveSparkline {
             );
         }
 
-        // --- 4. PRECIPITATION BARS (RAIN & SNOW STACKED/DIFFERENTIATED) ---
+        // --- 4. PRECIPITATION BARS ---
         var maxPrecip = 2.0f;
         for (var i = 0; i < numHours; i++) {
             var totalP = rainForecast[i] + snowForecast[i];
@@ -131,21 +132,17 @@ class PredictiveSparkline {
                 var by = baselineY - barH;
 
                 if (snow > 0.0f) {
-                    // Cyan / Ice-white for snow
                     dc.setColor(
                         isDark ? Graphics.COLOR_WHITE : 0x00ffff,
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.fillRectangle(bx, by, barWidth, barH);
-
-                    // Add dotted top to distinguish snow from rain
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.drawPoint(bx + barWidth / 2, by + 1);
                 } else {
-                    // Rain palette logic
                     if (rain >= 2.5f) {
                         dc.setColor(
                             AppState.activePalette[ThemeManager.COLOR_BLUE],
@@ -171,9 +168,15 @@ class PredictiveSparkline {
             }
         }
 
-        // --- 5. DYNAMIC SURFACE TEMP LINE SCALING ---
+        // --- CALC OVERLAY BADGE VISIBILITY ---
+        // Render badges only if there is at least 12px margin on the left side of 'x'
+        var enableBadges = x >= 12;
+
+        // Helper stroke colors for halo outlines to guarantee readability over colored risk blocks
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+
+        // --- 5. DYNAMIC SURFACE TEMP LINE (SOLID + CONTRAST HALO) ---
         if (surfaceTempForecast.size() > 0) {
-            // Step A: Find min and max surface temperatures in the forecast
             var minSt = surfaceTempForecast[0];
             var maxSt = surfaceTempForecast[0];
 
@@ -190,8 +193,6 @@ class PredictiveSparkline {
                 }
             }
 
-            // Step B: Ensure a minimum span of 5.0°C to prevent flat-line distortion
-            // when temperatures are almost constant
             var rangeSt = maxSt - minSt;
             if (rangeSt < 5.0f) {
                 var mid = (maxSt + minSt) / 2.0f;
@@ -200,9 +201,9 @@ class PredictiveSparkline {
                 rangeSt = 5.0f;
             }
 
-            // Step C: Render surface temp line using dynamic min/max range
             var prevStX = -1;
             var prevStY = -1;
+            var firstStY = -1;
 
             for (var i = 0; i < numHours; i++) {
                 if (surfaceTempForecast.size() <= i) {
@@ -211,7 +212,6 @@ class PredictiveSparkline {
                 var st = surfaceTempForecast[i];
                 var px = x + i * (barWidth + barGap) + barWidth / 2;
 
-                // Dynamic normalization: 0.0 at minSt, 1.0 at maxSt
                 var normalizedSt = (st - minSt) / rangeSt;
                 if (normalizedSt < 0.0f) {
                     normalizedSt = 0.0f;
@@ -221,67 +221,78 @@ class PredictiveSparkline {
                 }
 
                 var py = baselineY - (normalizedSt * chartHeight).toNumber();
+                if (i == 0) {
+                    firstStY = py;
+                }
 
-                // Highlight sub-zero points in RED; non-freezing in YELLOW / OLIVE
-                dc.setColor(
+                // Check background collision (e.g., yellow temp over RiskLevelSlight yellow)
+                var currentRisk =
+                    i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
+                var tempColor =
                     st <= 0.0f
                         ? Graphics.COLOR_RED
-                        : isDark
-                          ? Graphics.COLOR_YELLOW
-                          : 0x666600,
-                    Graphics.COLOR_TRANSPARENT
-                );
+                        : currentRisk == RiskLevelSlight
+                          ? isDark
+                              ? Graphics.COLOR_WHITE
+                              : Graphics.COLOR_BLACK // Contrast override on yellow background
+                          : isDark
+                            ? Graphics.COLOR_YELLOW
+                            : 0x666600;
 
                 if (prevStX != -1) {
+                    // Step 1: Draw 3px wide halo outline behind line
+                    dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawLine(prevStX, prevStY - 1, px, py - 1);
+                    dc.drawLine(prevStX, prevStY + 2, px, py + 2);
+
+                    // Step 2: Draw 2px main temperature line
+                    dc.setColor(tempColor, Graphics.COLOR_TRANSPARENT);
                     dc.drawLine(prevStX, prevStY, px, py);
+                    dc.drawLine(prevStX, prevStY + 1, px, py + 1);
                 }
+
+                // Node point with halo
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, py, 3);
+                dc.setColor(tempColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, py, 2);
 
                 prevStX = px;
                 prevStY = py;
             }
+
+            // Draw Badge "T" with halo outline
+            if (enableBadges && firstStY != -1) {
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    x - 2,
+                    firstStY + 1,
+                    Graphics.FONT_XTINY,
+                    "T",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+                dc.setColor(
+                    isDark ? Graphics.COLOR_YELLOW : 0x666600,
+                    Graphics.COLOR_TRANSPARENT
+                );
+                dc.drawText(
+                    x - 3,
+                    firstStY,
+                    Graphics.FONT_XTINY,
+                    "T",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+            }
         }
 
-        // --- 5. SURFACE TEMP LINE (SURFACE ICE WARNING OVERLAY) ---
-        var prevStX = -1;
-        var prevStY = -1;
-        for (var i = 0; i < numHours; i++) {
-            if (surfaceTempForecast.size() <= i) {
-                break;
-            }
-            var st = surfaceTempForecast[i];
-            var px = x + i * (barWidth + barGap) + barWidth / 2;
-
-            // Map surface temp scale (-5°C to 25°C range window)
-            var normalizedSt = (st + 5.0f) / 30.0f;
-            if (normalizedSt < 0.0f) {
-                normalizedSt = 0.0f;
-            }
-            if (normalizedSt > 1.0f) {
-                normalizedSt = 1.0f;
-            }
-            var py = baselineY - (normalizedSt * chartHeight).toNumber();
-
-            dc.setColor(
-                st <= 0.0f
-                    ? Graphics.COLOR_RED
-                    : isDark
-                      ? Graphics.COLOR_YELLOW
-                      : 0x666600,
-                Graphics.COLOR_TRANSPARENT
-            );
-            if (prevStX != -1) {
-                dc.drawLine(prevStX, prevStY, px, py);
-            }
-            prevStX = px;
-            prevStY = py;
-        }
-
-        // --- 6. WIND GUST SPARKLINE & DIRECTION ARROWS ---
-        var maxWind = 60.0f;
+        // --- 6. WIND GUST SPARKLINE (DASHED + CONTRAST HALO) ---
+        var maxWind = 60.0f; // km/h
         var prevX = -1;
         var prevY = -1;
-        var windColor = AppState.activePalette[ThemeManager.COLOR_BG];
+        var firstWindY = -1;
+
         for (var i = 0; i < numHours; i++) {
+            var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
             var gust =
                 windGustForecast.size() > i
                     ? windGustForecast[i]
@@ -293,33 +304,88 @@ class PredictiveSparkline {
                 gustRatio = 1.0f;
             }
             var py = baselineY - (gustRatio * chartHeight).toNumber();
+            if (i == 0) {
+                firstWindY = py;
+            }
 
-            // dc.setColor(isDark ? 0xFF5500 : 0xCC0000, Graphics.COLOR_TRANSPARENT);
-            dc.setColor(windColor, Graphics.COLOR_TRANSPARENT);
+            var currentRisk =
+                i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
+
+            // Adjust line color if risk background matches orange/red wind hue
+            var windLineColor =
+                currentRisk == RiskLevelModerate || currentRisk == RiskLevelHigh
+                    ? isDark
+                        ? Graphics.COLOR_WHITE
+                        : Graphics.COLOR_BLACK // Contrast override on orange background
+                    : isDark
+                      ? 0xff5500
+                      : 0xcc0000;
+
             if (prevX != -1) {
-                dc.drawLine(prevX, prevY, px, py);
+                if (i % 2 == 0) {
+                    // Step 1: Draw halo dots behind dashed segments
+                    dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawLine(prevX, prevY - 1, px, py - 1);
+                    dc.drawLine(prevX, prevY + 1, px, py + 1);
+
+                    // Step 2: Draw inner dashed wind line
+                    dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawLine(prevX, prevY, px, py);
+                }
             }
 
             if (gust >= 35.0f) {
-                dc.fillCircle(px, py, 2);
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, py, 4);
+                dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, py, 3);
             }
 
-            // Draw Wind Direction Arrows every 3 hours (i = 0, 3, 6, 9)
-            // if (i % 3 == 0 && windDirForecast.size() > i) {
-            if (windDirForecast.size() > i) {
-                var isHeavyGust = gust >= 35.0f;
+            // --- CONDITIONAL ARROW DRAWING ---
+            // Draw vector ONLY if wind is fast (>=20 km/h), gust is heavy (>=25 km/h),
+            // or there is notable gust turbulence (gust >= 1.3 * base wind)
+            var relGustRatio = windSpd > 1.0f ? gust / windSpd : 1.0f;
+            var shouldDrawArrow =
+                windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f;
+
+            // Line height is wind strength
+            if (shouldDrawArrow && windDirForecast.size() > i) {
                 drawWindArrow(
                     dc,
                     px,
-                    baselineY - 4,
+                    py, //baselineY - 4,
                     windDirForecast[i],
-                    isHeavyGust,
+                    windSpd,
+                    gust,
                     isDark
                 );
             }
 
             prevX = px;
             prevY = py;
+        }
+
+        // Draw Badge "W" with halo outline
+        if (enableBadges && firstWindY != -1) {
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                x - 2,
+                firstWindY + 1,
+                Graphics.FONT_XTINY,
+                "W",
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+            dc.setColor(
+                isDark ? 0xff5500 : 0xcc0000,
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x - 3,
+                firstWindY,
+                Graphics.FONT_XTINY,
+                "W",
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
         }
 
         // --- 7. ICE WARNING HEADER ---
@@ -343,33 +409,224 @@ class PredictiveSparkline {
         }
     }
 
-    // Helper: Draw a vector arrow for wind direction with gust emphasis
     private static function drawWindArrow(
         dc as Graphics.Dc,
         cx as Number,
         cy as Number,
         angleDeg as Number,
-        isHeavyGust as Boolean,
+        windSpeed as Float,
+        gust as Float,
         isDark as Boolean
     ) as Void {
-        var rad = Math.toRadians(angleDeg);
-        var len = isHeavyGust ? 7 : 5;
-
-        var dx = (len * Math.sin(rad)).toNumber();
-        var dy = (-len * Math.cos(rad)).toNumber();
-
-        dc.setColor(
-            isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK,
-            Graphics.COLOR_TRANSPARENT
-        );
-
-        // Draw normal or thick stem based on gust ratio
-        dc.drawLine(cx - dx, cy - dy, cx + dx, cy + dy);
-        if (isHeavyGust) {
-            dc.drawLine(cx - dx + 1, cy - dy, cx + dx + 1, cy + dy);
+        // 1. LARGER TRIANGLE DIMENSIONS (Length: 12px to 18px)
+        var len = 12;
+        var baseHalfWidth = 4;
+        if (windSpeed >= 35.0f) {
+            len = 18;
+            baseHalfWidth = 7;
+        } else if (windSpeed >= 25.0f) {
+            len = 15;
+            baseHalfWidth = 6;
+        } else if (windSpeed >= 18.0f) {
+            len = 13;
+            baseHalfWidth = 5;
         }
 
-        // Arrowhead radius
-        dc.fillCircle(cx + dx, cy + dy, isHeavyGust ? 2 : 1);
+        // Convert direction: Flip by 180 deg so arrow points WHERE wind is blowing TO
+        var rad = Math.toRadians(angleDeg + 180.0f);
+        var uX = Math.sin(rad);
+        var uY = -Math.cos(rad);
+
+        // Perpendicular vector for triangle base (+90 deg rotation)
+        var pX = -uY;
+        var pY = uX;
+
+        // Apex points in direction of travel, Base stays at origin
+        var halfLen = len / 2.0f;
+        var apexX = cx + (halfLen * uX).toNumber();
+        var apexY = cy + (halfLen * uY).toNumber();
+        var baseX = cx - (halfLen * uX).toNumber();
+        var baseY = cy - (halfLen * uY).toNumber();
+
+        // Base left/right corners
+        var corner1X = baseX + (baseHalfWidth * pX).toNumber();
+        var corner1Y = baseY + (baseHalfWidth * pY).toNumber();
+        var corner2X = baseX - (baseHalfWidth * pX).toNumber();
+        var corner2Y = baseY - (baseHalfWidth * pY).toNumber();
+
+        var mainColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+
+        // --- STEP A: HALO BACKGROUND OUTLINE ---
+        var haloPts = [
+            [apexX + (uX * 2.0f).toNumber(), apexY + (uY * 2.0f).toNumber()],
+            [
+                corner1X + ((pX - uX) * 1.5f).toNumber(),
+                corner1Y + ((pY - uY) * 1.5f).toNumber(),
+            ],
+            [
+                corner2X - ((pX + uX) * 1.5f).toNumber(),
+                corner2Y - ((pY + uY) * 1.5f).toNumber(),
+            ],
+        ];
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.fillPolygon(haloPts);
+
+        // --- STEP B: FILLED FOREGROUND TRIANGLE ---
+        var trianglePts = [
+            [apexX, apexY],
+            [corner1X, corner1Y],
+            [corner2X, corner2Y],
+        ];
+        dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
+        dc.fillPolygon(trianglePts);
+
+        // --- STEP C: STACKED GUST BARS BEHIND BASE ---
+        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
+        var numGustBars = 0;
+
+        if (gust >= 45.0f || gustRatio >= 1.7f) {
+            numGustBars = 3;
+        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
+            numGustBars = 2;
+        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
+            numGustBars = 1;
+        }
+
+        var barSpacing = 4;
+        var barWidth = baseHalfWidth + 2;
+
+        for (var b = 1; b <= numGustBars; b++) {
+            var bCenterX = baseX - (b * barSpacing * uX).toNumber();
+            var bCenterY = baseY - (b * barSpacing * uY).toNumber();
+
+            var bX1 = bCenterX + (barWidth * pX).toNumber();
+            var bY1 = bCenterY + (barWidth * pY).toNumber();
+            var bX2 = bCenterX - (barWidth * pX).toNumber();
+            var bY2 = bCenterY - (barWidth * pY).toNumber();
+
+            // 2px thick halo outline
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawLine(bX1 - 1, bY1, bX2 - 1, bY2);
+            dc.drawLine(bX1 + 1, bY1, bX2 + 1, bY2);
+            dc.drawLine(bX1, bY1 - 1, bX2, bY2 - 1);
+            dc.drawLine(bX1, bY1 + 1, bX2, bY2 + 1);
+
+            // Foreground bar
+            dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawLine(bX1, bY1, bX2, bY2);
+            dc.drawLine(
+                bX1 + uX.toNumber(),
+                bY1 + uY.toNumber(),
+                bX2 + uX.toNumber(),
+                bY2 + uY.toNumber()
+            );
+        }
+    }
+
+    private static function drawWindArrow_line(
+        dc as Graphics.Dc,
+        cx as Number,
+        cy as Number,
+        angleDeg as Number,
+        windSpeed as Float,
+        gust as Float,
+        isDark as Boolean
+    ) as Void {
+        // 1. SHAFT LENGTH BASED ON BASE WIND SPEED (Range: 8px to 14px)
+        var len = 8;
+        if (windSpeed >= 35.0f) {
+            len = 14;
+        } else if (windSpeed >= 25.0f) {
+            len = 12;
+        } else if (windSpeed >= 18.0f) {
+            len = 10;
+        }
+
+        // Direction unit vector (0 deg = North)
+        var rad = Math.toRadians(angleDeg);
+        var uX = Math.sin(rad);
+        var uY = -Math.cos(rad);
+
+        // Perpendicular vector for crossbars/flags (rotated +90 degrees)
+        var pX = -uY;
+        var pY = uX;
+
+        // Tip and Tail coordinates relative to center (cx, cy)
+        var halfLen = len / 2.0f;
+        var tipX = cx + (halfLen * uX).toNumber();
+        var tipY = cy + (halfLen * uY).toNumber();
+        var tailX = cx - (halfLen * uX).toNumber();
+        var tailY = cy - (halfLen * uY).toNumber();
+
+        // 2. GUST SEVERITY LEVELS
+        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
+        var isSevereGust = gust >= 40.0f || gustRatio >= 1.6f;
+        var isModerateGust =
+            gust >= 28.0f || (gustRatio >= 1.3f && !isSevereGust);
+
+        var arrowColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+
+        // --- HELPER FUNCTION: DRAW HALOED LINE ---
+        // Draws a line with a 1px halo background stroke for contrast over heatmaps
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tailX - 1, tailY, tipX - 1, tipY);
+        dc.drawLine(tailX + 1, tailY, tipX + 1, tipY);
+        dc.drawLine(tailX, tailY - 1, tipX, tipY - 1);
+        dc.drawLine(tailX, tailY + 1, tipX, tipY + 1);
+
+        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tailX, tailY, tipX, tipY);
+
+        // --- STEP A: ARROWHEAD AT TIP ---
+        // Small 2px arrowhead wings at tip
+        var headLen = 3;
+        var headX1 = tipX - (headLen * uX - 2 * pX).toNumber();
+        var headY1 = tipY - (headLen * uY - 2 * pY).toNumber();
+        var headX2 = tipX - (headLen * uX + 2 * pX).toNumber();
+        var headY2 = tipY - (headLen * uY + 2 * pY).toNumber();
+
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tipX, tipY, headX1, headY1);
+        dc.drawLine(tipX, tipY, headX2, headY2);
+
+        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tipX, tipY, headX1, headY1);
+        dc.drawLine(tipX, tipY, headX2, headY2);
+
+        // --- STEP B: TAIL BASE MARKER (START OF LINE) ---
+        // Short perpendicular line at the very tail to anchor the origin
+        var baseW = 2;
+        var tailBaseX1 = tailX - (baseW * pX).toNumber();
+        var tailBaseY1 = tailY - (baseW * pY).toNumber();
+        var tailBaseX2 = tailX + (baseW * pX).toNumber();
+        var tailBaseY2 = tailY + (baseW * pY).toNumber();
+
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tailBaseX1, tailBaseY1, tailBaseX2, tailBaseY2);
+        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(tailBaseX1, tailBaseY1, tailBaseX2, tailBaseY2);
+
+        // --- STEP C: DIAGONAL GUST BARBS AT TAIL ---
+        // Draw 1, 2, or 3 diagonal flags sloping backwards along the tail
+        var numBarbs = isSevereGust ? 3 : isModerateGust ? 2 : 1;
+        var barbLength = 3;
+        var barbSpacing = 3;
+
+        for (var b = 0; b < numBarbs; b++) {
+            // Position along the stem starting from tail forward
+            var stemOffsetX = tailX + (b * barbSpacing * uX).toNumber();
+            var stemOffsetY = tailY + (b * barbSpacing * uY).toNumber();
+
+            // Diagonal backward slant: combination of backward -u and sideways +p
+            var barbEndX = stemOffsetX + (barbLength * (pX - uX)).toNumber();
+            var barbEndY = stemOffsetY + (barbLength * (pY - uY)).toNumber();
+
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
+            dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
+        }
     }
 }

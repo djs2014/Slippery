@@ -16,7 +16,7 @@ class WeatherMetrics {
     var snowCurrent as Float = 0.0; // in mm/h
     var windSpeed as Float = 0.0; // in km/h
     var windGust as Float = 0.0; // in km/h
-    var windDirection as Number = 0; // in degrees
+    var windDirection as Number = 0; // in degrees (0-359 deg) where the wind is coming from (standard weather map style)
 
     // Past 12h Context
     var precip12hSum as Float = 0.0;
@@ -29,7 +29,7 @@ class WeatherMetrics {
     var timeStampsForeCast as Array<Number> = []; // Number items (unixtime in seconds)
     var rainForecast as Array<Float> = []; // Float items (mm/h)
     var windForecast as Array<Float> = []; // Float items (km/h)
-    var windDirForecast as Array<Number> = []; // Number items (0-359 deg)
+    var windDirForecast as Array<Number> = []; // Number items (0-359 deg) where the wind is coming from (standard weather map style)
     var windGustForecast as Array<Float> = []; // Float items (km/h)
     var airTempForecast as Array<Float> = []; // Float items (°C air)
     var snowForecast as Array<Float> = []; // Float items (mm/h)

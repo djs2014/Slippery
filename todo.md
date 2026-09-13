@@ -15,20 +15,16 @@
     - border around bar and display level + colorpill under
 
 
+switch hours -> will also need other minute rain data-> need 8 * 15 min ->
+
 104 reset when connected
-gust levels med/etc.
 gps stats -> on pause / links/rechts boven
 gsp stats: last time bg process or time of observation
 when in safe mode / no hazards
-temp line in forecast -> dark/white based on backcolor
 
 option
-show relative or actual hour in forecast
+show relative or actual hour in forecast + blend more in background
 display upcoming risk greater than current 
-show gust / wind bigger triangle, filled triangle?
--
-- toon weather data
-..
 
 
 

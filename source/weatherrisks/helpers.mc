@@ -264,7 +264,7 @@ function getRiskColor(
 ) as Graphics.ColorType {
     if (riskLevel == RiskLevelNoData || riskLevel == RiskLevelSafe) {
         // Dark Gray / Light Gray
-        return isDark ? 0x404040 : 0xd3d3d3;
+        return isDark ? 0x404040 : 0xefefef;
     } else if (riskLevel == RiskLevelSlight) {
         // Yellow/Olive
         return isDark ? 0xffff00 : 0x808000;
