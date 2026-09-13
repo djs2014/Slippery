@@ -88,12 +88,46 @@ public class RiskCalculator {
             addAdvice(AdviceTreadPatternRequired);
         }
 
-        // --- 5. HIGH / MODERATE: Heavy Rain Hydroplaning & Spray ---
-        if (rainCurrent >= 5.0) {
+        // --- 5. RAIN ---
+        // --- CRITICAL: Torrential / Violent Downpour ---
+        if (rainCurrent >= 15.0f) {
+            upgradeRisk(RiskLevelCritical);
+            addHazard(HazardHeavyRainHydroplaning);
+            addAdvice(AdviceReduceSpeedAndIncreaseGripMargin);
+            addAdvice(AdviceIncreaseBreakingDistance);
+        }
+        // --- HIGH: Heavy Rain & Standing Water ---
+        else if (rainCurrent >= 7.5f) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardHeavyRainHydroplaning);
             addAdvice(AdviceIncreaseBreakingDistance);
             addAdvice(AdviceReduceSpeedAndIncreaseGripMargin);
+        }
+        // --- MODERATE: Summer/Spring First Rain ("Oil Slick") ---
+        // Light rain (0.1 - 2.5 mm/h) releases oil film without flushing it away
+        else if (
+            (season == SeasonSummer || season == SeasonSpring) &&
+            rainCurrent >= 0.1f &&
+            rainCurrent < 2.5f &&
+            runningDryStreak >= 10 // Dry hours preceding rain
+        ) {
+            upgradeRisk(RiskLevelModerate);
+            addHazard(HazardFirstRainReleasingDirtOils);
+            addAdvice(AdviceAsphaltSlippery);
+            addAdvice(AdviceTractionImprovesAfterHeavierRain);
+        }
+        // --- MODERATE: Steady Rain ---
+        else if (rainCurrent >= 2.5f) {
+            upgradeRisk(RiskLevelModerate);
+            addHazard(HazardWetAsphaltSurface);
+            addAdvice(AdviceIncreaseBreakingDistance);
+            addAdvice(AdviceReduceCorneringLeanAngle);
+        }
+        // --- SLIGHT: Light Rain / Drizzle ---
+        else if (rainCurrent >= 0.2f) {
+            upgradeRisk(RiskLevelSlight);
+            addHazard(HazardWetAsphaltSurface);
+            addAdvice(AdviceIncreaseBreakingDistance);
         }
 
         // --- 6. MODERATE: Autumn Wet Leaves ---
@@ -107,32 +141,11 @@ public class RiskCalculator {
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
-        // --- 7. MODERATE: Summer/Spring First Rain ("Oil Slick") ---
-        if (
-            (season == SeasonSummer || season == SeasonSpring) &&
-            rainCurrent > 0.0 &&
-            rainCurrent < 2.5 &&
-            runningDryStreak >= 18 // dry hours before rain
-        ) {
-            upgradeRisk(RiskLevelModerate);
-            addHazard(HazardFirstRainReleasingDirtOils);
-            addAdvice(AdviceAsphaltSlippery);
-            addAdvice(AdviceTractionImprovesAfterHeavierRain);
-        }
-
         // --- 8. SLIGHT: Dew Condensation ("Sweating Road") ---
         if (surfaceTemp > 0.0 && humidity > 90 && surfaceDewSpread <= 1.0) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardWetAsphaltSurface);
             addAdvice(AdviceWatchOutForShadedAreasBridgesTreeLinedRoads);
-            addAdvice(AdviceReduceCorneringLeanAngle);
-        }
-
-        // --- 9. SLIGHT: Light / Moderate Rain ---
-        if (rainCurrent > 0.2 && rainCurrent < 5.0) {
-            upgradeRisk(RiskLevelSlight);
-            addHazard(HazardWetAsphaltSurface);
-            addAdvice(AdviceIncreaseBreakingDistance);
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
@@ -184,12 +197,12 @@ public class RiskCalculator {
         // --- 14. IMMEDIATE: Imminent Rain ---
         if (immediateRain >= 0 && rainCurrent < 0.1f) {
             upgradeRisk(RiskLevelHigh);
-            addHazard(HazardImminentRain);            
+            addHazard(HazardImminentRain);
         }
         // --- 15. IMMEDIATE: Imminent Snow ---
         if (immediateSnow >= 0 && snowCurrent < 0.1f) {
             upgradeRisk(RiskLevelHigh);
-            addHazard(HazardImminentSnow);            
+            addHazard(HazardImminentSnow);
         }
 
         return _riskLevel;

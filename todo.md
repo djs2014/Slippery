@@ -1,13 +1,11 @@
 - linux taskbar app for local use
+- weather app also same track heading mechanism
 
 - option to collect lat/lon during commute 
     - for predict commute track
     - reset option after activity done
 
    
-
-- werkende icon voor risk level (small screen)
-
 - alert on incoming rain/snow
 - alert on ice forecast 
 - check forecast hours if it gets slippery

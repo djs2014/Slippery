@@ -43,6 +43,7 @@ class ThemeManager {
         COLOR_LIGHT_COLUMBIA_BLUE, // 19
         COLOR_INTERNATIONAL_ORANGE, // 20
         COLOR_FREE_SPEECH_RED, // 21
+        COLOR_LABEL_LIGHT, // 22
     }
 
     // Direct indexed palettes for Dark and Light themes
@@ -69,6 +70,7 @@ class ThemeManager {
         0x99ddff, // 19: LIGHT_COLUMBIA_BLUE
         0xff5500, // 20: INTERNATIONAL_ORANGE
         0xcc0000, // 21: FREE_SPEECH_RED
+        Graphics.COLOR_DK_GRAY // 22: LABEL_LIGHT
     ];
 
     public static const LIGHT_PALETTE as Array<ColorType> = [
@@ -94,6 +96,7 @@ class ThemeManager {
         0x99ddff, // 19: LIGHT_COLUMBIA_BLUE
         0xff5500, // 20: INTERNATIONAL_ORANGE
         0xcc0000, // 21: FREE_SPEECH_RED
+        Graphics.COLOR_LT_GRAY // 22: LABEL_LIGHT
     ];
 
     // Ultra-fast O(1) lookup, 0 branching, zero runtime allocations

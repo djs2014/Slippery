@@ -58,7 +58,7 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("resetDefaults", false);
                 Storage.setValue("checkIntervalMinutes", 5);
                 Storage.setValue("demo", false);
-                Storage.setValue("alert_beep", false);
+                Storage.setValue("alert_beep", true);
                 Storage.setValue("alert_toast", false);
                 Storage.setValue("hsp_showvalue", false);                
                 Storage.setValue("hsp_darklight_breakpoint", 180);                
