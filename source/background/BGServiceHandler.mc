@@ -4,6 +4,7 @@
 // 2026-06-05 Application.PropertyValueType mCurrentLocation
 // 2026-06-06 onBackgroundData check for null data
 // 2026-09-06 added g_bg_timeout_seconds and g_bg_delay_seconds
+// 2026-09-13 added handling for BLE connection unavailable error
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.System;
@@ -128,7 +129,8 @@ class BGServiceHandler {
       mError == CustomErrors.ERROR_BG_GPS_LEVEL ||
       mError == CustomErrors.ERROR_BG_NO_PHONE ||
       mError == CustomErrors.ERROR_BG_NO_POSITION ||
-      mError == CustomErrors.ERROR_BG_EXCEPTION      
+      mError == CustomErrors.ERROR_BG_EXCEPTION ||
+      mError == -104 // Communications.BLE_CONNECTION_UNAVAILABLE   // Will try again in 5 minutes
     ) {
       mError = CustomErrors.ERROR_BG_NONE;
     }

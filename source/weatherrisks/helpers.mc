@@ -359,8 +359,7 @@ function getPrecipitationAlertMessage(
         return typeStr + " IN " + minutesUntil + " MIN";
     }
 }
-
-MaxForecastHourItems = 3;
+var MaxForecastHourItems = 4;
 enum ShowForecastHour {
     ForecastHourNone,
     ForecastHourRelative,
