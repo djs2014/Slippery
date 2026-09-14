@@ -136,14 +136,14 @@ public class RiskCalculator {
             season == SeasonAutumn &&
             (runningRain12h > 0.0 || humidity > 90 || runningSnow12h > 0.0)
         ) {
-            System.println(
-                "Autumn Wet Leaves Risk Assessment: Season = " +
-                    season +
-                    ", runningRain12h = " +
-                    runningRain12h +
-                    ", humidity = " +
-                    humidity
-            );
+            // System.println(
+            //     "Autumn Wet Leaves Risk Assessment: Season = " +
+            //         season +
+            //         ", runningRain12h = " +
+            //         runningRain12h +
+            //         ", humidity = " +
+            //         humidity
+            // );
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardWetLeafCoverage);
             addAdvice(AdviceExtremeSlipHazardOnCorneringLines);

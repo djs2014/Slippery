@@ -4,16 +4,16 @@ import Toybox.Graphics;
 import Toybox.Time;
 
 class RiskProjectionEngine {
-    // Simulates stateful metrics and returns an Array of 12 RiskLevel values
+    // Simulates metrics and returns an Array of RiskLevel values based on full historical/forecast arrays
     public static function calculate12HourRiskProfile(
         currentMetrics as WeatherMetrics,
-        startIndex as Number, //Start will be index of the next hour
+        startIndex as Number, // Start index of the current/next hour to project
         airTemps as Array<Float>,
         surfaceTemps as Array<Float>,
         dewPoints as Array<Float>,
         humidities as Array<Number>,
-        rains as Array<Float>, // contains both historical and forecasted rain values
-        snows as Array<Float>, // contains both historical and forecasted snow values
+        rains as Array<Float>, // Contains full series (-12h up to +12h)
+        snows as Array<Float>, // Contains full series (-12h up to +12h)
         windSpeeds as Array<Float>,
         windGusts as Array<Float>
     ) as Array<RiskLevel> {
@@ -21,35 +21,15 @@ class RiskProjectionEngine {
         if (maxForecast <= 0 || startIndex >= maxForecast) {
             return [];
         }
+
         var maxProfileLength = maxForecast - startIndex;
         var riskProfile = new [maxProfileLength] as Array<RiskLevel>;
-
         var season = currentMetrics.currentSeason;
 
-        // --- Initialize State with Current Real-Time Values ---
-        var runningDryStreak = currentMetrics.dryStreak;
-        var runningRain12h = currentMetrics.rain12hSum;
-        var runningSnow12h = currentMetrics.snow12hSum;
-
-        // Keep a rolling window of 12 hourly precip/snow totals for exact rolling sums
-        // (Index 0 = oldest hour, Index 11 = current hour)
-        var rainHistory = new [maxForecast] as Array<Float>;
-        var snowHistory = new [maxForecast] as Array<Float>;
-
-        // Seed initial history approximation (distribute current maxForecast h sum evenly)
-        var avgInitialPrecip =
-            currentMetrics.rain12hSum / maxForecast.toFloat();
-        var avgInitialSnow = currentMetrics.snow12hSum / maxForecast.toFloat();
-        for (var k = 0; k < maxForecast; k++) {
-            rainHistory[k] = avgInitialPrecip;
-            snowHistory[k] = avgInitialSnow;
-        }
-
-        // --- 12-Hour Simulation Loop ---
         var profileIndex = -1;
         for (var h = startIndex; h < maxForecast; h++) {
             profileIndex += 1;
-            // 1. Extract Instantaneous Hourly Metrics
+
             var airTemp = airTemps[h];
             var surfaceTemp = surfaceTemps[h];
             var dewPoint = dewPoints[h];
@@ -60,40 +40,37 @@ class RiskProjectionEngine {
             var windGust = windGusts[h];
             var surfaceDewSpread = surfaceTemp - dewPoint;
 
-            // 2. Advance Stateful Metrics (Dry Streak)
-            if (rainCurrent > 0.1f || snowCurrent > 0.0f) {
-                runningDryStreak = 0;
-            } else {
-                runningDryStreak += 1;
+            // --- 1. DIRECT 12-HOUR ROLLING RAIN & SNOW SUMS ---
+            var runningRain12h = 0.0f;
+            var runningSnow12h = 0.0f;
+            var windowStart = h - 11 < 0 ? 0 : h - 11;
+
+            for (var k = windowStart; k <= h; k++) {
+                runningRain12h += rains[k];
+                runningSnow12h += snows[k];
             }
 
-            // 3. Advance Stateful Rolling 12-Hour Accumulations
-            // Subtract the oldest hour leaving the 12h window, add the incoming hour
-            runningRain12h = runningRain12h - rainHistory[0] + rainCurrent;
-            runningSnow12h = runningSnow12h - snowHistory[0] + snowCurrent;
-            if (runningRain12h < 0.0f) {
-                runningRain12h = 0.0f;
-            }
-            if (runningSnow12h < 0.0f) {
-                runningSnow12h = 0.0f;
+            // --- 2. DIRECT DRY STREAK COMPUTATION ---
+            var runningDryStreak = 0;
+            if (rainCurrent <= 0.1f && snowCurrent <= 0.0f) {
+                // Count consecutive previous dry hours up to 24h
+                for (var d = h - 1; d >= 0; d--) {
+                    if (rains[d] <= 0.1f && snows[d] <= 0.0f) {
+                        runningDryStreak++;
+                    } else {
+                        break;
+                    }
+                }
             }
 
-            // Shift rolling history window left
-            for (var i = 0; i < maxForecast - 1; i++) {
-                rainHistory[i] = rainHistory[i + 1];
-                snowHistory[i] = snowHistory[i + 1];
-            }
-            rainHistory[maxForecast - 1] = rainCurrent;
-            snowHistory[maxForecast - 1] = snowCurrent;
-            
-            // 4. Derive Immediate Rain / Snow for Future Hours
-            // For hour 'h', immediate lookahead looks at hour 'h+1' if within array bounds
+            // --- 3. IMMEDIATE PRECIPITATION LOOKAHEAD ---
             var immediateRain = -1;
             var immediateSnow = -1;
+
             if (rainCurrent > 0.0f) {
                 immediateRain = 0; // Active rain during this hour
             } else if (h + 1 < rains.size() && rains[h + 1] > 0.1f) {
-                immediateRain = 60; // Starting within the next hour block
+                immediateRain = 60; // Starting within next hour block
             }
 
             if (snowCurrent > 0.0f) {
@@ -102,7 +79,7 @@ class RiskProjectionEngine {
                 immediateSnow = 60;
             }
 
-            // 5. Calculate Risk for Hour 'h' using re-calculated state
+            // --- 4. EVALUATE RISK ---
             riskProfile[profileIndex] = RiskCalculator.evaluateRisk(
                 airTemp,
                 surfaceTemp,
