@@ -20,7 +20,7 @@ class WeatherMetrics {
     var windDirection as Number = 0; // in degrees (0-359 deg) where the wind is coming from (standard weather map style)
 
     // Past 12h Context
-    var precip12hSum as Float = 0.0;
+    var rain12hSum as Float = 0.0;
     var snow12hSum as Float = 0.0;
     var dryStreak as Number = 0; // Length of the current dry streak in hours
 
@@ -54,10 +54,10 @@ class WeatherMetrics {
             humidity +
             ", rainCurrent=" +
             rainCurrent +
-            ", precip12hSum=" +
+            ", rain12hSum=" +
             snowCurrent +
             ", snowCurrent=" +
-            precip12hSum +
+            rain12hSum +
             ", snow12hSum=" +
             snow12hSum +
             ", windSpeed=" +

@@ -7,8 +7,6 @@ Source of weather data is (Open Meteo)[https://open-meteo.com]
 
 Can show if the road is slippery for cycling.
 
-TL;DR: Use at your own risk.
-
 List of checks:
 
 - Black Ice / Freezing Wet Road

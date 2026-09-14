@@ -28,3 +28,6 @@ if (targetIdx < 0) {
 } else if (targetIdx >= times.size()) { 
     targetIdx = times.size() - 1; 
 }
+
+--- finetune the rules
+--- check wind relative direction 

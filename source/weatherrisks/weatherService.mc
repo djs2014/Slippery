@@ -86,7 +86,7 @@ class WeatherService {
             // Extract current metrics directlyp = precips[t
             var metrics = new WeatherMetrics();
             metrics.currentHour = currentHour;
-            
+
             var airTemps = hourly.get("temperature_2m") as Array<Float>?;
             var surfTemps = hourly.get("surface_temperature") as Array<Float>?;
             var dewPoints = hourly.get("dewpoint_2m") as Array<Float>?;
@@ -135,21 +135,21 @@ class WeatherService {
                 startIdx = 0;
             }
 
-            var sumPrecip = 0.0;
+            var sumRain = 0.0;
             var sumSnow = 0.0;
 
             for (var j = startIdx; j <= targetIdx; j++) {
-                if (j < precips.size()) {
-                    sumPrecip += precips[j];
+                if (j < rains.size()) {
+                    sumRain += rains[j];
                 }
                 if (j < snows.size()) {
                     sumSnow += snows[j];
                 }
             }
-
-            metrics.precip12hSum = sumPrecip;
+            
+            metrics.rain12hSum = sumRain;
             metrics.snow12hSum = sumSnow;
-
+            
             // Look back at dry streak length (for "first rain after dry spell" effect)
             var dryStreak = 0;
             for (var k = targetIdx; k >= 0; k--) {
@@ -271,7 +271,7 @@ class WeatherService {
         var dewPoint = _metrics.dewPoint;
         var humidity = _metrics.humidity;
         var rainCurrent = _metrics.rainCurrent;
-        var runningPrecip12h = _metrics.precip12hSum;
+        var runningRain12h = _metrics.rain12hSum;
         var runningSnow12h = _metrics.snow12hSum;
         var dryHoursBeforeRain = _metrics.dryStreak;
         var season = _metrics.currentSeason;
@@ -291,7 +291,7 @@ class WeatherService {
             dewPoint,
             humidity,
             rainCurrent,
-            runningPrecip12h,
+            runningRain12h,
             runningSnow12h,
             dryHoursBeforeRain,
             season,
@@ -327,222 +327,4 @@ class WeatherService {
 
         return -1; // No rain detected within the hour
     }
-
-    // static function calculateRiskAssessment(
-    //     riskOnly as Boolean
-    // ) as RiskAssessment? {
-    //     if (!_metrics.isValid) {
-    //         return null;
-    //     }
-    //     var assessment = new RiskAssessment();
-    //     assessment.riskLevel = RiskLevelSafe;
-    //     assessment.hazards = [] as Array<WeatherHazard>;
-    //     assessment.advice = [] as Array<WeatherAdvice>;
-    //     assessment.hourlyRiskProfiles = [] as Array<RiskLevel>;
-
-    //     var currentTemp = _metrics.airTemp;
-    //     var surfaceTemp = _metrics.surfaceTemp;
-    //     var dewPoint = _metrics.dewPoint;
-    //     var humidity = _metrics.humidity;
-    //     var currentRain = _metrics.rainCurrent;
-    //     var runningPrecip12h = _metrics.precip12hSum;
-    //     var runningSnow12h = _metrics.snow12hSum;
-    //     var dryHoursBeforeRain = _metrics.dryStreak;
-    //     var season = _metrics.currentSeason;
-    //     var windSpeed = _metrics.windSpeed; // in km/h
-    //     var windGust = _metrics.windGust; // in km/h
-    //     var immediateRain = _metrics.immediateRain;
-    //     var rainCurrent = _metrics.rainCurrent;
-    //     var immediateSnow = _metrics.immediateSnow;
-    //     var snowCurrent = _metrics.snowCurrent;
-    //     var surfaceDewSpread = surfaceTemp - dewPoint;
-
-    //     // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
-    //     if (
-    //         (surfaceTemp <= 0.0 || currentTemp <= 0.5) &&
-    //         (runningPrecip12h > 0.0 || currentRain > 0.0)
-    //     ) {
-    //         upgradeRisk(assessment, RiskLevelCritical);
-    //         addHazard(assessment, HazardBlackIceFreezingWetRoad);
-    //         addAdvice(assessment, AdviceAvoidRiding);
-    //         addAdvice(assessment, AdviceLowerTirePressure);
-    //     }
-
-    //     // --- 2. CRITICAL: Hoarfrost / Freezing" Fog ---
-    //     if (surfaceTemp <= 0.0 && surfaceDewSpread <= 2.0) {
-    //         upgradeRisk(assessment, RiskLevelCritical);
-    //         addHazard(assessment, HazardRoadSurfaceFrost);
-    //         addAdvice(
-    //             assessment,
-    //             AdviceWatchOutForShadedAreasBridgesTreeLinedRoads
-    //         );
-    //         addAdvice(assessment, AdviceAvoidSuddenBraking);
-    //     }
-
-    //     // --- 3. HIGH: Bridge Deck Freeze ---
-    //     if (
-    //         currentTemp >= 0.0 &&
-    //         currentTemp <= 2.5 &&
-    //         (runningPrecip12h > 0.0 || humidity > 88)
-    //     ) {
-    //         upgradeRisk(assessment, RiskLevelHigh);
-    //         addHazard(assessment, HazardIceOnBridges);
-    //         addAdvice(
-    //             assessment,
-    //             AdviceWatchOutForShadedAreasBridgesTreeLinedRoads
-    //         );
-    //     }
-
-    //     // --- 4. HIGH: Snow / Slush Accumulation ---
-    //     if (runningSnow12h > 0.0) {
-    //         upgradeRisk(assessment, RiskLevelHigh);
-    //         addHazard(assessment, HazardSnowOrSlushAccumulation);
-    //         addAdvice(assessment, AdviceLossOfTractionInTurns);
-    //         addAdvice(assessment, AdviceTreadPatternRequired);
-    //     }
-
-    //     // --- 5. HIGH / MODERATE: Heavy Rain Hydroplaning & Spray ---
-    //     if (currentRain >= 5.0) {
-    //         upgradeRisk(assessment, RiskLevelHigh);
-    //         addHazard(assessment, HazardHeavyRainHydroplaning);
-    //         addAdvice(assessment, AdviceIncreaseBreakingDistance);
-    //         addAdvice(assessment, AdviceReduceSpeedAndIncreaseGripMargin);
-    //     }
-
-    //     // --- 6. MODERATE: Autumn Wet Leaves ---
-    //     if (
-    //         season == SeasonAutumn &&
-    //         (runningPrecip12h > 0.0 || humidity > 90)
-    //     ) {
-    //         upgradeRisk(assessment, RiskLevelModerate);
-    //         addHazard(assessment, HazardWetLeafCoverage);
-    //         addAdvice(assessment, AdviceExtremeSlipHazardOnCorneringLines);
-    //         addAdvice(assessment, AdviceReduceCorneringLeanAngle);
-    //     }
-
-    //     // --- 7. MODERATE: Summer/Spring First Rain ("Oil Slick") ---
-    //     if (
-    //         (season == SeasonSummer || season == SeasonSpring) &&
-    //         currentRain > 0.0 &&
-    //         currentRain < 2.5 &&
-    //         dryHoursBeforeRain >= 18
-    //     ) {
-    //         upgradeRisk(assessment, RiskLevelModerate);
-    //         addHazard(assessment, HazardFirstRainReleasingDirtOils);
-    //         addAdvice(assessment, AdviceAsphaltSlippery);
-    //         addAdvice(assessment, AdviceTractionImprovesAfterHeavierRain);
-    //     }
-
-    //     // --- 8. SLIGHT: Dew Condensation ("Sweating Road") ---
-    //     if (surfaceTemp > 0.0 && humidity > 90 && surfaceDewSpread <= 1.0) {
-    //         upgradeRisk(assessment, RiskLevelSlight);
-    //         addHazard(assessment, HazardWetAsphaltSurface);
-    //         addAdvice(
-    //             assessment,
-    //             AdviceWatchOutForShadedAreasBridgesTreeLinedRoads
-    //         );
-    //         addAdvice(assessment, AdviceReduceCorneringLeanAngle);
-    //     }
-
-    //     // --- 9. SLIGHT: Light / Moderate Rain ---
-    //     if (currentRain > 0.2 && currentRain < 5.0) {
-    //         upgradeRisk(assessment, RiskLevelSlight);
-    //         addHazard(assessment, HazardWetAsphaltSurface);
-    //         addAdvice(assessment, AdviceIncreaseBreakingDistance);
-    //         addAdvice(assessment, AdviceReduceCorneringLeanAngle);
-    //     }
-
-    //     // --- 10. CRITICAL / HIGH: Gale-Force Crosswinds & Violent Gusts ---
-    //     if (windSpeed >= 45.0 || windGust >= 60.0) {
-    //         upgradeRisk(assessment, RiskLevelCritical);
-    //         addHazard(assessment, HazardGaleForceWinds);
-    //         addAdvice(assessment, AdviceBewareOfOpenFieldsAndBridges);
-    //         addAdvice(assessment, AdviceHoldHandlebarsFirmly);
-    //         addAdvice(assessment, AdviceConsiderLowerProfileWheels);
-    //     }
-    //     // --- 11. MODERATE: Strong / Gusty Winds ---
-    //     else if (windSpeed >= 30.0 || windGust >= 45.0) {
-    //         upgradeRisk(assessment, RiskLevelModerate);
-    //         addHazard(assessment, HazardStrongCrosswinds);
-    //         addAdvice(assessment, AdviceBewareOfOpenFieldsAndBridges);
-    //         addAdvice(assessment, AdviceHoldHandlebarsFirmly);
-    //     }
-
-    //     // --- 12. IMMEDIATE: Imminent Rain ---
-    //     if (immediateRain >= 0 && rainCurrent < 0.1f) {
-    //         upgradeRisk(assessment, RiskLevelHigh);
-    //         addHazard(assessment, HazardImminentRain);
-
-    //         // if (metrics.immediateRain == 0) {
-    //         //     addAdvice(assessment, AdviceRainStartingNow);
-    //         // } else {
-    //         //     // Triggers UI banner: "RAIN IN 15 MIN" or "RAIN IN 30 MIN"
-    //         //     addAdvice(assessment, AdviceRainExpectedShortly);
-    //         // }
-    //     }
-    //     // --- 13. IMMEDIATE: Imminent Snow ---
-    //     if (immediateSnow >= 0 && snowCurrent < 0.1f) {
-    //         upgradeRisk(assessment, RiskLevelHigh);
-    //         addHazard(assessment, HazardImminentSnow);
-
-    //         // if (metrics.immediateSnow == 0) {
-    //         //     addAdvice(assessment, AdviceSnowStartingNow);
-    //         // } else {
-    //         //     // Triggers UI banner: "SNOW IN 15 MIN" or "SNOW IN 30 MIN"
-    //         //     addAdvice(assessment, AdviceSnowExpectedShortly);
-    //         // }
-    //     }
-
-    //     return assessment;
-    // }
-
-    // // --- HELPER UTILITIES FOR SAFE ARRAY & RISK MANAGEMENT ---
-
-    // static function upgradeRisk(
-    //     assessment as RiskAssessment,
-    //     newLevel as RiskLevel
-    // ) as Void {
-    //     if (newLevel > assessment.riskLevel) {
-    //         assessment.riskLevel = newLevel;
-    //     }
-    // }
-
-    // static function addHazard(
-    //     assessment as Riskstatic function calculate12HourRiskProfile(
-    //     hourlyData as Array<WeatherHourlyStep>
-    // ) as Array<RiskLevel> {
-    //     var riskProfile = new [12];
-
-    //     for (var i = 0; i < 12; i++) {
-    //         var step = hourlyData[i];
-
-    //         // Evaluate your existing rule hierarchy for each future hour
-    //         var risk = evaluateHazardRules(
-    //             step.airTemp,
-    //             step.surfaceTemp,
-    //             step.rain,
-    //             step.snow,
-    //             step.windGust
-    //         );
-
-    //         riskProfile[i] = risk;
-    //     }
-
-    //     return riskProfile; // e.g., [Safe, Safe, Slight, Moderate, High, High, Moderate, ...]
-    // }Assessment,
-    //     hazard as WeatherHazard
-    // ) as Void {
-    //     if (assessment.hazards.indexOf(hazard) == -1) {
-    //         assessment.hazards.add(hazard);
-    //     }
-    // }
-
-    // static function addAdvice(
-    //     assessment as RiskAssessment,
-    //     advice as WeatherAdvice
-    // ) as Void {
-    //     if (assessment.advice.indexOf(advice) == -1) {
-    //         assessment.advice.add(advice);
-    //     }
-    // }
 }

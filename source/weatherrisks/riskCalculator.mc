@@ -37,7 +37,7 @@ public class RiskCalculator {
         dewPoint as Float,
         humidity as Number,
         rainCurrent as Float,
-        runningPrecip12h as Float,
+        runningRain12h as Float,
         runningSnow12h as Float,
         runningDryStreak as Number,
         season as MeteorologicalSeason,
@@ -53,7 +53,8 @@ public class RiskCalculator {
         // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
         if (
             (surfaceTemp <= 0.0 || airTemp <= 0.5) &&
-            (runningPrecip12h > 0.0 || rainCurrent > 0.0)
+            ((runningRain12h > 0.0 || rainCurrent > 0.0) ||
+            (runningSnow12h > 0.0 || snowCurrent > 0.0))
         ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardBlackIceFreezingWetRoad);
@@ -73,7 +74,7 @@ public class RiskCalculator {
         if (
             airTemp >= 0.0 &&
             airTemp <= 2.5 &&
-            (runningPrecip12h > 0.0 || humidity > 88)
+            (runningRain12h > 0.0 || humidity > 88 || runningSnow12h > 0.0)
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardIceOnBridges);
@@ -133,8 +134,16 @@ public class RiskCalculator {
         // --- 6. MODERATE: Autumn Wet Leaves ---
         if (
             season == SeasonAutumn &&
-            (runningPrecip12h > 0.0 || humidity > 90)
+            (runningRain12h > 0.0 || humidity > 90 || runningSnow12h > 0.0)
         ) {
+            System.println(
+                "Autumn Wet Leaves Risk Assessment: Season = " +
+                    season +
+                    ", runningRain12h = " +
+                    runningRain12h +
+                    ", humidity = " +
+                    humidity
+            );
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardWetLeafCoverage);
             addAdvice(AdviceExtremeSlipHazardOnCorneringLines);

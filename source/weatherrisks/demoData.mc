@@ -21,7 +21,7 @@ class DemoWeatherService {
             wd.windGust = 7.0f;
             wd.windDirection = 90;
 
-            wd.precip12hSum = 0.0f;
+            wd.rain12hSum = 0.0f;
             wd.snow12hSum = 0.0f;
             wd.dryStreak = 12;
             wd.currentSeason = SeasonSummer;
@@ -70,7 +70,7 @@ class DemoWeatherService {
             wd.windGust = 28.0f;
             wd.windDirection = 270;
 
-            wd.precip12hSum = 1.2f;
+            wd.rain12hSum = 1.2f;
             wd.snow12hSum = 0.0f;
             wd.dryStreak = 1;
             wd.currentSeason = SeasonAutumn;
@@ -119,7 +119,7 @@ class DemoWeatherService {
             wd.windGust = 42.0f;
             wd.windDirection = 220;
 
-            wd.precip12hSum = 6.5f;
+            wd.rain12hSum = 6.5f;
             wd.snow12hSum = 0.0f;
             wd.dryStreak = 0;
             wd.currentSeason = SeasonAutumn;
@@ -168,7 +168,7 @@ class DemoWeatherService {
             wd.windGust = 55.0f;
             wd.windDirection = 310;
 
-            wd.precip12hSum = 18.0f;
+            wd.rain12hSum = 18.0f;
             wd.snow12hSum = 0.0f;
             wd.dryStreak = 0;
             wd.currentSeason = SeasonWinter;
@@ -217,7 +217,7 @@ class DemoWeatherService {
             wd.windGust = 35.0f;
             wd.windDirection = 180;
 
-            wd.precip12hSum = 12.0f;
+            wd.rain12hSum = 12.0f;
             wd.snow12hSum = 0.0f;
             wd.dryStreak = 0;
             wd.currentSeason = SeasonWinter;
@@ -266,7 +266,7 @@ class DemoWeatherService {
             wd.windGust = 48.0f;
             wd.windDirection = 45;
 
-            wd.precip12hSum = 14.0f;
+            wd.rain12hSum = 14.0f;
             wd.snow12hSum = 5.0f;
             wd.dryStreak = 0;
             wd.currentSeason = SeasonWinter;
