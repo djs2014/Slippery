@@ -31,3 +31,12 @@ if (targetIdx < 0) {
 
 --- finetune the rules
 --- check wind relative direction 
+
+
+
+// Setting? 
+temp to color <0, <10 <15 
+humidity to color
+
+Hazards in order of importance?
+

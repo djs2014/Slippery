@@ -125,6 +125,7 @@ class WeatherService {
             metrics.windSpeed = windSpeeds[targetIdx];
             metrics.windGust = windGusts[targetIdx];
             metrics.windDirection = windDirections[targetIdx];
+            metrics.gustSeverity = $.calculateGustSeverity(metrics.windSpeed, metrics.windGust);
 
             // Calculate 12-hour accumulated moisture lookback for slipperiness
             var startIdx = targetIdx - 12;

@@ -149,6 +149,36 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
           null
         )
       );
+      boolean = Storage.getValue("useEffectiveCrossGust") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Effective Cross Gust",
+          null,
+          "useEffectiveCrossGust",
+          boolean,
+          null
+        )
+      );
+      boolean = Storage.getValue("hideRiskAdvice") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Hide Risk Advice",
+          null,
+          "hideRiskAdvice",
+          boolean,
+          null
+        )
+      );
+      boolean = Storage.getValue("hideUnitsWhenActive") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Hide Units When Active",
+          null,
+          "hideUnitsWhenActive",
+          boolean,
+          null
+        )
+      );
 
       WatchUi.pushView(advMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
       return;

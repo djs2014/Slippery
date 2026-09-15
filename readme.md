@@ -61,3 +61,33 @@ Advanced
 - Show forecast hours in the bars.
 - HSP breakpoint 
     Breakpoint to determines if back color is dark/light, so the text will be light/dark.
+- Effective Cross Gust
+    Show effective cross gust instead of gust only.
+- Hide Risk Advice
+    Only show the hazards.
+
+Gust / Cross Gust
+
+They measure the same *directional angle*, but `EffectiveCrossGust` uses the **peak gust speed** instead of the steady wind speed.
+
+Here is the exact difference:
+
+$$\text{Crosswind (Steady)} = \text{Sustained Wind Speed} \times \vert{}\sin(\theta)\vert{}$$
+
+$$\text{Effective Cross Gust} = \text{Peak Gust Speed} \times \vert{}\sin(\theta)\vert{}$$
+
+### Quick Comparison
+
+| Metric | Speed Base Used | What It Measures | Cycling Context |
+| --- | --- | --- | --- |
+| **Crosswind** | Sustained Wind Speed | Constant side push | The continuous side-force forcing you to lean slightly into the wind. |
+| **Effective Cross Gust** | Peak Gust Speed | Maximum sudden side force | **The peak sideways slam** that threatens to sweep your front wheel off line. |
+
+### Practical Example
+
+Imagine riding at a $90^\circ$ angle to the wind with a **$20\text{ km/h}$ base wind** and **$40\text{ km/h}$ gusts**:
+
+* **Crosswind:** $20 \times \sin(90^\circ) = \mathbf{20\text{ km/h}}$ (Your continuous baseline side-load)
+* **Effective Cross Gust:** $40 \times \sin(90^\circ) = \mathbf{40\text{ km/h}}$ (The peak lateral force hitting your deep-section front rim)
+
+In short: **Crosswind** tells you how hard you need to lean; **Effective Cross Gust** tells you how violently you might get blown off course.

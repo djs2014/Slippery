@@ -18,6 +18,7 @@ class WeatherMetrics {
     var windSpeed as Float = 0.0; // in km/h
     var windGust as Float = 0.0; // in km/h
     var windDirection as Number = 0; // in degrees (0-359 deg) where the wind is coming from (standard weather map style)
+    var gustSeverity as Number = 0; // Level of wind gust severity
 
     // Past 12h Context
     var rain12hSum as Float = 0.0;

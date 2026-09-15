@@ -1,35 +1,9 @@
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
+import Toybox.System;
 
 class CurrentWindWidget {
-    // Helper: Formats relative angle into a simple textual indicator
-    public static function getWindTypeLabel(relAngleDeg as Float) as String {
-        // Normalize angle to [0, 360)
-        var norm = relAngleDeg.toNumber() % 360;
-        if (norm < 0) {
-            norm += 360;
-        }
-
-        if (norm >= 337 || norm < 23) {
-            return "HEADWIND";
-        } else if (norm >= 23 && norm < 68) {
-            return "CROSS-HEAD (R)";
-        } else if (norm >= 68 && norm < 113) {
-            return "CROSSWIND (R)";
-        } else if (norm >= 113 && norm < 158) {
-            return "CROSS-TAIL (R)";
-        } else if (norm >= 158 && norm < 203) {
-            return "TAILWIND";
-        } else if (norm >= 203 && norm < 248) {
-            return "CROSS-TAIL (L)";
-        } else if (norm >= 248 && norm < 293) {
-            return "CROSSWIND (L)";
-        } else {
-            return "CROSS-HEAD (L)";
-        }
-    }
-
     public static function draw(
         dc as Graphics.Dc,
         cx as Number,
@@ -39,10 +13,10 @@ class CurrentWindWidget {
         windDirDeg as Number,
         headingDeg as Number?, // Pass null if activity not started / no heading
         useRelativeHeading as Boolean,
-        isDark as Boolean
+        isDark as Boolean,
+        isBigField as Boolean // Scaling factor for big fields + inline speed label
     ) as Void {
         // 1. DETERMINE DISPLAY ANGLE
-        // If relative mode is active and heading is available, calculate wind direction relative to bike heading.
         var effectiveAngle = windDirDeg;
         var isRelative = useRelativeHeading && headingDeg != null;
 
@@ -55,19 +29,24 @@ class CurrentWindWidget {
             effectiveAngle = windDirDeg + 180.0f;
         }
 
-        // 2. LARGE WIDGET DIMENSIONS
-        var len = 28;
-        var baseHalfWidth = 10;
+        // 2. DIMENSION SCALING
+        var scale = isBigField ? 2.0f : 1.0f;
+        var len = (28 * scale).toNumber();
+        var baseHalfWidth = (10 * scale).toNumber();
+
         if (windSpeed >= 35.0f) {
-            len = 38;
-            baseHalfWidth = 14;
+            len = (38 * scale).toNumber();
+            baseHalfWidth = (14 * scale).toNumber();
         } else if (windSpeed >= 25.0f) {
-            len = 34;
-            baseHalfWidth = 12;
+            len = (34 * scale).toNumber();
+            baseHalfWidth = (12 * scale).toNumber();
         } else if (windSpeed >= 18.0f) {
-            len = 30;
-            baseHalfWidth = 11;
+            len = (30 * scale).toNumber();
+            baseHalfWidth = (11 * scale).toNumber();
         }
+
+        // Depth of the rear indent (30% of total arrow length)
+        var indentDepth = len * 0.30f;
 
         // Direction unit vector
         var rad = Math.toRadians(effectiveAngle);
@@ -84,10 +63,15 @@ class CurrentWindWidget {
         var baseX = cx - (halfLen * uX).toNumber();
         var baseY = cy - (halfLen * uY).toNumber();
 
+        // Rear Outer Corners
         var corner1X = baseX + (baseHalfWidth * pX).toNumber();
         var corner1Y = baseY + (baseHalfWidth * pY).toNumber();
         var corner2X = baseX - (baseHalfWidth * pX).toNumber();
         var corner2Y = baseY - (baseHalfWidth * pY).toNumber();
+
+        // Rear Center Inset Point (Notch)
+        var indentX = baseX + (indentDepth * uX).toNumber();
+        var indentY = baseY + (indentDepth * uY).toNumber();
 
         var mainColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
@@ -103,16 +87,20 @@ class CurrentWindWidget {
                 (normRel >= 225 && normRel <= 315);
 
             if (isCrosswind && gust >= 30.0f) {
-                mainColor = isDark ? 0xff5500 : 0xcc0000; // Warning Orange/Red for dangerous side gusts
+                mainColor = isDark ? 0xff5500 : 0xcc0000; // Warning Orange/Red
             }
         }
 
-        // --- STEP A: HALO BACKGROUND ---
+        // --- STEP A: HALO BACKGROUND (4-POINT DART POLYGON) ---
         var haloPts = [
             [apexX + (uX * 3.0f).toNumber(), apexY + (uY * 3.0f).toNumber()],
             [
                 corner1X + ((pX - uX) * 2.0f).toNumber(),
                 corner1Y + ((pY - uY) * 2.0f).toNumber(),
+            ],
+            [
+                indentX - (uX * 2.0f).toNumber(),
+                indentY - (uY * 2.0f).toNumber(),
             ],
             [
                 corner2X - ((pX + uX) * 2.0f).toNumber(),
@@ -122,31 +110,34 @@ class CurrentWindWidget {
         dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(haloPts);
 
-        // --- STEP B: FILLED WEDGE ---
-        var trianglePts = [
+        // --- STEP B: FILLED 4-POINT DART ---
+        var dartPts = [
             [apexX, apexY],
             [corner1X, corner1Y],
+            [indentX, indentY],
             [corner2X, corner2Y],
         ];
         dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
-        dc.fillPolygon(trianglePts);
+        dc.fillPolygon(dartPts);
+       
+        // --- STEP D: GUST BARS BEHIND BASE NOTCH ---
+        var numGustBars = $.calculateGustSeverity(windSpeed, gust);
+        // var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
+        // var numGustBars = 0;
 
-        // --- STEP C: LARGE GUST BARS BEHIND BASE ---
-        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var numGustBars = 0;
+        // if (gust >= 45.0f || gustRatio >= 1.7f) {
+        //     numGustBars = 3;
+        // } else if (gust >= 35.0f || gustRatio >= 1.5f) {
+        //     numGustBars = 2;
+        // } else if (gust >= 25.0f || gustRatio >= 1.3f) {
+        //     numGustBars = 1;
+        // }
 
-        if (gust >= 45.0f || gustRatio >= 1.7f) {
-            numGustBars = 3;
-        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-            numGustBars = 2;
-        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-            numGustBars = 1;
-        }
-
-        var barSpacing = 6;
-        var barWidth = baseHalfWidth + 3;
+        var barSpacing = (6 * scale).toNumber();
+        var barWidth = baseHalfWidth + (3 * scale).toNumber();
 
         for (var b = 1; b <= numGustBars; b++) {
+            // Gust bars offset backwards relative to the rear outer corners
             var bCenterX = baseX - (b * barSpacing * uX).toNumber();
             var bCenterY = baseY - (b * barSpacing * uY).toNumber();
 
@@ -155,14 +146,14 @@ class CurrentWindWidget {
             var bX2 = bCenterX - (barWidth * pX).toNumber();
             var bY2 = bCenterY - (barWidth * pY).toNumber();
 
-            // Bold Halo Outline for Gust Bars
+            // Halo Outline for Gust Bars
             dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
             dc.drawLine(bX1 - 2, bY1, bX2 - 2, bY2);
             dc.drawLine(bX1 + 2, bY1, bX2 + 2, bY2);
             dc.drawLine(bX1, bY1 - 2, bX2, bY2 - 2);
             dc.drawLine(bX1, bY1 + 2, bX2, bY2 + 2);
 
-            // Double-thick foreground bar
+            // Foreground bar
             dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
             dc.drawLine(bX1, bY1, bX2, bY2);
             dc.drawLine(
