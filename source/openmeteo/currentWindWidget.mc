@@ -120,48 +120,46 @@ class CurrentWindWidget {
         dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(dartPts);
        
-        // --- STEP D: GUST BARS BEHIND BASE NOTCH ---
+        // --- STEP D: TRIANGULAR GUST BARS (POINTED TOP, FLAT BOTTOM) ---
         var numGustBars = $.calculateGustSeverity(windSpeed, gust);
-        // var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        // var numGustBars = 0;
-
-        // if (gust >= 45.0f || gustRatio >= 1.7f) {
-        //     numGustBars = 3;
-        // } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-        //     numGustBars = 2;
-        // } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-        //     numGustBars = 1;
-        // }
-
-        var barSpacing = (6 * scale).toNumber();
-        var barWidth = baseHalfWidth + (3 * scale).toNumber();
+        
+        var barSpacing = (7 * scale).toNumber();
+        var barWidth = baseHalfWidth + (2 * scale).toNumber();
+        var barHeight = (6 * scale).toNumber(); // Height of the triangle point
 
         for (var b = 1; b <= numGustBars; b++) {
-            // Gust bars offset backwards relative to the rear outer corners
-            var bCenterX = baseX - (b * barSpacing * uX).toNumber();
-            var bCenterY = baseY - (b * barSpacing * uY).toNumber();
+            // Base anchor line steps backward along -uX, -uY
+            var bBaseX = baseX - (b * barSpacing * uX).toNumber();
+            var bBaseY = baseY - (b * barSpacing * uY).toNumber();
 
-            var bX1 = bCenterX + (barWidth * pX).toNumber();
-            var bY1 = bCenterY + (barWidth * pY).toNumber();
-            var bX2 = bCenterX - (barWidth * pX).toNumber();
-            var bY2 = bCenterY - (barWidth * pY).toNumber();
+            // 1. Forward Triangular Peak (points towards main dart)
+            var bApexX = bBaseX + (barHeight * uX).toNumber();
+            var bApexY = bBaseY + (barHeight * uY).toNumber();
 
-            // Halo Outline for Gust Bars
+            // 2. Straight Bottom Base Corners (flat bottom line)
+            var bCorner1X = bBaseX + (barWidth * pX).toNumber();
+            var bCorner1Y = bBaseY + (barWidth * pY).toNumber();
+
+            var bCorner2X = bBaseX - (barWidth * pX).toNumber();
+            var bCorner2Y = bBaseY - (barWidth * pY).toNumber();
+
+            // --- TRIANGLE HALO (OUTLINE) ---
+            var gustHaloPts = [
+                [bApexX + (uX * 2.0f).toNumber(), bApexY + (uY * 2.0f).toNumber()],
+                [bCorner1X + ((pX - uX) * 1.5f).toNumber(), bCorner1Y + ((pY - uY) * 1.5f).toNumber()],
+                [bCorner2X - ((pX + uX) * 1.5f).toNumber(), bCorner2Y - ((pY + uY) * 1.5f).toNumber()]
+            ];
             dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(bX1 - 2, bY1, bX2 - 2, bY2);
-            dc.drawLine(bX1 + 2, bY1, bX2 + 2, bY2);
-            dc.drawLine(bX1, bY1 - 2, bX2, bY2 - 2);
-            dc.drawLine(bX1, bY1 + 2, bX2, bY2 + 2);
+            dc.fillPolygon(gustHaloPts);
 
-            // Foreground bar
+            // --- TRIANGLE FOREGROUND POLYGON ---
+            var gustTrianglePts = [
+                [bApexX, bApexY],       // Forward point facing arrow
+                [bCorner1X, bCorner1Y], // Outer Right (flat base)
+                [bCorner2X, bCorner2Y]  // Outer Left (flat base)
+            ];
             dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(bX1, bY1, bX2, bY2);
-            dc.drawLine(
-                bX1 + uX.toNumber(),
-                bY1 + uY.toNumber(),
-                bX2 + uX.toNumber(),
-                bY2 + uY.toNumber()
-            );
+            dc.fillPolygon(gustTrianglePts);
         }
     }
 }
