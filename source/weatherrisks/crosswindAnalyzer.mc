@@ -82,3 +82,5 @@ class CrosswindAnalyzer {
         return new CrosswindResult(severity, effectiveCrossGust, color);
     }
 }
+
+
