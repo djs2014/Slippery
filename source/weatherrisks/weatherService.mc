@@ -177,6 +177,7 @@ class WeatherService {
             var airTempSize = airTemps.size();
             var snowSize = snows.size();
             var surfTempSize = surfTemps.size();
+            var dewPointSize = dewPoints.size();
             if (
                 rainSize != maxForecastIdx ||
                 windSpeedSize != maxForecastIdx ||
@@ -184,7 +185,8 @@ class WeatherService {
                 windGustSize != maxForecastIdx ||
                 airTempSize != maxForecastIdx ||
                 snowSize != maxForecastIdx ||
-                surfTempSize != maxForecastIdx
+                surfTempSize != maxForecastIdx ||
+                dewPointSize != maxForecastIdx
             ) {
                 System.println(
                     "Warning: Forecast array sizes do not match the times array size."
@@ -206,7 +208,9 @@ class WeatherService {
                         ", surfTemps=" +
                         surfTemps.size() +
                         ", airTemps=" +
-                        airTemps.size()
+                        airTemps.size() +
+                        ", dewPoints=" +
+                        dewPoints.size()
                 );
             }
 
@@ -219,6 +223,7 @@ class WeatherService {
                 metrics.airTempForecast.add(airTemps[l]);
                 metrics.snowForecast.add(snows[l]);
                 metrics.surfaceTempForecast.add(surfTemps[l]);
+                metrics.dewpointForecast.add(dewPoints[l]);
             }
 
             var minutelyData = data.get("minutely_15") as Dictionary?;

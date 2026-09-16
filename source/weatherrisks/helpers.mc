@@ -281,6 +281,29 @@ function getRiskColor(
     return Graphics.COLOR_TRANSPARENT;
 }
 
+function getLightRiskColor(
+    riskLevel as RiskLevel,
+    isDark as Boolean
+) as Graphics.ColorType {
+    if (riskLevel == RiskLevelNoData || riskLevel == RiskLevelSafe) {
+        // Very subtle neutral background
+        return isDark ? 0x222222 : 0xf7f7f7;
+    } else if (riskLevel == RiskLevelSlight) {
+        // Soft Pastel Yellow / Muted Cream
+        return isDark ? 0x555500 : 0xfff8dc;
+    } else if (riskLevel == RiskLevelModerate) {
+        // Soft Peach / Light Amber
+        return isDark ? 0x664400 : 0xffe4b5;
+    } else if (riskLevel == RiskLevelHigh) {
+        // Soft Light Coral / Muted Red-Orange
+        return isDark ? 0x662200 : 0xffc0cb;
+    } else if (riskLevel == RiskLevelCritical) {
+        // Soft Magenta-Pink / Light Maroon Tint
+        return isDark ? 0x550011 : 0xffb6c1;
+    }
+    return Graphics.COLOR_TRANSPARENT;
+}
+
 function getRiskTextColor(
     riskLevel as RiskLevel,
     isDark as Boolean
@@ -450,7 +473,7 @@ class WindColorMapper {
 
     // Returns dynamic metric color scaling from neutral to Red/Magenta based on gust speed (km/h)
     public static function getWindGustColor(gustSpeed as Float, isDark as Boolean) as Graphics.ColorType {
-        if (gustSpeed < 15.0f) {
+        if (gustSpeed < 15.0f) {>
             // Calm / Minor gusts: Standard high-contrast neutral
             return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         } else if (gustSpeed < 25.0f) {
