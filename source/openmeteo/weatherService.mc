@@ -226,11 +226,19 @@ class WeatherService {
                 metrics.dewpointForecast.add(dewPoints[l]);
             }
 
+            // Minutely starts at current time and has 4 15-minute intervals
             var minutelyData = data.get("minutely_15") as Dictionary?;
             if (minutelyData != null) {
                 var rainArray = minutelyData.get("rain") as Array<Float>?;
                 var snowArray = minutelyData.get("snowfall") as Array<Float>?;
-
+                // TEST DATA
+                // rainArray =  [0.2f, 2.6f, 0.0f, 0.0f];
+                // snowArray =  [0.1f, 1.0f, 0.0f, 1.0f];
+                
+                for (var i = 0; i < 4; i++) {
+                    metrics.minutelyRainForecast.add(rainArray != null && rainArray.size() > i ? rainArray[i] : 0.0f);
+                    metrics.minutelySnowForecast.add(snowArray != null && snowArray.size() > i ? snowArray[i] : 0.0f);
+                }
                 // Gives the rider 15–30 minutes notice before wet asphalt compromises cornering grip
                 var threshold = 0.1f;
                 metrics.immediateRain = checkForImminentPrecipitation(
@@ -242,6 +250,8 @@ class WeatherService {
                     threshold
                 );
             }
+            
+
             metrics.isValid = true;
             _metrics = metrics;
 

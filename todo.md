@@ -56,23 +56,21 @@ skill connect iq
 integrate in VSCode
 
 ---
-- heatindex
-- getApparentTemperature Feels Like
-- net wind
+x- getApparentTemperature Feels Like
+x- net wind
 
 on not one fields
+x- heatindex
+- show fields per edgefield 8 / 4 / 3 / 4
 - option: feel like ipv air temp 
 - option: net wind ipv wind speed
 
 indicate progress in hour of first bar
 show current day time
-
-do something with precipation % chance -> bigger etc..
-5.1 is ? 2.1 is 
+indicate minute rain in first bar with darker blue / purple depends on rainfall!
 
 TODO: remove precipation == rain + snowfall
-
-add showers
+add showers -> heavy rain burst as purple bars 
 add precipitation_probability
 
 Parameter Variable,Unit,Description

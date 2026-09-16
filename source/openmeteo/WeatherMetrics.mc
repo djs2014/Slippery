@@ -42,7 +42,9 @@ class WeatherMetrics {
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
     var immediateRain as Number = -1;
     var immediateSnow as Number = -1;
-
+    var minutelyRainForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
+    var minutelySnowForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
+    
     public function toString() as String {
         return (
             "WeatherMetrics{" +

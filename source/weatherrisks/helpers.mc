@@ -62,9 +62,9 @@ function getHazardString(hazard as WeatherHazard) as Lang.String {
     } else if (hazard == HazardGaleForceWinds) {
         return "Gale Force Winds";
     } else if (hazard == HazardImminentSnow) {
-        return "Imminent Snow";
+        return "Immin Snow";
     } else if (hazard == HazardImminentRain) {
-        return "Imminent Rain";
+        return "Immin Rain";
     }
     return "";
 }

@@ -73,6 +73,7 @@ class PredictiveSparkline {
             );
         }
     }
+
     public static function draw(
         dc as Graphics.Dc,
         x as Number,
@@ -97,6 +98,9 @@ class PredictiveSparkline {
         var windDirForecast = metrics.windDirForecast; // Number (0-359 deg)
         var windGustForecast = metrics.windGustForecast; // Float (km/h)
         var surfaceTempForecast = metrics.surfaceTempForecast; // Float (°C surface)
+
+        var minutelyRainForecast = metrics.minutelyRainForecast; // Array<Float> (mm per 15-min interval)
+        var minutelySnowForecast = metrics.minutelySnowForecast; // Array<Float> (mm per 15-min interval)
 
         var smallWidth = width < 180;
         var barGap = smallWidth ? 1 : 2;
@@ -172,17 +176,7 @@ class PredictiveSparkline {
         // --- 3. BASELINE & LABELS ---
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
-
-        // if (showLabels) {
-        //     dc.drawText(
-        //         x,
-        //         baselineY + 3,
-        //         Graphics.FONT_XTINY,
-        //         "Now",
-        //         Graphics.TEXT_JUSTIFY_LEFT
-        //     );
-        // }
-
+        
         // --- 4. PRECIPITATION BARS ---
         var maxPrecip = 2.0f;
         for (var i = 0; i < numHours; i++) {
@@ -191,9 +185,15 @@ class PredictiveSparkline {
                 maxPrecip = totalP;
             }
         }
-
-        // TODO add minutely rains on top of this
         
+        // MAX MINUTELY PRECIPITATION RATE (for scaling sub-segmented bars)
+        // Result will be the maximum precipitation rate across all 15-minute intervals, scaled to at least maxPrecip.  
+        var maxMinutelyPrecip = SubSegmentedForecastBar.computeGlobalMaxRate(
+            minutelyRainForecast,
+            minutelySnowForecast,
+            maxPrecip
+        );
+
         for (var i = 0; i < numHours; i++) {
             var rain = rainForecast[i];
             var snow = snowForecast[i];
@@ -364,6 +364,19 @@ class PredictiveSparkline {
                 );
             }
         }
+        
+        // MINUTELY RAIN SPARKLINE (DASHED + CONTRAST HALO)
+        SubSegmentedForecastBar.drawSubdividedHourScaled(
+            dc,
+            x,
+            baselineY - chartHeight,
+            barWidth,
+            chartHeight,
+            minutelyRainForecast,
+            minutelySnowForecast,
+            maxMinutelyPrecip,
+            isDark
+        );
 
         // --- 6. WIND GUST SPARKLINE (DASHED + CONTRAST HALO) ---
         var maxWind = 60.0f; // km/h
