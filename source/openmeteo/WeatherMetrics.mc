@@ -2,7 +2,7 @@ import Toybox.System;
 import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
-import Toybox.Lang;
+
 
 class WeatherMetrics {
     var isValid as Boolean = false;
@@ -36,6 +36,7 @@ class WeatherMetrics {
     var airTempForecast as Array<Float> = []; // Float items (°C air)
     var snowForecast as Array<Float> = []; // Float items (mm/h)
     var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
+    var dewpointForecast as Array<Float> = []; // Float items (°C)
 
     // Immediate rain in 15-minute intervals
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
@@ -89,6 +90,8 @@ class WeatherMetrics {
             snowForecast +
             ", surfaceTempForecast=" +
             surfaceTempForecast +
+            ", dewpointForecast=" +
+            dewpointForecast +
             "}"
         );
     }
