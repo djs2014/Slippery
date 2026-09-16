@@ -53,11 +53,31 @@ netto wind / indien geen gust
 open code use free models
 contex7
 skill connect iq
-text rain/snow.45 -> ain.4  -> 
+integrate in VSCode
 
+---
 - heatindex
 - getApparentTemperature Feels Like
 - net wind
 
+on not one fields
+- option: feel like ipv air temp 
+- option: net wind ipv wind speed
+
 indicate progress in hour of first bar
 show current day time
+
+do something with precipation % chance -> bigger etc..
+5.1 is ? 2.1 is 
+
+TODO: remove precipation == rain + snowfall
+
+add showers
+add precipitation_probability
+
+Parameter Variable,Unit,Description
+precipitation,mm,"Total precipitation (liquid rain + liquid equivalent of snowfall) combined over the preceding interval (e.g., preceding hour)."
+rain,mm,Liquid precipitation only (excluding snow/freezing rain).
+showers,mm,"Convective precipitation (e.g., brief intense rain showers from unstable air/thunderstorms)."
+snowfall,cm,Amount of snowfall measured in centimeters (note: differs from rain/precipitation unit).
+precipitation_probability,%,Probability of precipitation occurring during that forecast hour (0−100%).

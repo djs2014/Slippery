@@ -40,7 +40,7 @@ public class WeatherUtils {
      */
     public static function calculateHeatIndex(
         tempC as Float,
-        humidity as Float
+        humidity as Number
     ) as Float {
         // Heat Index is only valid for temperatures >= 20°C (68°F)
         if (tempC < 20.0f) {
@@ -96,7 +96,7 @@ public class WeatherUtils {
      */
     public static function getApparentTemperature(
         tempC as Float,
-        humidity as Float,
+        humidity as Number,
         windSpeedKmh as Float
     ) as Float {
         // 1. COLD REGIME: Apply Environment Canada Wind Chill Formula

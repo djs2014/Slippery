@@ -28,7 +28,7 @@ class SlipperyView extends WatchUi.DataField {
     hidden var mAlertIncomingSnow as Number = -1;
     hidden var mToastIcon as BitmapResource?;
 
-    hidden var mHeadingDegrees as Float? = null;
+    hidden var mHeadingDegrees as Number? = null;
     hidden var mPaused as Boolean = false;
 
     hidden var mFontsNumbers as Array = [
@@ -735,6 +735,53 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
+        // Capture pointer once at start of frame
+        var localHazards = mHazardStrings;
+        var localAdvice = mAdviceStrings;
+        
+        if ($.gHideRiskAdvice || localHazards.size() <= 3) {
+            // Show when no advice or max 3 hazard
+            gridLinePos += rowHeight;
+
+            // Cell 7: Feels like
+            var feelsLike = WeatherUtils.getApparentTemperature(
+                mWeatherMetrics.airTemp,
+                mWeatherMetrics.humidity,
+                mWeatherMetrics.windSpeed
+            );
+            drawGridCell(
+                dc,
+                x,
+                gridLinePos,
+                colWidth,
+                rowHeight,
+                "FEELS LIKE",
+                Lang.format("$1$", [feelsLike.format("%.1f")]),
+                "°C",
+                labelColor,
+                unitColor,
+                $.getWindSpeedColor(feelsLike, isDark)
+            );
+            // Cell 8: Net wind
+            var netWindSpeed = NetwindAnalyzer.calculateNetWind(
+                mWeatherMetrics.windSpeed,
+                mWeatherMetrics.windDirection,
+                mHeadingDegrees
+            );
+            drawGridCell(
+                dc,
+                x + colWidth,
+                gridLinePos,
+                colWidth,
+                rowHeight,
+                "NET WIND " + NetwindAnalyzer.formatNetWind(netWindSpeed),
+                Lang.format("$1$", [netWindSpeed.format("%.1f")]),
+                "km/h",
+                labelColor,
+                unitColor,
+                $.getWindSpeedColor(netWindSpeed, isDark)
+            );
+        }
         // --- CURRENT WIND ARROW CENTERED IN GRID HEADER ---
         CurrentWindWidget.draw(
             dc,
@@ -754,10 +801,8 @@ class SlipperyView extends WatchUi.DataField {
         gridLinePos += rowHeight;
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
 
-        // Capture pointer once at start of frame
-        var localHazards = mHazardStrings;
-        var localAdvice = mAdviceStrings;
-        var linePos = y + gridTop + gridHeight + 2;
+        // var linePos = y + gridTop + gridHeight + 2;
+        var linePos = gridLinePos;
         if (localHazards.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,

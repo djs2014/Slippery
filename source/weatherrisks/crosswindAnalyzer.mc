@@ -39,14 +39,14 @@ class CrosswindAnalyzer {
      */
     public static function evaluateCrosswind(
         windDirDeg as Number,
-        headingDeg as Float?,
+        headingDeg as Number?,
         gustKmH as Float,
         isDark as Boolean
     ) as CrosswindResult {
         if (headingDeg == null) {
-            headingDeg = 0.0;
-        }
-        headingDeg = headingDeg.toNumber();
+            headingDeg = 0;
+        }        
+                
         // Calculate relative angle between wind direction and heading
         var relAngleDeg = (windDirDeg - headingDeg) % 360;
         if (relAngleDeg < 0) {

@@ -192,10 +192,15 @@ class PredictiveSparkline {
             }
         }
 
+        // TODO add minutely rains on top of this
+        
         for (var i = 0; i < numHours; i++) {
             var rain = rainForecast[i];
             var snow = snowForecast[i];
             var total = rain + snow;
+
+            // var timestamp = timeStampsForeCast[i];        
+            // System.println(["rainandsnow", i, total, formatUnixTime(timestamp)]);
 
             if (total > 0.05f) {
                 var barH = ((total / maxPrecip) * chartHeight).toNumber();

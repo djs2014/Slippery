@@ -66,6 +66,8 @@ class WeatherMetrics {
             windSpeed +
             ", windGust=" +
             windGust +
+            ", windDirection=" +
+            windDirection +
             ", dryStreak=" +
             dryStreak +
             ", currentSeason=" +
