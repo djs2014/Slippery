@@ -5,6 +5,44 @@ import Toybox.Time;
 import Toybox.System;
 
 class PredictiveSparkline {
+    public static function drawComfort(
+        dc as Graphics.Dc,
+        x as Number,
+        y as Number,
+        width as Number,
+        height as Number,
+        metrics as WeatherMetrics,
+        isDark as Boolean
+    ) {
+        var dewpointForecast = metrics.dewpointForecast; // Float (°C)
+        var numHours = dewpointForecast.size();
+        if (numHours == 0) {
+            return;
+        }
+        var smallWidth = width < 180;
+        var barGap = smallWidth ? 1 : 2;
+        var totalGaps = (numHours - 1) * barGap;
+        var barWidth = (width - totalGaps) / numHours;
+        if (barWidth < 2) {
+            barWidth = 2;
+        }
+
+        // DRAW COMFORT BAR
+        for (var i = 0; i < numHours; i++) {
+            var dewPoint = dewpointForecast[i];
+            var dx = x + i * (barWidth + barGap);
+            dc.setColor(
+                DewpointPalette.getColor(dewPoint, isDark),
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.fillRectangle(dx, y, barWidth, height);            
+        }
+
+        // 4. Subtle Outer Border Halo around the entire bar
+        var borderHalo = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+        dc.setColor(borderHalo, Graphics.COLOR_TRANSPARENT);
+        dc.drawRectangle(x - 1, y - 1, width + 2, height + 2);
+    }
     public static function draw(
         dc as Graphics.Dc,
         x as Number,
@@ -76,7 +114,7 @@ class PredictiveSparkline {
         for (var i = 0; i < riskProfile.size(); i++) {
             var blockX = (x + i * (width.toFloat() / numHours)).toNumber();
             var blockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
-            var riskColor = $.getRiskColor(riskProfile[i], isDark);
+            var riskColor = $.getLightRiskColor(riskProfile[i], isDark);
             var riskBlockHeight = (chartHeight * 0.66).toNumber();
             dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(blockX, blockY, blockW, riskBlockHeight);
@@ -105,15 +143,15 @@ class PredictiveSparkline {
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
 
-        if (showLabels) {
-            dc.drawText(
-                x,
-                baselineY + 3,
-                Graphics.FONT_XTINY,
-                "Now",
-                Graphics.TEXT_JUSTIFY_LEFT
-            );
-        }
+        // if (showLabels) {
+        //     dc.drawText(
+        //         x,
+        //         baselineY + 3,
+        //         Graphics.FONT_XTINY,
+        //         "Now",
+        //         Graphics.TEXT_JUSTIFY_LEFT
+        //     );
+        // }
 
         // --- 4. PRECIPITATION BARS ---
         var maxPrecip = 2.0f;
@@ -648,5 +686,5 @@ class PredictiveSparkline {
             dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
             dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
         }
-    }    
+    }
 }
