@@ -203,25 +203,32 @@ function convertGeoToPixel(
   return new Point(x.toNumber(), y.toNumber()); // the pixel x,y value of this point on the map image
 }
 
-function getHeadingDegrees(info as Activity.Info?) as Number? {
-  if (info == null) {
-    return null;
-  }
-
-  // Preferred: Magnetic/IMU heading (orientation of the bike frame)
-  var headingRad = info.currentHeading;
-  // Fallback: GPS Track (Course Over Ground) if heading is unavailable
-  if (headingRad == null) {
-    headingRad = info.track;
-  }
-
-  // Convert currentHeading radians [-PI, PI] to degrees [0, 360)
-  if (headingRad != null) {
-    var deg = Math.toDegrees(headingRad);
-    if (deg < 0) {
-      deg += 360.0f;
+public class Geo {  
+  public static function getHeadingDegrees(
+    info as Activity.Info?,
+    previousHeading as Number?    
+  ) as Number? {
+    if (info == null) {
+      return previousHeading;
     }
-    headingRad = deg.toNumber();
+
+    // Preferred: GPS Track (Course Over Ground)
+    var headingRad = info.track;
+    // Fallback: Magnetic/IMU heading (orientation of the bike frame)
+    if (headingRad == null || headingRad == 0.0f) {
+      headingRad = info.currentHeading;
+    }
+
+    // Convert radians [-PI, PI] to degrees [0, 360)
+    if (headingRad != null && headingRad != 0.0f) {
+      var deg = Math.toDegrees(headingRad);
+      if (deg < 0) {
+        deg += 360.0f;
+      }
+      return deg.toNumber();
+    }
+
+    // Final fallback: previous heading
+    return previousHeading;
   }
-  return headingRad;
 }
