@@ -8,6 +8,8 @@ class CurrentWindWidget {
         dc as Graphics.Dc,
         cx as Number,
         cy as Number,
+        y, // Top Y boundary
+        h, // Total height of the DataField
         windSpeed as Float,
         gust as Float,
         windDirDeg as Number,
@@ -119,47 +121,101 @@ class CurrentWindWidget {
         ];
         dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
         dc.fillPolygon(dartPts);
-       
-        // --- STEP D: TRIANGULAR GUST BARS (POINTED TOP, FLAT BOTTOM) ---
+
+        // --- STEP D: TAPERED GUST CHEVRONS (DIMENSION CLAMPED) ---
         var numGustBars = $.calculateGustSeverity(windSpeed, gust);
-        
-        var barSpacing = (7 * scale).toNumber();
-        var barWidth = baseHalfWidth + (2 * scale).toNumber();
-        var barHeight = (6 * scale).toNumber(); // Height of the triangle point
 
-        for (var b = 1; b <= numGustBars; b++) {
-            // Base anchor line steps backward along -uX, -uY
-            var bBaseX = baseX - (b * barSpacing * uX).toNumber();
-            var bBaseY = baseY - (b * barSpacing * uY).toNumber();
+        if (numGustBars > 0) {
+            // 1. DIMENSION CONSTRAINTS
+            // Calculate max vertical extent available from cy before clipping field bounds
+            // Margin of 4px accounts for halo outline padding
+            var bottomEdgeY = y + h - 4;
 
-            // 1. Forward Triangular Peak (points towards main dart)
-            var bApexX = bBaseX + (barHeight * uX).toNumber();
-            var bApexY = bBaseY + (barHeight * uY).toNumber();
+            // 2. TUNING PARAMETERS
+            var gapBetweenBars = (5 * scale).toNumber();
+            var barHeight = (7 * scale).toNumber();
+            var bottomIndentDepth = 2.5f * scale;
 
-            // 2. Straight Bottom Base Corners (flat bottom line)
-            var bCorner1X = bBaseX + (barWidth * pX).toNumber();
-            var bCorner1Y = bBaseY + (barWidth * pY).toNumber();
+            // Calculate outer edge slope of the main dart
+            var arrowEffectiveLength = len - indentDepth;
+            var slope =
+                arrowEffectiveLength > 0
+                    ? baseHalfWidth.toFloat() / arrowEffectiveLength.toFloat()
+                    : 0.4f;
 
-            var bCorner2X = bBaseX - (barWidth * pX).toNumber();
-            var bCorner2Y = bBaseY - (barWidth * pY).toNumber();
+            var currentBackDist = 0.0f;
 
-            // --- TRIANGLE HALO (OUTLINE) ---
-            var gustHaloPts = [
-                [bApexX + (uX * 2.0f).toNumber(), bApexY + (uY * 2.0f).toNumber()],
-                [bCorner1X + ((pX - uX) * 1.5f).toNumber(), bCorner1Y + ((pY - uY) * 1.5f).toNumber()],
-                [bCorner2X - ((pX + uX) * 1.5f).toNumber(), bCorner2Y - ((pY + uY) * 1.5f).toNumber()]
-            ];
-            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillPolygon(gustHaloPts);
+            for (var b = 1; b <= numGustBars; b++) {
+                var nextBackDist = currentBackDist + gapBetweenBars + barHeight;
 
-            // --- TRIANGLE FOREGROUND POLYGON ---
-            var gustTrianglePts = [
-                [bApexX, bApexY],       // Forward point facing arrow
-                [bCorner1X, bCorner1Y], // Outer Right (flat base)
-                [bCorner2X, bCorner2Y]  // Outer Left (flat base)
-            ];
-            dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillPolygon(gustTrianglePts);
+                // Test predicted lowest Y position of this chevron (Rear Indent Point)
+                var testBaseX = baseX - (nextBackDist * uX).toNumber();
+                var testBaseY = baseY - (nextBackDist * uY).toNumber();
+                var testIndentY =
+                    testBaseY + (bottomIndentDepth * uY).toNumber();
+
+                // CLAMP CHECK: If the rear notch exceeds field bounds, stop rendering further chevrons
+                if (testIndentY > bottomEdgeY || testIndentY < y + 4) {
+                    break;
+                }
+
+                currentBackDist = nextBackDist;
+
+                // Base anchor point
+                var bBaseX = testBaseX;
+                var bBaseY = testBaseY;
+
+                // Dynamic outer width (expands along main arrow slope)
+                var extraDistFromApex = len / 2.0f + currentBackDist;
+                var barWidth = (extraDistFromApex * slope).toNumber();
+
+                // 1. Forward Triangular Peak
+                var bApexX = bBaseX + (barHeight * uX).toNumber();
+                var bApexY = bBaseY + (barHeight * uY).toNumber();
+
+                // 2. Outer Wing Corners
+                var bCorner1X = bBaseX + (barWidth * pX).toNumber();
+                var bCorner1Y = bBaseY + (barWidth * pY).toNumber();
+
+                var bCorner2X = bBaseX - (barWidth * pX).toNumber();
+                var bCorner2Y = bBaseY - (barWidth * pY).toNumber();
+
+                // 3. Rear Center Indent Notch
+                var bIndentX = bBaseX + (bottomIndentDepth * uX).toNumber();
+                var bIndentY = bBaseY + (bottomIndentDepth * uY).toNumber();
+
+                // --- CHEVRON HALO (OUTLINE) ---
+                var gustHaloPts = [
+                    [
+                        bApexX + (uX * 2.0f).toNumber(),
+                        bApexY + (uY * 2.0f).toNumber(),
+                    ],
+                    [
+                        bCorner1X + ((pX - uX) * 1.5f).toNumber(),
+                        bCorner1Y + ((pY - uY) * 1.5f).toNumber(),
+                    ],
+                    [
+                        bIndentX - (uX * 1.5f).toNumber(),
+                        bIndentY - (uY * 1.5f).toNumber(),
+                    ],
+                    [
+                        bCorner2X - ((pX + uX) * 1.5f).toNumber(),
+                        bCorner2Y - ((pY + uY) * 1.5f).toNumber(),
+                    ],
+                ];
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillPolygon(gustHaloPts);
+
+                // --- CHEVRON FOREGROUND POLYGON ---
+                var gustChevronPts = [
+                    [bApexX, bApexY], // Forward Apex
+                    [bCorner1X, bCorner1Y], // Outer Right
+                    [bIndentX, bIndentY], // Rear Notch
+                    [bCorner2X, bCorner2Y], // Outer Left
+                ];
+                dc.setColor(mainColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillPolygon(gustChevronPts);
+            }
         }
     }
 }
