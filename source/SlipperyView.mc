@@ -159,7 +159,7 @@ class SlipperyView extends WatchUi.DataField {
         handleHourChange();
         processMinutesUntilCounters();
 
-        mHeadingDegrees = $.getHeadingDegrees(info);
+        mHeadingDegrees = Geo.getHeadingDegrees(info, mHeadingDegrees);
 
         mPaused = ActivityUtils.getPaused(info);
     }
@@ -327,6 +327,17 @@ class SlipperyView extends WatchUi.DataField {
         if (!$.gHasHighResScreen) {
             paddingX = 2;
         }
+
+        PredictiveSparkline.drawComfort(
+            dc,
+            paddingX,
+            topGridHeight,
+            width - paddingX * 2,
+            2,
+            mWeatherMetrics,
+            isDark
+        );
+
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -365,8 +376,19 @@ class SlipperyView extends WatchUi.DataField {
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
         // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
-        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        // Add 15px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 15;
+
+        PredictiveSparkline.drawComfort(
+            dc,
+            paddingX,
+            topGridHeight,
+            width - paddingX * 2,
+            10,
+            mWeatherMetrics,
+            isDark
+        );
+
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -407,6 +429,17 @@ class SlipperyView extends WatchUi.DataField {
         // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 6;
+
+        PredictiveSparkline.drawComfort(
+            dc,
+            paddingX,
+            topGridHeight,
+            width - paddingX * 2,
+            6,
+            mWeatherMetrics,
+            isDark
+        );
+
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -448,6 +481,17 @@ class SlipperyView extends WatchUi.DataField {
         // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 6;
+
+        PredictiveSparkline.drawComfort(
+            dc,
+            paddingX,
+            topGridHeight,
+            width - paddingX * 2,
+            4,
+            mWeatherMetrics,
+            isDark
+        );
+
         PredictiveSparkline.draw(
             dc,
             paddingX,
@@ -504,20 +548,6 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.FONT_SMALL,
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
-        );
-
-        // --- CURRENT WIND ARROW CENTERED IN HEADER ---
-        CurrentWindWidget.draw(
-            dc,
-            x + w / 2, // Widget X center
-            y + headerHeight / 2, // Widget Y center
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            !isRiskColorLight, // Use risklevel background
-            true // Big field scaling
         );
 
         if ($.gHSPshowValue) {
@@ -707,6 +737,22 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
+        // --- CURRENT WIND ARROW CENTERED IN GRID HEADER ---
+        CurrentWindWidget.draw(
+            dc,
+            x + w / 2, // Widget X center
+            y + gridTop + 2 * rowHeight, // Widget Y center
+            0,
+            h,
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark, // Use risklevel background
+            true // Big field scaling
+        );
+
         gridLinePos += rowHeight;
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
 
@@ -846,6 +892,8 @@ class SlipperyView extends WatchUi.DataField {
             dc,
             x + badgeWidth / 2, // Widget X center
             y + h / 2, // Widget Y center
+            0,
+            h,
             mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
             mWeatherMetrics.windGust, // e.g. 38.0f km/h
             mWeatherMetrics.windDirection, // e.g. 180.0f deg
@@ -1005,7 +1053,6 @@ class SlipperyView extends WatchUi.DataField {
                 AppState.activePalette[ThemeManager.COLOR_HAZARD]
             );
         }
-        
     }
 
     function drawEdgeWideField(
@@ -1054,6 +1101,8 @@ class SlipperyView extends WatchUi.DataField {
             dc,
             arrowAreaCenterX, // Widget X center
             arrowAreaCenterY, // Widget Y center
+            0,
+            h,
             mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
             mWeatherMetrics.windGust, // e.g. 38.0f km/h
             mWeatherMetrics.windDirection, // e.g. 180.0f deg
@@ -1343,6 +1392,8 @@ class SlipperyView extends WatchUi.DataField {
             dc,
             w / 2, // Widget X center
             gridTop + gridHeight / 2, // Widget Y center
+            0,
+            h,
             mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
             mWeatherMetrics.windGust, // e.g. 38.0f km/h
             mWeatherMetrics.windDirection, // e.g. 180.0f deg
