@@ -44,7 +44,7 @@ x arrow as in w weather
 x groot in small field
 x center in grid one field
 x gust lines met indent
-calc dewpoint plus comfort bar
+x calc dewpoint plus comfort bar
 place wind arrow in center small field if enabled or no hazards
 in w weather ook effective gust option
 

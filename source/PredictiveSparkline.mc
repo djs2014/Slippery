@@ -28,6 +28,7 @@ class PredictiveSparkline {
         }
 
         // DRAW COMFORT BAR
+        var maxDewpoint = dewpointForecast[0];
         for (var i = 0; i < numHours; i++) {
             var dewPoint = dewpointForecast[i];
             var dx = x + i * (barWidth + barGap);
@@ -35,13 +36,42 @@ class PredictiveSparkline {
                 DewpointPalette.getColor(dewPoint, isDark),
                 Graphics.COLOR_TRANSPARENT
             );
-            dc.fillRectangle(dx, y, barWidth, height);            
+            dc.fillRectangle(dx, y, barWidth, height);
+
+            if (dewPoint > maxDewpoint) {
+                maxDewpoint = dewPoint;
+            }
         }
 
         // 4. Subtle Outer Border Halo around the entire bar
-        var borderHalo = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
-        dc.setColor(borderHalo, Graphics.COLOR_TRANSPARENT);
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
         dc.drawRectangle(x - 1, y - 1, width + 2, height + 2);
+
+        // --- CALC OVERLAY BADGE VISIBILITY ---
+        // Render badges only if there is at least 12px margin on the left side of 'x'
+        var enableBadges = x >= 12;
+        if (enableBadges && y != -1) {
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                x - 2,
+                y + height / 2,
+                Graphics.FONT_XTINY,
+                "C",
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+            dc.setColor(
+                DewpointPalette.getColor(maxDewpoint, isDark),
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x - 3,
+                y + height / 2,
+                Graphics.FONT_XTINY,
+                "C",
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
     }
     public static function draw(
         dc as Graphics.Dc,

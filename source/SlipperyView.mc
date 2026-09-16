@@ -661,9 +661,7 @@ class SlipperyView extends WatchUi.DataField {
             "°C",
             labelColor,
             unitColor,
-            mWeatherMetrics.dewPoint >= 20
-                ? Graphics.COLOR_RED
-                : AppState.activePalette[ThemeManager.COLOR_TEXT]
+            DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark)
         );
 
         // Cell 4: Humidity
@@ -872,8 +870,9 @@ class SlipperyView extends WatchUi.DataField {
 
         // Left 30%: Solid risk badge
         var badgeWidth = (w * 0.2).toNumber();
+        var badgeHeight = (h * 0.4).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x, y, badgeWidth, h);
+        dc.fillRectangle(x, y, badgeWidth, badgeHeight);
 
         var headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
         var headerLineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
@@ -887,56 +886,7 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
-        // --- CURRENT WIND ARROW CENTERED ---
-        CurrentWindWidget.draw(
-            dc,
-            x + badgeWidth / 2, // Widget X center
-            y + h / 2, // Widget Y center
-            0,
-            h,
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            !isRiskColorLight, // Use risklevel background
-            false // Big field scaling
-        );
-
         linePos = y + h / 2;
-
-        if (
-            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
-            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
-        ) {
-            // --- CENTERED AT BOTTOM
-            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-            linePos = h - alertLineHeight;
-
-            dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
-                Graphics.COLOR_TRANSPARENT
-            );
-            dc.fillRectangle(
-                x,
-                linePos - alertLineHeight / 2,
-                badgeWidth,
-                alertLineHeight
-            );
-            // Draw the short precipitation alert message
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                x + badgeWidth / 2,
-                linePos,
-                Graphics.FONT_XTINY,
-                $.getPrecipitationAlertMessage(
-                    mMinutesUntilRain,
-                    mMinutesUntilSnow,
-                    true
-                ),
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-        }
 
         // Right 70%: Metrics Grid & Hazards
         var rightAreaX = x + badgeWidth + 4;
@@ -1036,7 +986,13 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        linePosMetrics += lineHeight;
+        linePosMetrics += lineHeight / 2;
+
+        // Horizontal dividing line under columns
+        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(x, linePosMetrics, x + w, linePosMetrics);
+
         // --- ROW 3+: Shortened Hazard Strings ---
 
         var localHazards = mHazardStringsShortened;
@@ -1045,7 +1001,7 @@ class SlipperyView extends WatchUi.DataField {
             linePosMetrics += StringListRenderer.drawWrappedStrings(
                 dc,
                 localHazards,
-                rightAreaX,
+                x,
                 linePosMetrics,
                 totalWidth,
                 localHazards.size(), // maxLines
@@ -1053,6 +1009,57 @@ class SlipperyView extends WatchUi.DataField {
                 AppState.activePalette[ThemeManager.COLOR_HAZARD]
             );
         }
+
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            var alertX = x;
+            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            var alertH = alertLineHeight + 4;
+            var alertY = y + h - alertH;
+            var alertW = w;
+
+            dc.setColor(
+                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.fillRectangle(alertX, alertY, alertW, alertH);
+
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                alertX + alertW / 2,
+                alertY + alertH / 2,
+                Graphics.FONT_XTINY,
+                $.getPrecipitationAlertMessage(
+                    mMinutesUntilRain,
+                    mMinutesUntilSnow,
+                    false
+                ),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
+
+        // --- CURRENT WIND ARROW CENTERED ---
+        var windY = h / 2;
+        if (localHazards.size() == 0) {
+            // No hazards, so put arrow in the white space
+            windY += (h * 0.3).toNumber();
+        }
+        CurrentWindWidget.draw(
+            dc,
+            w / 2, // Widget X center
+            windY, // Widget Y center
+            0,
+            h,
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark,
+            false // Big field scaling
+        );
     }
 
     function drawEdgeWideField(
@@ -1371,7 +1378,7 @@ class SlipperyView extends WatchUi.DataField {
             "°C",
             labelColor,
             unitColor,
-            mWeatherMetrics.dewPoint >= 20 ? Graphics.COLOR_RED : textColor
+            DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark)
         );
         drawGridCell(
             dc,
