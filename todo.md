@@ -76,9 +76,6 @@ indicate progress in hour of first bar/ top of field (combine with current time)
  - indicates next background call / switch to next hour / remaining minutes in current hour
 show current day time
 
-x indicate minute rain in first bar with darker blue / purple depends on rainfall!
-Move start of minute rain on right position 
-
 
 
 [hourly rainandsnow, 12, 0.500000, 2026-09-17 17:00:00] Rain: 0.500000 Snow: 0.000000 <- current
@@ -102,12 +99,7 @@ if current is 17:59
  --> 0 minutely is current -> 17:45 start and is last bar of current hour.
  --> put other 3 on next hour
  
- alg
- -> shrink first bar according to current hour in steps of quarter
- -> get start hour minutely[0]
- -> which quarter of current hour
- -> draw on right places
- -> draw rest on next hour
+Check timestamp minutely if valid
 
 
 TODO: remove precipation == rain + snowfall
@@ -123,3 +115,18 @@ snowfall,cm,Amount of snowfall measured in centimeters (note: differs from rain/
 precipitation_probability,%,Probability of precipitation occurring during that forecast hour (0−100%).
 
 
+
+
+Best Practice for 15-Minute Data in CIQ
+When handling 15-minute precipitation data in your app:
+
+Rely on total precipitation for the 15-minute array to capture all liquid volume (which already accounts for shower intensity internally).
+
+Use rain + showers specifically when summing or parsing hourly arrays.
+
+// Fallback definitions for non-native color constants
+const COLOR_DEEP_PURPLE_LIGHT = 0x5500AA; // Deep Indigo/Purple for Light Mode
+const COLOR_DEEP_PURPLE_DARK  = 0xAA00FF; // Electric Purple for Dark Mode
+
+// Inside your rendering or palette selector logic
+var showerColor = isDark ? COLOR_DEEP_PURPLE_DARK : COLOR_DEEP_PURPLE_LIGHT;

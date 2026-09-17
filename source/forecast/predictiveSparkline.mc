@@ -31,7 +31,6 @@ class PredictiveSparkline {
         ).toNumber();
         var leftShift = standardBarWidth - bar0Width;
 
-
         // DRAW COMFORT BAR
         var maxDewpoint = dewpointForecast[0];
         for (var i = 0; i < numHours; i++) {
@@ -39,7 +38,7 @@ class PredictiveSparkline {
             var colX =
                 i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
             var colW = i == 0 ? bar0Width : standardBarWidth;
-            
+
             var dewPoint = dewpointForecast[i];
             var dx = colX;
             var dw = colW;
@@ -105,6 +104,7 @@ class PredictiveSparkline {
 
         var currentHour = metrics.currentHour;
         var rainForecast = metrics.rainForecast;
+        var showersForecast = metrics.showersForecast;
         var snowForecast = metrics.snowForecast;
         var windForecast = metrics.windForecast;
         var windDirForecast = metrics.windDirForecast;
@@ -135,7 +135,7 @@ class PredictiveSparkline {
 
         var baselineY = y + height - offsetLabels;
         var chartHeight = baselineY - y - offsetChartHeight;
-        
+
         var sparklineH = height - chartHeight - 4;
         var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
         var riskBlockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
@@ -152,7 +152,7 @@ class PredictiveSparkline {
 
         for (var i = 0; i < numHours; i++) {
             // 1. Precip Max
-            var totalP = rainForecast[i] + snowForecast[i];
+            var totalP = rainForecast[i] + showersForecast[i] + snowForecast[i];
             if (totalP > maxPrecip) {
                 maxPrecip = totalP;
             }
@@ -238,7 +238,7 @@ class PredictiveSparkline {
 
             // --- LAYER B: RISK HEATMAP & HOUR LABELS ---
             if (i < riskProfile.size()) {
-                // var blockX = (x + i * (width.toFloat() / numHours)).toNumber();                
+                // var blockX = (x + i * (width.toFloat() / numHours)).toNumber();
                 dc.setColor(
                     $.getLightRiskColor(currentRisk, isDark),
                     Graphics.COLOR_TRANSPARENT
@@ -267,8 +267,9 @@ class PredictiveSparkline {
 
             // --- LAYER C: PRECIPITATION BARS ---
             var rain = rainForecast[i];
+            var showers = showersForecast[i];
             var snow = snowForecast[i];
-            var total = rain + snow;
+            var total = rain + showers + snow;
             if (total > 0.05f) {
                 var barH = ((total / maxPrecip) * chartHeight).toNumber();
                 if (barH < 3) {
@@ -277,6 +278,7 @@ class PredictiveSparkline {
                 var by = baselineY - barH;
 
                 if (snow > 0.0f) {
+                    // Snow gets top visual priority (cyan/white)
                     dc.setColor(
                         isDark ? Graphics.COLOR_WHITE : 0x00ffff,
                         Graphics.COLOR_TRANSPARENT
@@ -287,7 +289,13 @@ class PredictiveSparkline {
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.drawPoint(px, by + 1);
+                } else if (showers > rain) {
+                    // Convective showers column (purple)
+                    var showerColor = isDark ? Graphics.COLOR_PURPLE : 0x5500aa;
+                    dc.setColor(showerColor, Graphics.COLOR_TRANSPARENT);
+                    dc.fillRectangle(colX, by, colW, barH);
                 } else {
+                    // Steady stratiform rain column (blue)
                     var rainColor =
                         rain >= 2.5f
                             ? AppState.activePalette[ThemeManager.COLOR_BLUE]
@@ -434,9 +442,11 @@ class PredictiveSparkline {
         );
 
         // --- LINE UNDER THE SPARKLINE ---
-        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.setColor(
+            AppState.activePalette[ThemeManager.COLOR_TEXT],
+            Graphics.COLOR_TRANSPARENT
+        );
         dc.drawLine(x, baselineY, x + width, baselineY);
-        
 
         // --- BADGES AND HEADERS ---
         if (enableBadges) {

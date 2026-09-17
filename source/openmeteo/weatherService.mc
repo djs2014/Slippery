@@ -92,9 +92,9 @@ class WeatherService {
             var dewPoints = hourly.get("dewpoint_2m") as Array<Float>?;
             var humidities =
                 hourly.get("relativehumidity_2m") as Array<Number>?;
-            var rains = hourly.get("rain") as Array<Float>?;
-            var precips = hourly.get("precipitation") as Array<Float>?;
             var snows = hourly.get("snowfall") as Array<Float>?;
+            var rains = hourly.get("rain") as Array<Float>?;
+            var showers = hourly.get("showers") as Array<Float>?;
             var windSpeeds = hourly.get("wind_speed_10m") as Array<Float>?;
             var windGusts = hourly.get("wind_gusts_10m") as Array<Float>?;
             var windDirections =
@@ -105,7 +105,7 @@ class WeatherService {
                 dewPoints == null ||
                 humidities == null ||
                 rains == null ||
-                precips == null ||
+                showers == null ||
                 snows == null ||
                 windSpeeds == null ||
                 windGusts == null ||
@@ -120,8 +120,8 @@ class WeatherService {
             metrics.surfaceTemp = surfTemps[targetIdx];
             metrics.dewPoint = dewPoints[targetIdx];
             metrics.humidity = humidities[targetIdx];
-            metrics.rainCurrent = rains[targetIdx];
             metrics.snowCurrent = snows[targetIdx];
+            metrics.rainCurrent = rains[targetIdx] + showers[targetIdx];
             metrics.windSpeed = windSpeeds[targetIdx];
             metrics.windGust = windGusts[targetIdx];
             metrics.windDirection = windDirections[targetIdx];
@@ -143,8 +143,8 @@ class WeatherService {
             var sumSnow = 0.0;
 
             for (var j = startIdx; j <= targetIdx; j++) {
-                if (j < rains.size()) {
-                    sumRain += rains[j];
+                if (j < rains.size() && j < showers.size()) {
+                    sumRain += rains[j] + showers[j];
                 }
                 if (j < snows.size()) {
                     sumSnow += snows[j];
@@ -157,7 +157,12 @@ class WeatherService {
             // Look back at dry streak length (for "first rain after dry spell" effect)
             var dryStreak = 0;
             for (var k = targetIdx; k >= 0; k--) {
-                if (k < rains.size() && rains[k] == 0.0) {
+                if (
+                    k < rains.size() &&
+                    rains[k] == 0.0 &&
+                    k < showers.size() &&
+                    showers[k] == 0.0
+                ) {
                     dryStreak += 1;
                 } else {
                     break;
@@ -174,6 +179,7 @@ class WeatherService {
             var maxForecastIdx = times.size();
             // Ensure all have same size
             var rainSize = rains.size();
+            var showersSize = showers.size();
             var windSpeedSize = windSpeeds.size();
             var windDirectionSize = windDirections.size();
             var windGustSize = windGusts.size();
@@ -183,6 +189,7 @@ class WeatherService {
             var dewPointSize = dewPoints.size();
             if (
                 rainSize != maxForecastIdx ||
+                showersSize != maxForecastIdx ||
                 windSpeedSize != maxForecastIdx ||
                 windDirectionSize != maxForecastIdx ||
                 windGustSize != maxForecastIdx ||
@@ -205,7 +212,12 @@ class WeatherService {
                         windDirections.size() +
                         ", windGusts=" +
                         windGusts.size() +
+                        ", showers=" +
+                        showers.size() +
+                        ", airTemps=" +
                         airTemps.size() +
+                        ", showers=" +
+                        showers.size() +
                         ", snows=" +
                         snows.size() +
                         ", surfTemps=" +
@@ -222,16 +234,25 @@ class WeatherService {
 
                 var timestamp = times[l];
                 var rain = rains[l];
+                var shower = showers[l];
                 var snow = snows[l];
-                var total = rain + snow;
-                System.println(
-                    ["hourly rainandsnow", l, total, formatUnixTime(timestamp)] +
-                        " Rain: " +
-                        rain +
-                        " Snow: " +
-                        snow
-                );
+                var total = rain + shower + snow;
+                // System.println(
+                //     [
+                //         "hourly rainandsnow",
+                //         l,
+                //         total,
+                //         formatUnixTime(timestamp),
+                //     ] +
+                //         " Rain: " +
+                //         rain +
+                //         " Shower: " +
+                //         shower +
+                //         " Snow: " +
+                //         snow
+                // );
                 metrics.rainForecast.add(rains[l]);
+                metrics.showersForecast.add(showers[l]);
                 metrics.windForecast.add(windSpeeds[l]);
                 metrics.windDirForecast.add(windDirections[l]);
                 metrics.windGustForecast.add(windGusts[l]);
@@ -252,19 +273,32 @@ class WeatherService {
                 // snowArray =  [0.1f, 1.0f, 0.0f, 1.0f];
 
                 for (var i = 0; i < 4; i++) {
+                    // var timestamp =
+                    //     timeStampArray != null && timeStampArray.size() > i
+                    //         ? timeStampArray[i]
+                    //         : 0;
+                    // var rain =
+                    //     rainArray != null && rainArray.size() > i
+                    //         ? rainArray[i]
+                    //         : 0.0f;
+                    // var snow =
+                    //     snowArray != null && snowArray.size() > i
+                    //         ? snowArray[i]
+                    //         : 0.0f;
+                    // var total = rain + snow;
+                    // System.println(
+                    //     [
+                    //         "minutely rainandsnow",
+                    //         i,
+                    //         total,
+                    //         formatUnixTime(timestamp),
+                    //     ] +
+                    //         " Rain: " +
+                    //         rain +
+                    //         " Snow: " +
+                    //         snow
+                    // );
 
-                    var timestamp = timeStampArray != null && timeStampArray.size() > i ? timeStampArray[i] : 0;
-                    var rain = rainArray != null && rainArray.size() > i ? rainArray[i] : 0.0f;
-                    var snow = snowArray != null && snowArray.size() > i ? snowArray[i] : 0.0f;
-                    var total = rain + snow;
-            System.println(
-                ["minutely rainandsnow", i, total, formatUnixTime(timestamp)] +
-                    " Rain: " +
-                    rain +
-                    " Snow: " +
-                    snow
-            );
-            
                     metrics.minutelyRainForecast.add(
                         rainArray != null && rainArray.size() > i
                             ? rainArray[i]
@@ -304,6 +338,7 @@ class WeatherService {
                     dewPoints,
                     humidities,
                     rains,
+                    showers,
                     snows,
                     windSpeeds,
                     windGusts

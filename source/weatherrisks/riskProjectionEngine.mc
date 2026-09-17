@@ -13,6 +13,7 @@ class RiskProjectionEngine {
         dewPoints as Array<Float>,
         humidities as Array<Number>,
         rains as Array<Float>, // Contains full series (-12h up to +12h)
+        showers as Array<Float>, // Contains full series (-12h up to +12h)
         snows as Array<Float>, // Contains full series (-12h up to +12h)
         windSpeeds as Array<Float>,
         windGusts as Array<Float>
@@ -34,10 +35,11 @@ class RiskProjectionEngine {
             var surfaceTemp = surfaceTemps[h];
             var dewPoint = dewPoints[h];
             var humidity = humidities[h];
-            var rainCurrent = rains[h];
+            var rainCurrent = rains[h] + showers[h];
             var snowCurrent = snows[h];
             var windSpeed = windSpeeds[h];
             var windGust = windGusts[h];
+            var showerCurrent = showers[h];
             var surfaceDewSpread = surfaceTemp - dewPoint;
 
             // --- 1. DIRECT 12-HOUR ROLLING RAIN & SNOW SUMS ---

@@ -13,7 +13,7 @@ class WeatherMetrics {
     var surfaceTemp as Float = 0.0; // in °C
     var dewPoint as Float = 0.0; // in °C
     var humidity as Number = 0; // in %
-    var rainCurrent as Float = 0.0; // in mm/h
+    var rainCurrent as Float = 0.0; // in mm/h contains also showers
     var snowCurrent as Float = 0.0; // in mm/h
     var windSpeed as Float = 0.0; // in km/h
     var windGust as Float = 0.0; // in km/h
@@ -31,6 +31,7 @@ class WeatherMetrics {
     var hourFractionRemaining as Float = 1.0; // Fraction of the current hour that is remaining (0.0 - 1.0)
     var timeStampsForeCast as Array<Number> = []; // Number items (unixtime in seconds)
     var rainForecast as Array<Float> = []; // Float items (mm/h)
+    var showersForecast as Array<Float> = []; // Float items (mm/h)
     var windForecast as Array<Float> = []; // Float items (km/h)
     var windDirForecast as Array<Number> = []; // Number items (0-359 deg) where the wind is coming from (standard weather map style)
     var windGustForecast as Array<Float> = []; // Float items (km/h)
@@ -58,10 +59,10 @@ class WeatherMetrics {
             ", humidity=" +
             humidity +
             ", rainCurrent=" +
-            rainCurrent +
-            ", rain12hSum=" +
-            snowCurrent +
+            rainCurrent +            
             ", snowCurrent=" +
+            snowCurrent +
+            ", rain12hSum=" +            
             rain12hSum +
             ", snow12hSum=" +
             snow12hSum +
@@ -83,6 +84,8 @@ class WeatherMetrics {
             timeStampsForeCast +
             ", rainForecast=" +
             rainForecast +
+            ", showersForecast=" +
+            showersForecast +
             ", windForecast=" +
             windForecast +
             ", windDirForecast=" +
