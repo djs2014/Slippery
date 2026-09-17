@@ -103,14 +103,16 @@ class SubSegmentedForecastBar {
             // 3. Solid base fill for rain (or light blue for snow-only)
             var baseColor =
                 rRate > 0.0f
-                    ? getRainColor(rRate, isDark)
+                    ? isDark
+                        ? 0x3377ff
+                        : 0x0000a8
                     : isDark
-                      ? 0x0088cc
-                      : 0x00aadd;
+                      ? 0x97b9ff
+                      : 0x7994cc;
 
             dc.setColor(baseColor, Graphics.COLOR_TRANSPARENT);
             dc.fillRectangle(intX, fillY, intW, fillPx);
-            // System.println("Rectangle " + i + " drawn at X: " + intX + ", Y: " + fillY + ", Width: " + intW + ", Height: " + fillPx);
+            //System.println("Rectangle " + i + " drawn at X: " + intX + ", Y: " + fillY + ", Width: " + intW + ", Height: " + fillPx);
 
             // 4. Diagonal line hatching for snow overlay
             //
@@ -163,23 +165,28 @@ class SubSegmentedForecastBar {
             if (fillPxRain > barHeight) {
                 fillPxRain = barHeight;
             }
-            dc.drawLine(intX, baselineY - fillPxRain, intX + intW, baselineY - fillPxRain);
+            dc.drawLine(
+                intX,
+                baselineY - fillPxRain,
+                intX + intW,
+                baselineY - fillPxRain
+            );
         }
     }
 
-    private static function getRainColor(
-        rateMmh as Float,
-        isDark as Boolean
-    ) as Graphics.ColorType {
-        if (rateMmh < 0.5f) {
-            return isDark ? 0x3399ff : 0x55aaff;
-        }
-        if (rateMmh < 2.5f) {
-            return isDark ? 0x0055ff : 0x0044cc;
-        }
-        if (rateMmh < 7.6f) {
-            return isDark ? 0xff9900 : 0xdd7700;
-        }
-        return isDark ? 0xff2222 : 0xcc0000;
-    }
+    // private static function getRainColor(
+    //     rateMmh as Float,
+    //     isDark as Boolean
+    // ) as Graphics.ColorType {
+    //     if (rateMmh < 0.5f) {
+    //         return isDark ? 0x3399ff : 0x55aaff;
+    //     }
+    //     if (rateMmh < 2.5f) {
+    //         /return isDark ? 0x0055ff : 0x0044cc;
+    //     }
+    //     if (rateMmh < 7.6f) {
+    //         return isDark ? 0xff9900 : 0xdd7700;
+    //     }
+    //     return isDark ? 0xff2222 : 0xcc0000;
+    // }
 }

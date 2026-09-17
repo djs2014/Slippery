@@ -44,7 +44,8 @@ class ThemeManager {
         COLOR_INTERNATIONAL_ORANGE, // 20
         COLOR_FREE_SPEECH_RED, // 21
         COLOR_LABEL_LIGHT, // 22
-        COLOR_UNIT // 23
+        COLOR_UNIT, // 23
+        COLOR_ELECTRIC_BLUE // 24
     }
 
     // Direct indexed palettes for Dark and Light themes
@@ -72,7 +73,8 @@ class ThemeManager {
         0xff5500, // 20: INTERNATIONAL_ORANGE
         0xcc0000, // 21: FREE_SPEECH_RED
         Graphics.COLOR_DK_GRAY, // 22: LABEL_LIGHT
-        Graphics.COLOR_LT_GRAY // 23: UNIT
+        Graphics.COLOR_LT_GRAY, // 23: UNIT
+        0x0055FF // 24: ELECTRIC_BLUE
     ];
 
     public static const LIGHT_PALETTE as Array<ColorType> = [
@@ -99,7 +101,8 @@ class ThemeManager {
         0xff5500, // 20: INTERNATIONAL_ORANGE
         0xcc0000, // 21: FREE_SPEECH_RED
         Graphics.COLOR_LT_GRAY, // 22: LABEL_LIGHT
-        Graphics.COLOR_LT_GRAY // 23: UNIT
+        Graphics.COLOR_LT_GRAY, // 23: UNIT
+        0x0055FF // 24: ELECTRIC_BLUE
     ];
 
     // Ultra-fast O(1) lookup, 0 branching, zero runtime allocations

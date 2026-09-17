@@ -105,7 +105,7 @@ class SlipperyView extends WatchUi.DataField {
             _lastMinuteChecked = currentMin;
             
             var nowEpoch = Time.now().value();
-            mWeatherMetrics.hourFractionRemaining = ForecastAligner.getFirstHourRemainingFraction(mWeatherMetrics.timeStampsForeCast, nowEpoch);
+            mWeatherMetrics.hourFractionRemaining = ForecastAligner.getFirstHourRemainingFraction(mWeatherMetrics.timeStampsForeCast, nowEpoch);            
             System.println("Cached hour fraction updated to: " + mWeatherMetrics.hourFractionRemaining);
         }
     }

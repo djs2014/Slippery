@@ -26,17 +26,28 @@ class PredictiveSparkline {
         if (standardBarWidth < 2) {
             standardBarWidth = 2;
         }
+        var bar0Width = (
+            standardBarWidth * metrics.hourFractionRemaining
+        ).toNumber();
+        var leftShift = standardBarWidth - bar0Width;
+
 
         // DRAW COMFORT BAR
         var maxDewpoint = dewpointForecast[0];
         for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            
             var dewPoint = dewpointForecast[i];
-            var dx = x + i * (standardBarWidth + barGap);
+            var dx = colX;
+            var dw = colW;
             dc.setColor(
                 DewpointPalette.getColor(dewPoint, isDark),
                 Graphics.COLOR_TRANSPARENT
             );
-            dc.fillRectangle(dx, y, standardBarWidth, height);
+            dc.fillRectangle(dx, y, dw, height);
 
             if (dewPoint > maxDewpoint) {
                 maxDewpoint = dewPoint;
@@ -91,16 +102,16 @@ class PredictiveSparkline {
         if (numHours == 0) {
             return;
         }
-        var currentHour = metrics.currentHour;
-        var rainForecast = metrics.rainForecast; // Float (mm/h)
-        var snowForecast = metrics.snowForecast; // Float (mm/h)
-        var windForecast = metrics.windForecast; // Float (km/h)
-        var windDirForecast = metrics.windDirForecast; // Number (0-359 deg)
-        var windGustForecast = metrics.windGustForecast; // Float (km/h)
-        var surfaceTempForecast = metrics.surfaceTempForecast; // Float (°C surface)
 
-        var minutelyRainForecast = metrics.minutelyRainForecast; // Array<Float> (mm per 15-min interval)
-        var minutelySnowForecast = metrics.minutelySnowForecast; // Array<Float> (mm per 15-min interval)
+        var currentHour = metrics.currentHour;
+        var rainForecast = metrics.rainForecast;
+        var snowForecast = metrics.snowForecast;
+        var windForecast = metrics.windForecast;
+        var windDirForecast = metrics.windDirForecast;
+        var windGustForecast = metrics.windGustForecast;
+        var surfaceTempForecast = metrics.surfaceTempForecast;
+        var minutelyRainForecast = metrics.minutelyRainForecast;
+        var minutelySnowForecast = metrics.minutelySnowForecast;
 
         var smallWidth = width < 180;
         var barGap = smallWidth ? 1 : 2;
@@ -110,15 +121,10 @@ class PredictiveSparkline {
             standardBarWidth = 2;
         }
 
-        // Shrink the first bar based on the remaining fraction of the hour
-        var bar0Width = standardBarWidth;
-        bar0Width = (
+        var bar0Width = (
             standardBarWidth * metrics.hourFractionRemaining
         ).toNumber();
-        // How much space was lost on the right side of Column 0
         var leftShift = standardBarWidth - bar0Width;
-        var colX = 0;
-        var colW = 0;
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
@@ -129,23 +135,95 @@ class PredictiveSparkline {
 
         var baselineY = y + height - offsetLabels;
         var chartHeight = baselineY - y - offsetChartHeight;
+        
+        var sparklineH = height - chartHeight - 4;
+        var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
+        var riskBlockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
+        var riskBlockHeight = (chartHeight * 0.66).toNumber();
 
-        // --- 1. FREEZING SURFACE TEMP BACKGROUND HIGHLIGHT ---
+        // ==========================================
+        // PASS 1: PRE-CALCULATIONS & MIN/MAX RANGES
+        // ==========================================
+        var maxPrecip = 2.0f;
+        var minSt = 1000.0f;
+        var maxSt = -1000.0f;
+        var hasIceAhead = false;
+        var hasTempData = surfaceTempForecast.size() > 0;
+
         for (var i = 0; i < numHours; i++) {
+            // 1. Precip Max
+            var totalP = rainForecast[i] + snowForecast[i];
+            if (totalP > maxPrecip) {
+                maxPrecip = totalP;
+            }
+
+            // 2. Temp Range & Ice check
+            if (hasTempData && i < surfaceTempForecast.size()) {
+                var st = surfaceTempForecast[i];
+                if (st <= 0.0f) {
+                    hasIceAhead = true;
+                }
+                if (st < minSt) {
+                    minSt = st;
+                }
+                if (st > maxSt) {
+                    maxSt = st;
+                }
+            }
+        }
+
+        if (hasTempData) {
+            var rangeSt = maxSt - minSt;
+            if (rangeSt < 5.0f) {
+                var mid = (maxSt + minSt) / 2.0f;
+                minSt = mid - 2.5f;
+                maxSt = mid + 2.5f;
+                rangeSt = 5.0f;
+            }
+        }
+
+        var maxMinutelyPrecip = SubSegmentedForecastBar.computeGlobalMaxRate(
+            minutelyRainForecast,
+            minutelySnowForecast,
+            maxPrecip
+        );
+
+        // Baseline Line
+        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(x, baselineY, x + width, baselineY);
+
+        // Overlay Badge pre-calcs
+        var enableBadges = x >= 12;
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+
+        // Tracking state across render iterations
+        var prevStX = -1,
+            prevStY = -1,
+            firstStY = -1;
+        var prevWindX = -1,
+            prevWindY = -1,
+            firstWindY = -1;
+        var maxWind = 60.0f;
+
+        // ==========================================
+        // PASS 2: COMBINED DRAWING LOOP
+        // ==========================================
+        for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2; // Midpoint for line nodes
+
+            var currentRisk =
+                i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
+
+            // --- LAYER A: FREEZING TEMP BACKGROUND ---
             if (
-                surfaceTempForecast.size() > i &&
+                hasTempData &&
+                i < surfaceTempForecast.size() &&
                 surfaceTempForecast[i] <= 0.0f
             ) {
-                if (i == 0) {
-                    // Anchor left edge at startX and only shrink width
-                    colX = x;
-                    colW = bar0Width;
-                } else {
-                    var bx = x + i * (standardBarWidth + barGap);
-                    colX = bx - leftShift;
-                    colW = standardBarWidth;
-                }
-                
                 dc.setColor(
                     isDark ? 0x002244 : 0xdceeff,
                     Graphics.COLOR_TRANSPARENT
@@ -157,80 +235,45 @@ class PredictiveSparkline {
                     chartHeight + 2
                 );
             }
-        }
 
-        // --- 2. 12-HOUR RISK HEATMAP BAR 2/3 of chart height ---
-        var blockW = (width.toFloat() / numHours + 0.5f).toNumber();
-        var sparklineH = height - chartHeight - 4;
-        var hourColor = AppState.activePalette[ThemeManager.COLOR_BG];
-
-        for (var i = 0; i < riskProfile.size(); i++) {
-            var blockX = (x + i * (width.toFloat() / numHours)).toNumber();
-            var blockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
-            var riskColor = $.getLightRiskColor(riskProfile[i], isDark);
-            var riskBlockHeight = (chartHeight * 0.66).toNumber();
-            dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-            dc.fillRectangle(blockX, blockY, blockW, riskBlockHeight);
-
-            if (showLabels && showForecastHour != ForecastHourNone) {
-                var hourLabel;
-                if (showForecastHour == ForecastHourRelative) {
-                    hourLabel = Lang.format("+$1$", [i.format("%d")]);
-                } else if (showForecastHour == ForecastHourAbsolute) {
-                    var hour = (currentHour + i) % 24; // Display the hour relative to the current hour
-                    hourLabel = Lang.format("$1$", [hour.format("%d")]);
-                }
-
-                dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
-                dc.drawText(
-                    blockX + blockW / 2,
-                    blockY + chartHeight / 2,
-                    Graphics.FONT_XTINY,
-                    hourLabel,
-                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            // --- LAYER B: RISK HEATMAP & HOUR LABELS ---
+            if (i < riskProfile.size()) {
+                // var blockX = (x + i * (width.toFloat() / numHours)).toNumber();                
+                dc.setColor(
+                    $.getLightRiskColor(currentRisk, isDark),
+                    Graphics.COLOR_TRANSPARENT
                 );
+                dc.fillRectangle(colX, riskBlockY, colW, riskBlockHeight);
+
+                if (showLabels && showForecastHour != ForecastHourNone) {
+                    var hourLabel =
+                        showForecastHour == ForecastHourRelative
+                            ? Lang.format("+$1$", [i.format("%d")])
+                            : Lang.format("$1$", [
+                                  ((currentHour + i) % 24).format("%d"),
+                              ]);
+
+                    dc.setColor(hourColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawText(
+                        colX + colW / 2,
+                        riskBlockY + riskBlockHeight / 2,
+                        Graphics.FONT_XTINY,
+                        hourLabel,
+                        Graphics.TEXT_JUSTIFY_CENTER |
+                            Graphics.TEXT_JUSTIFY_VCENTER
+                    );
+                }
             }
-        }
 
-        // --- 3. BASELINE & LABELS ---
-        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x, baselineY, x + width, baselineY);
-
-        // --- 4. PRECIPITATION BARS ---
-        var maxPrecip = 2.0f;
-        for (var i = 0; i < numHours; i++) {
-            var totalP = rainForecast[i] + snowForecast[i];
-            if (totalP > maxPrecip) {
-                maxPrecip = totalP;
-            }
-        }
-
-        // MAX MINUTELY PRECIPITATION RATE (for scaling sub-segmented bars)
-        // Result will be the maximum precipitation rate across all 15-minute intervals, scaled to at least maxPrecip.
-        var maxMinutelyPrecip = SubSegmentedForecastBar.computeGlobalMaxRate(
-            minutelyRainForecast,
-            minutelySnowForecast,
-            maxPrecip
-        );
-        System.println(
-            "Max minutely precipitation rate: " +
-                maxMinutelyPrecip +
-                " MaxPrecip: " +
-                maxPrecip
-        );
-
-        for (var i = 0; i < numHours; i++) {
+            // --- LAYER C: PRECIPITATION BARS ---
             var rain = rainForecast[i];
             var snow = snowForecast[i];
             var total = rain + snow;
-
             if (total > 0.05f) {
                 var barH = ((total / maxPrecip) * chartHeight).toNumber();
                 if (barH < 3) {
                     barH = 3;
                 }
-
-                var bx = x + i * (standardBarWidth + barGap);
                 var by = baselineY - barH;
 
                 if (snow > 0.0f) {
@@ -238,84 +281,32 @@ class PredictiveSparkline {
                         isDark ? Graphics.COLOR_WHITE : 0x00ffff,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.fillRectangle(bx, by, standardBarWidth, barH);
+                    dc.fillRectangle(colX, by, colW, barH);
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.drawPoint(bx + standardBarWidth / 2, by + 1);
+                    dc.drawPoint(px, by + 1);
                 } else {
-                    if (rain >= 2.5f) {
-                        dc.setColor(
-                            AppState.activePalette[ThemeManager.COLOR_BLUE],
-                            Graphics.COLOR_TRANSPARENT
-                        );
-                    } else if (rain >= 0.5f) {
-                        dc.setColor(
-                            AppState.activePalette[
-                                ThemeManager.COLOR_DEEP_SKY_BLUE
-                            ],
-                            Graphics.COLOR_TRANSPARENT
-                        );
-                    } else {
-                        dc.setColor(
-                            AppState.activePalette[
-                                ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
-                            ],
-                            Graphics.COLOR_TRANSPARENT
-                        );
-                    }
-                    dc.fillRectangle(bx, by, standardBarWidth, barH);
-                }
-            }
-        }
-
-        // --- CALC OVERLAY BADGE VISIBILITY ---
-        // Render badges only if there is at least 12px margin on the left side of 'x'
-        var enableBadges = x >= 12;
-
-        // Helper stroke colors for halo outlines to guarantee readability over colored risk blocks
-        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
-
-        // --- 5. DYNAMIC SURFACE TEMP LINE (SOLID + CONTRAST HALO) ---
-        if (surfaceTempForecast.size() > 0) {
-            var minSt = surfaceTempForecast[0];
-            var maxSt = surfaceTempForecast[0];
-
-            for (var i = 1; i < numHours; i++) {
-                if (i >= surfaceTempForecast.size()) {
-                    break;
-                }
-                var temp = surfaceTempForecast[i];
-                if (temp < minSt) {
-                    minSt = temp;
-                }
-                if (temp > maxSt) {
-                    maxSt = temp;
+                    var rainColor =
+                        rain >= 2.5f
+                            ? AppState.activePalette[ThemeManager.COLOR_BLUE]
+                            : rain >= 0.5f
+                              ? AppState.activePalette[
+                                    ThemeManager.COLOR_DEEP_SKY_BLUE
+                                ]
+                              : AppState.activePalette[
+                                    ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
+                                ];
+                    dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
+                    dc.fillRectangle(colX, by, colW, barH);
                 }
             }
 
-            var rangeSt = maxSt - minSt;
-            if (rangeSt < 5.0f) {
-                var mid = (maxSt + minSt) / 2.0f;
-                minSt = mid - 2.5f;
-                maxSt = mid + 2.5f;
-                rangeSt = 5.0f;
-            }
-
-            var prevStX = -1;
-            var prevStY = -1;
-            var firstStY = -1;
-
-            for (var i = 0; i < numHours; i++) {
-                if (surfaceTempForecast.size() <= i) {
-                    break;
-                }
+            // --- LAYER D: TEMP SPARKLINE SEGMENT ---
+            if (hasTempData && i < surfaceTempForecast.size()) {
                 var st = surfaceTempForecast[i];
-                var px =
-                    x + i * (standardBarWidth + barGap) + standardBarWidth / 2;
-
-                var normalizedSt = (st - minSt) / rangeSt;
+                var normalizedSt = (st - minSt) / (maxSt - minSt);
                 if (normalizedSt < 0.0f) {
                     normalizedSt = 0.0f;
                 }
@@ -328,33 +319,27 @@ class PredictiveSparkline {
                     firstStY = py;
                 }
 
-                // Check background collision (e.g., yellow temp over RiskLevelSlight yellow)
-                var currentRisk =
-                    i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
                 var tempColor =
                     st <= 0.0f
                         ? Graphics.COLOR_RED
                         : currentRisk == RiskLevelSlight
                           ? isDark
                               ? Graphics.COLOR_WHITE
-                              : Graphics.COLOR_BLACK // Contrast override on yellow background
+                              : Graphics.COLOR_BLACK
                           : isDark
                             ? Graphics.COLOR_YELLOW
                             : 0x666600;
 
                 if (prevStX != -1) {
-                    // Step 1: Draw 3px wide halo outline behind line
                     dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                     dc.drawLine(prevStX, prevStY - 1, px, py - 1);
                     dc.drawLine(prevStX, prevStY + 2, px, py + 2);
 
-                    // Step 2: Draw 2px main temperature line
                     dc.setColor(tempColor, Graphics.COLOR_TRANSPARENT);
                     dc.drawLine(prevStX, prevStY, px, py);
                     dc.drawLine(prevStX, prevStY + 1, px, py + 1);
                 }
 
-                // Node point with halo
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.fillCircle(px, py, 3);
                 dc.setColor(tempColor, Graphics.COLOR_TRANSPARENT);
@@ -364,8 +349,98 @@ class PredictiveSparkline {
                 prevStY = py;
             }
 
-            // Draw Badge "T" with halo outline
-            if (enableBadges && firstStY != -1) {
+            // --- LAYER E: WIND SPARKLINE & ARROWS ---
+            var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
+            var gust =
+                windGustForecast.size() > i ? windGustForecast[i] : windSpd;
+            var gustRatio = gust / maxWind;
+            if (gustRatio > 1.0f) {
+                gustRatio = 1.0f;
+            }
+
+            var windPy = baselineY - (gustRatio * chartHeight).toNumber();
+            if (i == 0) {
+                firstWindY = windPy;
+            }
+
+            var windLineColor =
+                currentRisk == RiskLevelModerate || currentRisk == RiskLevelHigh
+                    ? isDark
+                        ? Graphics.COLOR_WHITE
+                        : Graphics.COLOR_BLACK
+                    : isDark
+                      ? 0xff5500
+                      : 0xcc0000;
+
+            if (prevWindX != -1 && i % 2 == 0) {
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawLine(prevWindX, prevWindY - 1, px, windPy - 1);
+                dc.drawLine(prevWindX, prevWindY + 1, px, windPy + 1);
+
+                dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawLine(prevWindX, prevWindY, px, windPy);
+            }
+
+            if (gust >= 35.0f) {
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, windPy, 4);
+                dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
+                dc.fillCircle(px, windPy, 3);
+            }
+
+            var relGustRatio = windSpd > 1.0f ? gust / windSpd : 1.0f;
+            if (
+                (windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f) &&
+                windDirForecast.size() > i
+            ) {
+                if (smallWidth) {
+                    drawWindArrow_line(
+                        dc,
+                        px,
+                        windPy,
+                        windDirForecast[i],
+                        windSpd,
+                        gust,
+                        isDark
+                    );
+                } else {
+                    drawWindArrow(
+                        dc,
+                        px,
+                        windPy,
+                        windDirForecast[i],
+                        windSpd,
+                        gust,
+                        isDark
+                    );
+                }
+            }
+
+            prevWindX = px;
+            prevWindY = windPy;
+        }
+
+        // --- SUB-SEGMENTED MINUTELY PRECIPITATION SPARKLINE ---
+        SubSegmentedForecastBar.drawSubdividedHourScaled(
+            dc,
+            x,
+            baselineY - chartHeight,
+            standardBarWidth,
+            chartHeight,
+            minutelyRainForecast,
+            minutelySnowForecast,
+            maxMinutelyPrecip,
+            isDark
+        );
+
+        // --- LINE UNDER THE SPARKLINE ---
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(x, baselineY, x + width, baselineY);
+        
+
+        // --- BADGES AND HEADERS ---
+        if (enableBadges) {
+            if (firstStY != -1) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawText(
                     x - 2,
@@ -386,146 +461,26 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
             }
-        }
-
-        System.println(minutelyRainForecast);
-
-        // MINUTELY RAIN SPARKLINE (DASHED + CONTRAST HALO)
-        SubSegmentedForecastBar.drawSubdividedHourScaled(
-            dc,
-            x,
-            baselineY - chartHeight,
-            standardBarWidth,
-            chartHeight,
-            minutelyRainForecast,
-            minutelySnowForecast,
-            maxMinutelyPrecip,
-            isDark
-        );
-
-        // --- 6. WIND GUST SPARKLINE (DASHED + CONTRAST HALO) ---
-        var maxWind = 60.0f; // km/h
-        var prevX = -1;
-        var prevY = -1;
-        var firstWindY = -1;
-
-        for (var i = 0; i < numHours; i++) {
-            var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
-            var gust =
-                windGustForecast.size() > i
-                    ? windGustForecast[i]
-                    : windForecast[i];
-            var px = x + i * (standardBarWidth + barGap) + standardBarWidth / 2;
-
-            var gustRatio = gust / maxWind;
-            if (gustRatio > 1.0f) {
-                gustRatio = 1.0f;
-            }
-            var py = baselineY - (gustRatio * chartHeight).toNumber();
-            if (i == 0) {
-                firstWindY = py;
-            }
-
-            var currentRisk =
-                i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
-
-            // Adjust line color if risk background matches orange/red wind hue
-            var windLineColor =
-                currentRisk == RiskLevelModerate || currentRisk == RiskLevelHigh
-                    ? isDark
-                        ? Graphics.COLOR_WHITE
-                        : Graphics.COLOR_BLACK // Contrast override on orange background
-                    : isDark
-                      ? 0xff5500
-                      : 0xcc0000;
-
-            if (prevX != -1) {
-                if (i % 2 == 0) {
-                    // Step 1: Draw halo dots behind dashed segments
-                    dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-                    dc.drawLine(prevX, prevY - 1, px, py - 1);
-                    dc.drawLine(prevX, prevY + 1, px, py + 1);
-
-                    // Step 2: Draw inner dashed wind line
-                    dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
-                    dc.drawLine(prevX, prevY, px, py);
-                }
-            }
-
-            if (gust >= 35.0f) {
+            if (firstWindY != -1) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-                dc.fillCircle(px, py, 4);
-                dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
-                dc.fillCircle(px, py, 3);
-            }
-
-            // --- CONDITIONAL ARROW DRAWING ---
-            var arrowStep = 1; //smallWidth ? 2 : 1;
-            // Draw vector ONLY if wind is fast (>=20 km/h), gust is heavy (>=25 km/h),
-            // or there is notable gust turbulence (gust >= 1.3 * base wind)
-            var relGustRatio = windSpd > 1.0f ? gust / windSpd : 1.0f;
-            var shouldDrawArrow =
-                i % arrowStep == 0 &&
-                (windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f);
-
-            // Line height is wind strength
-            if (shouldDrawArrow && windDirForecast.size() > i) {
-                if (smallWidth) {
-                    drawWindArrow_line(
-                        dc,
-                        px,
-                        py,
-                        windDirForecast[i],
-                        windSpd,
-                        gust,
-                        isDark
-                    );
-                } else {
-                    drawWindArrow(
-                        dc,
-                        px,
-                        py, //baselineY - 4,
-                        windDirForecast[i],
-                        windSpd,
-                        gust,
-                        isDark
-                    );
-                }
-            }
-
-            prevX = px;
-            prevY = py;
-        }
-
-        // Draw Badge "W" with halo outline
-        if (enableBadges && firstWindY != -1) {
-            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                x - 2,
-                firstWindY + 1,
-                Graphics.FONT_XTINY,
-                "W",
-                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-            dc.setColor(
-                isDark ? 0xff5500 : 0xcc0000,
-                Graphics.COLOR_TRANSPARENT
-            );
-            dc.drawText(
-                x - 3,
-                firstWindY,
-                Graphics.FONT_XTINY,
-                "W",
-                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-        }
-
-        // --- 7. ICE WARNING HEADER ---
-        var hasIceAhead = false;
-        for (var i = 0; i < surfaceTempForecast.size(); i++) {
-            if (surfaceTempForecast[i] <= 0.0f) {
-                hasIceAhead = true;
-                break;
+                dc.drawText(
+                    x - 2,
+                    firstWindY + 1,
+                    Graphics.FONT_XTINY,
+                    "W",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+                dc.setColor(
+                    isDark ? 0xff5500 : 0xcc0000,
+                    Graphics.COLOR_TRANSPARENT
+                );
+                dc.drawText(
+                    x - 3,
+                    firstWindY,
+                    Graphics.FONT_XTINY,
+                    "W",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
             }
         }
 
