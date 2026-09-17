@@ -22,21 +22,21 @@ class PredictiveSparkline {
         var smallWidth = width < 180;
         var barGap = smallWidth ? 1 : 2;
         var totalGaps = (numHours - 1) * barGap;
-        var barWidth = (width - totalGaps) / numHours;
-        if (barWidth < 2) {
-            barWidth = 2;
+        var standardBarWidth = (width - totalGaps) / numHours;
+        if (standardBarWidth < 2) {
+            standardBarWidth = 2;
         }
 
         // DRAW COMFORT BAR
         var maxDewpoint = dewpointForecast[0];
         for (var i = 0; i < numHours; i++) {
             var dewPoint = dewpointForecast[i];
-            var dx = x + i * (barWidth + barGap);
+            var dx = x + i * (standardBarWidth + barGap);
             dc.setColor(
                 DewpointPalette.getColor(dewPoint, isDark),
                 Graphics.COLOR_TRANSPARENT
             );
-            dc.fillRectangle(dx, y, barWidth, height);
+            dc.fillRectangle(dx, y, standardBarWidth, height);
 
             if (dewPoint > maxDewpoint) {
                 maxDewpoint = dewPoint;
@@ -105,10 +105,20 @@ class PredictiveSparkline {
         var smallWidth = width < 180;
         var barGap = smallWidth ? 1 : 2;
         var totalGaps = (numHours - 1) * barGap;
-        var barWidth = (width - totalGaps) / numHours;
-        if (barWidth < 2) {
-            barWidth = 2;
+        var standardBarWidth = (width - totalGaps) / numHours;
+        if (standardBarWidth < 2) {
+            standardBarWidth = 2;
         }
+
+        // Shrink the first bar based on the remaining fraction of the hour
+        var bar0Width = standardBarWidth;
+        bar0Width = (
+            standardBarWidth * metrics.hourFractionRemaining
+        ).toNumber();
+        // How much space was lost on the right side of Column 0
+        var leftShift = standardBarWidth - bar0Width;
+        var colX = 0;
+        var colW = 0;
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
@@ -126,15 +136,24 @@ class PredictiveSparkline {
                 surfaceTempForecast.size() > i &&
                 surfaceTempForecast[i] <= 0.0f
             ) {
-                var bx = x + i * (barWidth + barGap);
+                if (i == 0) {
+                    // Anchor left edge at startX and only shrink width
+                    colX = x;
+                    colW = bar0Width;
+                } else {
+                    var bx = x + i * (standardBarWidth + barGap);
+                    colX = bx - leftShift;
+                    colW = standardBarWidth;
+                }
+                
                 dc.setColor(
                     isDark ? 0x002244 : 0xdceeff,
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.fillRectangle(
-                    bx,
+                    colX,
                     y + offsetIceBars,
-                    barWidth,
+                    colW,
                     chartHeight + 2
                 );
             }
@@ -176,7 +195,7 @@ class PredictiveSparkline {
         // --- 3. BASELINE & LABELS ---
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
-        
+
         // --- 4. PRECIPITATION BARS ---
         var maxPrecip = 2.0f;
         for (var i = 0; i < numHours; i++) {
@@ -185,13 +204,19 @@ class PredictiveSparkline {
                 maxPrecip = totalP;
             }
         }
-        
+
         // MAX MINUTELY PRECIPITATION RATE (for scaling sub-segmented bars)
-        // Result will be the maximum precipitation rate across all 15-minute intervals, scaled to at least maxPrecip.  
+        // Result will be the maximum precipitation rate across all 15-minute intervals, scaled to at least maxPrecip.
         var maxMinutelyPrecip = SubSegmentedForecastBar.computeGlobalMaxRate(
             minutelyRainForecast,
             minutelySnowForecast,
             maxPrecip
+        );
+        System.println(
+            "Max minutely precipitation rate: " +
+                maxMinutelyPrecip +
+                " MaxPrecip: " +
+                maxPrecip
         );
 
         for (var i = 0; i < numHours; i++) {
@@ -199,16 +224,13 @@ class PredictiveSparkline {
             var snow = snowForecast[i];
             var total = rain + snow;
 
-            // var timestamp = timeStampsForeCast[i];        
-            // System.println(["rainandsnow", i, total, formatUnixTime(timestamp)]);
-
             if (total > 0.05f) {
                 var barH = ((total / maxPrecip) * chartHeight).toNumber();
                 if (barH < 3) {
                     barH = 3;
                 }
 
-                var bx = x + i * (barWidth + barGap);
+                var bx = x + i * (standardBarWidth + barGap);
                 var by = baselineY - barH;
 
                 if (snow > 0.0f) {
@@ -216,12 +238,12 @@ class PredictiveSparkline {
                         isDark ? Graphics.COLOR_WHITE : 0x00ffff,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.fillRectangle(bx, by, barWidth, barH);
+                    dc.fillRectangle(bx, by, standardBarWidth, barH);
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.drawPoint(bx + barWidth / 2, by + 1);
+                    dc.drawPoint(bx + standardBarWidth / 2, by + 1);
                 } else {
                     if (rain >= 2.5f) {
                         dc.setColor(
@@ -243,7 +265,7 @@ class PredictiveSparkline {
                             Graphics.COLOR_TRANSPARENT
                         );
                     }
-                    dc.fillRectangle(bx, by, barWidth, barH);
+                    dc.fillRectangle(bx, by, standardBarWidth, barH);
                 }
             }
         }
@@ -290,7 +312,8 @@ class PredictiveSparkline {
                     break;
                 }
                 var st = surfaceTempForecast[i];
-                var px = x + i * (barWidth + barGap) + barWidth / 2;
+                var px =
+                    x + i * (standardBarWidth + barGap) + standardBarWidth / 2;
 
                 var normalizedSt = (st - minSt) / rangeSt;
                 if (normalizedSt < 0.0f) {
@@ -364,13 +387,15 @@ class PredictiveSparkline {
                 );
             }
         }
-        
+
+        System.println(minutelyRainForecast);
+
         // MINUTELY RAIN SPARKLINE (DASHED + CONTRAST HALO)
         SubSegmentedForecastBar.drawSubdividedHourScaled(
             dc,
             x,
             baselineY - chartHeight,
-            barWidth,
+            standardBarWidth,
             chartHeight,
             minutelyRainForecast,
             minutelySnowForecast,
@@ -390,7 +415,7 @@ class PredictiveSparkline {
                 windGustForecast.size() > i
                     ? windGustForecast[i]
                     : windForecast[i];
-            var px = x + i * (barWidth + barGap) + barWidth / 2;
+            var px = x + i * (standardBarWidth + barGap) + standardBarWidth / 2;
 
             var gustRatio = gust / maxWind;
             if (gustRatio > 1.0f) {
@@ -601,16 +626,16 @@ class PredictiveSparkline {
         }
 
         var barSpacing = 4;
-        var barWidth = baseHalfWidth + 2;
+        var standardBarWidth = baseHalfWidth + 2;
 
         for (var b = 1; b <= numGustBars; b++) {
             var bCenterX = baseX - (b * barSpacing * uX).toNumber();
             var bCenterY = baseY - (b * barSpacing * uY).toNumber();
 
-            var bX1 = bCenterX + (barWidth * pX).toNumber();
-            var bY1 = bCenterY + (barWidth * pY).toNumber();
-            var bX2 = bCenterX - (barWidth * pX).toNumber();
-            var bY2 = bCenterY - (barWidth * pY).toNumber();
+            var bX1 = bCenterX + (standardBarWidth * pX).toNumber();
+            var bY1 = bCenterY + (standardBarWidth * pY).toNumber();
+            var bX2 = bCenterX - (standardBarWidth * pX).toNumber();
+            var bY2 = bCenterY - (standardBarWidth * pY).toNumber();
 
             // 2px thick halo outline
             dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
