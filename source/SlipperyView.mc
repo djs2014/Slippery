@@ -45,6 +45,8 @@ class SlipperyView extends WatchUi.DataField {
     ];
 
     private var mCurrentHour as Number = -1;
+    private var _lastMinuteChecked as Number = -1;
+
     function initialize() {
         DataField.initialize();
 
@@ -68,14 +70,15 @@ class SlipperyView extends WatchUi.DataField {
         if (!WeatherService.parseOpenMeteoResponse(mLat, data)) {
             return;
         }
-        mHasWeatherData = true;
         if ($.gDemo) {
+            mHasWeatherData = true;
             return;
         }
         updateWeatherAndRisks(
             WeatherService.getMetrics(),
             WeatherService.getRisks()
         );
+        mHasWeatherData = true;
     }
 
     function updateWeatherAndRisks(
@@ -90,6 +93,21 @@ class SlipperyView extends WatchUi.DataField {
         setHazardAndAdviceStrings();
         initializeMinutesUntilCounters();
         processAlerts();
+        // Force an immediate recalculation when fresh data arrives
+        _lastMinuteChecked = -1;
+    }
+
+    function handleForecastQuarterChange() as Void {
+        var currentMin = System.getClockTime().min;
+
+        // Gate: Only calculate ONCE per minute instead of every second
+        if (mHasWeatherData &&currentMin != _lastMinuteChecked) {
+            _lastMinuteChecked = currentMin;
+            
+            var nowEpoch = Time.now().value();
+            mWeatherMetrics.hourFractionRemaining = ForecastAligner.getFirstHourRemainingFraction(mWeatherMetrics.timeStampsForeCast, nowEpoch);
+            System.println("Cached hour fraction updated to: " + mWeatherMetrics.hourFractionRemaining);
+        }
     }
 
     function setHazardAndAdviceStrings() as Void {
@@ -162,6 +180,7 @@ class SlipperyView extends WatchUi.DataField {
         mHeadingDegrees = Geo.getHeadingDegrees(info, mHeadingDegrees);
 
         mPaused = ActivityUtils.getPaused(info);
+        handleForecastQuarterChange();
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -525,7 +544,7 @@ class SlipperyView extends WatchUi.DataField {
             : Graphics.COLOR_WHITE;
 
         // --- DRAW HEADER BAR ---
-        var headerHeight = (h * 0.22).toNumber();
+        var headerHeight = (h * 0.18).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, w, headerHeight);
 
