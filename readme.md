@@ -7,20 +7,19 @@ Source of weather data is (Open Meteo)[https://open-meteo.com]
 
 Can show if the road is slippery for cycling.
 
-List of checks:
+List of checks (with shortened text):
 
-- Black Ice / Freezing Wet Road
-- Hoarfrost / Freezing Fog
-- Gale-Force Winds / Severe Gusts
-- Torrential Downpour
-- Bridge Deck Freeze
-- Snow / Slush Accumulation
-- Strong Crosswinds
-- Imminent Rain / Snow
-- First Rain ("Oil Slick")
-- Autumn Wet Leaves
-- Sweating Road (Dew Point)
-
+- Black Ice / Freezing Wet Road | Ice
+- Hoarfrost / Freezing Fog | Frost
+- Gale-Force Winds / Severe Gusts | Gale Wind
+- Torrential Downpour / Heavy rain | Pouring
+- Bridge Deck Freeze | Bridge Ice
+- Snow / Slush Accumulation | Snow/Slush
+- Strong Crosswinds | Crosswind
+- Imminent Rain / Snow | Snow
+- First Rain ("Oil Slick") | Slick rain
+- Autumn Wet Leaves | Leaves
+- Sweating Road (Dew Point) | Wet Road
 
 | Condition / Hazard | Trigger Criteria | Risk Level | Primary Advice |
 | --- | --- | --- | --- |

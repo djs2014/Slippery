@@ -125,7 +125,10 @@ class WeatherService {
             metrics.windSpeed = windSpeeds[targetIdx];
             metrics.windGust = windGusts[targetIdx];
             metrics.windDirection = windDirections[targetIdx];
-            metrics.gustSeverity = $.calculateGustSeverity(metrics.windSpeed, metrics.windGust);
+            metrics.gustSeverity = $.calculateGustSeverity(
+                metrics.windSpeed,
+                metrics.windGust
+            );
 
             // Calculate 12-hour accumulated moisture lookback for slipperiness
             var startIdx = targetIdx - 12;
@@ -147,10 +150,10 @@ class WeatherService {
                     sumSnow += snows[j];
                 }
             }
-            
+
             metrics.rain12hSum = sumRain;
             metrics.snow12hSum = sumSnow;
-            
+
             // Look back at dry streak length (for "first rain after dry spell" effect)
             var dryStreak = 0;
             for (var k = targetIdx; k >= 0; k--) {
@@ -216,6 +219,18 @@ class WeatherService {
 
             for (var l = targetIdx; l < maxForecastIdx; l++) {
                 metrics.timeStampsForeCast.add(times[l]);
+
+                var timestamp = times[l];
+                var rain = rains[l];
+                var snow = snows[l];
+                var total = rain + snow;
+                System.println(
+                    ["hourly rainandsnow", l, total, formatUnixTime(timestamp)] +
+                        " Rain: " +
+                        rain +
+                        " Snow: " +
+                        snow
+                );
                 metrics.rainForecast.add(rains[l]);
                 metrics.windForecast.add(windSpeeds[l]);
                 metrics.windDirForecast.add(windDirections[l]);
@@ -229,15 +244,37 @@ class WeatherService {
             // Minutely starts at current time and has 4 15-minute intervals
             var minutelyData = data.get("minutely_15") as Dictionary?;
             if (minutelyData != null) {
+                var timeStampArray = minutelyData.get("time") as Array<Number>?;
                 var rainArray = minutelyData.get("rain") as Array<Float>?;
                 var snowArray = minutelyData.get("snowfall") as Array<Float>?;
                 // TEST DATA
-                // rainArray =  [0.2f, 2.6f, 0.0f, 0.0f];
+                // rainArray =  [0.1f, 0.1f, 0.1f, 0.9f];
                 // snowArray =  [0.1f, 1.0f, 0.0f, 1.0f];
-                
+
                 for (var i = 0; i < 4; i++) {
-                    metrics.minutelyRainForecast.add(rainArray != null && rainArray.size() > i ? rainArray[i] : 0.0f);
-                    metrics.minutelySnowForecast.add(snowArray != null && snowArray.size() > i ? snowArray[i] : 0.0f);
+
+                    var timestamp = timeStampArray != null && timeStampArray.size() > i ? timeStampArray[i] : 0;
+                    var rain = rainArray != null && rainArray.size() > i ? rainArray[i] : 0.0f;
+                    var snow = snowArray != null && snowArray.size() > i ? snowArray[i] : 0.0f;
+                    var total = rain + snow;
+            System.println(
+                ["minutely rainandsnow", i, total, formatUnixTime(timestamp)] +
+                    " Rain: " +
+                    rain +
+                    " Snow: " +
+                    snow
+            );
+            
+                    metrics.minutelyRainForecast.add(
+                        rainArray != null && rainArray.size() > i
+                            ? rainArray[i]
+                            : 0.0f
+                    );
+                    metrics.minutelySnowForecast.add(
+                        snowArray != null && snowArray.size() > i
+                            ? snowArray[i]
+                            : 0.0f
+                    );
                 }
                 // Gives the rider 15–30 minutes notice before wet asphalt compromises cornering grip
                 var threshold = 0.1f;
@@ -250,7 +287,6 @@ class WeatherService {
                     threshold
                 );
             }
-            
 
             metrics.isValid = true;
             _metrics = metrics;

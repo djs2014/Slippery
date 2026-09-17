@@ -70,32 +70,34 @@ function getHazardString(hazard as WeatherHazard) as Lang.String {
 }
 
 function getShortHazardString(hazard as WeatherHazard) as Lang.String {
-    if (hazard == HazardBlackIceFreezingWetRoad) {
-        return "Black Ice";
-    } else if (hazard == HazardSnowOrSlushAccumulation) {
-        return "Snow/Slush";
-    } else if (hazard == HazardRoadSurfaceFrost) {
-        return "Frost";
-    } else if (hazard == HazardWetLeafCoverage) {
-        return "Wet Leaves";
-    } else if (hazard == HazardFirstRainReleasingDirtOils) {
-        return "First Rain";
-    } else if (hazard == HazardIceOnBridges) {
-        return "Ice on Bridges";
-    } else if (hazard == HazardWetAsphaltSurface) {
-        return "Wet Asphalt";
-    } else if (hazard == HazardHeavyRainHydroplaning) {
-        return "Heavy Rain";
-    } else if (hazard == HazardStrongCrosswinds) {
-        return "Strong Crosswinds";
-    } else if (hazard == HazardGaleForceWinds) {
-        return "Gale Force Winds";
-    } else if (hazard == HazardImminentSnow) {
-        return "Imminent Snow";
-    } else if (hazard == HazardImminentRain) {
-        return "Imminent Rain";
+    switch (hazard) {
+        case HazardBlackIceFreezingWetRoad:
+            return "Ice";
+        case HazardSnowOrSlushAccumulation:
+            return "Snow/Slush";
+        case HazardRoadSurfaceFrost:
+            return "Frost";
+        case HazardWetLeafCoverage:
+            return "Leaves";
+        case HazardFirstRainReleasingDirtOils:
+            return "Slick Rain";
+        case HazardIceOnBridges:
+            return "Bridge Ice";
+        case HazardWetAsphaltSurface:
+            return "Wet Road";
+        case HazardHeavyRainHydroplaning:
+            return "Pouring";
+        case HazardStrongCrosswinds:
+            return "Crosswind";
+        case HazardGaleForceWinds:
+            return "Gale Wind";
+        case HazardImminentSnow:
+            return "Imm. Snow";
+        case HazardImminentRain:
+            return "Imm. Rain";
+        default:
+            return "";
     }
-    return "";
 }
 
 enum WeatherAdvice {

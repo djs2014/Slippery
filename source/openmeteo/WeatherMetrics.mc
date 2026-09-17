@@ -28,6 +28,7 @@ class WeatherMetrics {
     var currentSeason as MeteorologicalSeason = SeasonNoData;
 
     // forecast metrics per hour
+    var hourFractionRemaining as Float = 1.0; // Fraction of the current hour that is remaining (0.0 - 1.0)
     var timeStampsForeCast as Array<Number> = []; // Number items (unixtime in seconds)
     var rainForecast as Array<Float> = []; // Float items (mm/h)
     var windForecast as Array<Float> = []; // Float items (km/h)
