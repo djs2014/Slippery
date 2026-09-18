@@ -467,6 +467,40 @@ public function getWindSpeedColor(
     }
 }
 
+public function getNetSpeedColor(
+    netSpeed as Float,
+    isDark as Boolean
+) as Graphics.ColorType {
+    // 1. Headwind Penalties (Negative values)
+    if (netSpeed <= -35.0f) {
+        // Extreme Headwind: Severe Purple
+        return Graphics.COLOR_PURPLE;
+    } else if (netSpeed <= -25.0f) {
+        // Heavy Headwind: Alert Red
+        return Graphics.COLOR_RED;
+    } else if (netSpeed <= -15.0f) {
+        // Moderate Headwind: Caution Orange
+        return Graphics.COLOR_ORANGE;
+    } else if (netSpeed <= -5.0f) {
+        // Light Headwind: Subtle Yellow
+        return isDark ? Graphics.COLOR_YELLOW : AppState.getColor(ThemeManager.COLOR_DARK_YELLOW);
+    } 
+    
+    // 2. Neutral Zone (-4.9 to +4.9 km/h)
+    else if (netSpeed < 5.0f) {
+        return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+    } 
+    
+    // 3. Tailwind Boosts (Positive values)
+    else if (netSpeed < 20.0f) {
+        // Favorable Tailwind: Safe Green
+        return isDark ? Graphics.COLOR_GREEN : Graphics.COLOR_DK_GREEN;
+    } else {
+        // Strong Tailwind: Tailwind Boost Blue
+        return Graphics.COLOR_BLUE;
+    }
+}
+
 public function getTemperatureColor(
     temperature as Float,
     isDark as Boolean

@@ -236,7 +236,7 @@ class SlipperyView extends WatchUi.DataField {
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
-        }         
+        }
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -276,7 +276,9 @@ class SlipperyView extends WatchUi.DataField {
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
             // Add your alert processing logic here
             newAlert = true;
-            Toybox.System.println("Alert for level" + mRiskAssessment.riskLevel);
+            Toybox.System.println(
+                "Alert for level" + mRiskAssessment.riskLevel
+            );
         } else if (mRiskAssessment.riskLevel != mAlertProcessedForLevel) {
             // Reset to current risk level
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
@@ -600,7 +602,7 @@ class SlipperyView extends WatchUi.DataField {
             : Graphics.COLOR_WHITE;
 
         // --- DRAW HEADER BAR ---
-        var headerHeight = (h * 0.18).toNumber();
+        var headerHeight = (h * 0.15).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, w, headerHeight);
 
@@ -701,21 +703,38 @@ class SlipperyView extends WatchUi.DataField {
         ); // Bottom
 
         var gridLinePos = y + gridTop;
-        // Cell 1: AdrawGridCellir Temp
-        drawGridCell(
-            dc,
-            x,
-            gridLinePos,
-            colWidth,
-            rowHeight,
-            "AIR TEMP",
-            Lang.format("$1$", [mWeatherMetrics.airTemp.format("%.1f")]),
-            "°C",
-            labelColor,
-            unitColor,
-            $.getTemperatureColor(mWeatherMetrics.airTemp, isDark)
-        );
+        // Cell 1: Air Temp
 
+        if ($.gUseFeelsLikeTemperature) {
+            // Cell 1: Feels like
+            drawGridCell(
+                dc,
+                x,
+                gridLinePos,
+                colWidth,
+                rowHeight,
+                "FEELS LIKE",
+                Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
+                "°C",
+                labelColor,
+                $.getTemperatureColor(mFeelsLikeTemp, isDark),
+                unitColor
+            );
+        } else {
+            drawGridCell(
+                dc,
+                x,
+                gridLinePos,
+                colWidth,
+                rowHeight,
+                "AIR TEMP",
+                Lang.format("$1$", [mWeatherMetrics.airTemp.format("%.1f")]),
+                "°C",
+                labelColor,
+                $.getTemperatureColor(mWeatherMetrics.airTemp, isDark),
+                unitColor
+            );
+        }
         // Cell 2: Surface Temp
         drawGridCell(
             dc,
@@ -727,8 +746,8 @@ class SlipperyView extends WatchUi.DataField {
             Lang.format("$1$", [mWeatherMetrics.surfaceTemp.format("%.1f")]),
             "°C",
             labelColor,
-            unitColor,
-            $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark)
+            $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark),
+            unitColor
         );
 
         gridLinePos += rowHeight;
@@ -743,8 +762,8 @@ class SlipperyView extends WatchUi.DataField {
             Lang.format("$1$", [mWeatherMetrics.dewPoint.format("%.1f")]),
             "°C",
             labelColor,
-            unitColor,
-            DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark)
+            DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark),
+            unitColor
         );
 
         // Cell 4: Humidity
@@ -758,8 +777,8 @@ class SlipperyView extends WatchUi.DataField {
             Lang.format("$1$", [mWeatherMetrics.humidity]),
             "%",
             labelColor,
-            unitColor,
-            $.getHumidityColor(mWeatherMetrics.humidity, isDark)
+            $.getHumidityColor(mWeatherMetrics.humidity, isDark),
+            unitColor
         );
 
         gridLinePos += rowHeight;
@@ -775,12 +794,48 @@ class SlipperyView extends WatchUi.DataField {
             Lang.format("$1$", [mWeatherMetrics.windSpeed.format("%.1f")]),
             "km/h",
             labelColor,
-            unitColor,
-            $.getWindSpeedColor(mWeatherMetrics.windSpeed, isDark)
+            $.getWindSpeedColor(mWeatherMetrics.windSpeed, isDark),
+            unitColor
         );
 
-        // Cell 6: Wind Gust or Cross gust
-        if ($.gUseEffectiveCrossGust) {
+        // Cell 6: Wind Gust
+        drawGridCell(
+            dc,
+            x + colWidth,
+            gridLinePos,
+            colWidth,
+            rowHeight,
+            "WIND GUST",
+            Lang.format("$1$", [mWeatherMetrics.windGust.format("%.1f")]),
+            "km/h",
+            labelColor,
+            $.getGustSeverityColor(mWeatherMetrics.gustSeverity, isDark),
+            unitColor
+        );
+
+        // Capture pointer once at start of frame
+        var localHazards = mHazardStrings;
+        var localAdvice = mAdviceStrings;
+
+        if ($.gHideRiskAdvice || localHazards.size() <= 3) {
+            // Show when no advice or max 3 hazard
+            gridLinePos += rowHeight;
+
+            // Cell 7: Net wind
+            drawGridCell(
+                dc,
+                x,
+                gridLinePos,
+                colWidth,
+                rowHeight,
+                "NET WIND " + NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
+                Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
+                "km/h",
+                labelColor,
+                $.getNetSpeedColor(mNetHeadwindKmh, isDark),
+                unitColor
+            );
+            // Cell 8: Cross gust
             drawGridCell(
                 dc,
                 x + colWidth,
@@ -793,60 +848,8 @@ class SlipperyView extends WatchUi.DataField {
                 ]),
                 "km/h",
                 labelColor,
-                unitColor,
-                mCrossGust.color
-            );
-        } else {
-            drawGridCell(
-                dc,
-                x + colWidth,
-                gridLinePos,
-                colWidth,
-                rowHeight,
-                "WIND GUST",
-                Lang.format("$1$", [mWeatherMetrics.windGust.format("%.1f")]),
-                "km/h",
-                labelColor,
-                unitColor,
-                $.getGustSeverityColor(mWeatherMetrics.gustSeverity, isDark)
-            );
-        }
-
-        // Capture pointer once at start of frame
-        var localHazards = mHazardStrings;
-        var localAdvice = mAdviceStrings;
-
-        if ($.gHideRiskAdvice || localHazards.size() <= 3) {
-            // Show when no advice or max 3 hazard
-            gridLinePos += rowHeight;
-
-            // Cell 7: Feels like
-            drawGridCell(
-                dc,
-                x,
-                gridLinePos,
-                colWidth,
-                rowHeight,
-                "FEELS LIKE",
-                Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
-                "°C",
-                labelColor,
-                unitColor,
-                $.getTemperatureColor(mFeelsLikeTemp, isDark)
-            );
-            // Cell 8: Net wind
-            drawGridCell(
-                dc,
-                x + colWidth,
-                gridLinePos,
-                colWidth,
-                rowHeight,
-                "NET WIND " + NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
-                Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
-                "km/h",
-                labelColor,
-                unitColor,
-                $.getWindSpeedColor(mNetHeadwindKmh, isDark)
+                mCrossGust.color,
+                unitColor
             );
         }
         // --- CURRENT WIND ARROW CENTERED IN GRID HEADER ---
@@ -907,8 +910,8 @@ class SlipperyView extends WatchUi.DataField {
         value as String,
         unit as String,
         labelColor as Number,
-        unitColor as Number,
-        valueColor as Number
+        valueColor as Number,
+        unitColor as Number
     ) as Void {
         // Label
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
@@ -1324,7 +1327,7 @@ class SlipperyView extends WatchUi.DataField {
                 Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
                 "km/h",
                 labelColor,
-                $.getWindSpeedColor(mNetHeadwindKmh, isDark),
+                $.getNetSpeedColor(mNetHeadwindKmh, isDark),
                 unitColor
             );
         } else {
@@ -1363,10 +1366,6 @@ class SlipperyView extends WatchUi.DataField {
             }
 
             // Col 2: Surface Temp
-            var surfColor =
-                mWeatherMetrics.surfaceTemp <= 0
-                    ? Graphics.COLOR_RED
-                    : textColor;
             drawMetricColumn(
                 dc,
                 x + rightX + colW,
@@ -1379,7 +1378,7 @@ class SlipperyView extends WatchUi.DataField {
                 ]),
                 "°C",
                 labelColor,
-                surfColor,
+                $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark),
                 unitColor
             );
 
@@ -1494,16 +1493,26 @@ class SlipperyView extends WatchUi.DataField {
         // --- TOP BAR: App Title + Risk Level ---
         var headerLineHeight = Graphics.getFontHeight(Graphics.FONT_SMALL);
 
+        var centerHeaderY = y + (headerHeight - headerLineHeight) / 2;
         dc.setColor(riskTextColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
             x + 6,
-            y + (headerHeight - headerLineHeight) / 2,
+            centerHeaderY,
             Graphics.FONT_SMALL,
             mAppName,
             Graphics.TEXT_JUSTIFY_LEFT
         );
 
-        var centerHeaderY = y + (headerHeight - headerLineHeight) / 2;
+        var iconSize = (headerHeight * 0.7).toNumber();
+        AlertCategoryRenderer.drawCategoryIcon(
+            dc,
+            x + 6 + dc.getTextWidthInPixels(mAppName, Graphics.FONT_SMALL) + iconSize,
+            centerHeaderY + iconSize / 2,
+            iconSize,
+            mAlertCategory,
+            riskTextColor
+        );
+
         var headerTextPosX = x + w - 6;
         dc.drawText(
             headerTextPosX,
@@ -1516,11 +1525,11 @@ class SlipperyView extends WatchUi.DataField {
             riskLevelText,
             Graphics.FONT_SMALL
         );
-        var iconSize = (headerHeight * 0.8).toNumber();
+        
         RiskIconRenderer.drawRiskIcon(
             dc,
             headerTextPosX - headerTextLength - iconSize - 1,
-            y + (headerHeight / 2).toNumber(),
+            centerHeaderY + iconSize / 2, 
             iconSize,
             mRiskAssessment.riskLevel,
             riskTextColor,
@@ -1571,59 +1580,137 @@ class SlipperyView extends WatchUi.DataField {
 
         var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
         var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
-        drawGridCell(
-            dc,
-            x,
-            gridTop,
-            halfW,
-            rowH,
-            "AIR TEMP",
-            Lang.format("$1$", [mWeatherMetrics.airTemp.format("%.1f")]),
-            "°C",
-            labelColor,
-            unitColor,
-            $.getTemperatureColor(mWeatherMetrics.airTemp, isDark)
-        );
-        drawGridCell(
-            dc,
-            x + halfW,
-            gridTop,
-            halfW,
-            rowH,
-            "SURFACE TEMP",
-            Lang.format("$1$", [mWeatherMetrics.surfaceTemp.format("%.1f")]),
-            "°C",
-            labelColor,
-            unitColor,
-            $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark)
-        );
-        drawGridCell(
-            dc,
-            x,
-            gridTop + rowH,
-            halfW,
-            rowH,
-            "DEW POINT",
-            Lang.format("$1$", [mWeatherMetrics.dewPoint.format("%.1f")]),
-            "°C",
-            labelColor,
-            unitColor,
-            DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark)
-        );
-        drawGridCell(
-            dc,
-            x + halfW,
-            gridTop + rowH,
-            halfW,
-            rowH,
-            "HUMIDITY",
-            Lang.format("$1$", [mWeatherMetrics.humidity]),
-            "%",
-            labelColor,
-            unitColor,
-            $.getHumidityColor(mWeatherMetrics.humidity, isDark)
-        );
 
+        if (mAlertCategory == CATEGORY_WIND) {
+            drawGridCell(
+                dc,
+                x,
+                gridTop,
+                halfW,
+                rowH,
+                "WIND",
+                Lang.format("$1$", [mWeatherMetrics.windSpeed.format("%.1f")]),
+                "km/h",
+                labelColor,
+                $.getTemperatureColor(mWeatherMetrics.windSpeed, isDark),
+                unitColor
+            );
+            drawGridCell(
+                dc,
+                x + halfW,
+                gridTop,
+                halfW,
+                rowH,
+                "GUST",
+                Lang.format("$1$", [mWeatherMetrics.windGust.format("%.1f")]),
+                "km/h",
+                labelColor,
+                $.getTemperatureColor(mWeatherMetrics.windGust, isDark),
+                unitColor
+            );
+
+            drawGridCell(
+                dc,
+                x,
+                gridTop + rowH,
+                halfW,
+                rowH,
+                NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
+                Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
+                "km/h",
+                labelColor,
+                $.getNetSpeedColor(mNetHeadwindKmh, isDark),
+                unitColor
+            );
+            drawGridCell(
+                dc,
+                x + halfW,
+                gridTop + rowH,
+                halfW,
+                rowH,
+                "Cx GUST",
+                Lang.format("$1$", [
+                    mCrossGust.crosswindGustKmH.format("%.1f"),
+                ]),
+                "km/h",
+                labelColor,
+                mCrossGust.color,
+                unitColor
+            );
+        } else {
+            if ($.gUseFeelsLikeTemperature) {
+                drawGridCell(
+                    dc,
+                    x,
+                    gridTop,
+                    halfW,
+                    rowH,
+                    "FEELS LIKE",
+                    Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
+                    "°C",
+                    labelColor,
+                    unitColor,
+                    $.getTemperatureColor(mFeelsLikeTemp, isDark)
+                );
+            } else {
+                drawGridCell(
+                    dc,
+                    x,
+                    gridTop,
+                    halfW,
+                    rowH,
+                    "AIR TEMP",
+                    Lang.format("$1$", [
+                        mWeatherMetrics.airTemp.format("%.1f"),
+                    ]),
+                    "°C",
+                    labelColor,
+                    unitColor,
+                    $.getTemperatureColor(mWeatherMetrics.airTemp, isDark)
+                );
+            }
+            drawGridCell(
+                dc,
+                x + halfW,
+                gridTop,
+                halfW,
+                rowH,
+                "SURFACE TEMP",
+                Lang.format("$1$", [
+                    mWeatherMetrics.surfaceTemp.format("%.1f"),
+                ]),
+                "°C",
+                labelColor,
+                $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark),
+                unitColor,
+            );
+            drawGridCell(
+                dc,
+                x,
+                gridTop + rowH,
+                halfW,
+                rowH,
+                "DEW POINT",
+                Lang.format("$1$", [mWeatherMetrics.dewPoint.format("%.1f")]),
+                "°C",
+                labelColor,
+                DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark),
+                unitColor,
+            );
+            drawGridCell(
+                dc,
+                x + halfW,
+                gridTop + rowH,
+                halfW,
+                rowH,
+                "HUMIDITY",
+                Lang.format("$1$", [mWeatherMetrics.humidity]),
+                "%",
+                labelColor,
+                $.getHumidityColor(mWeatherMetrics.humidity, isDark),
+                unitColor,
+            );
+        }
         // // --- CURRENT WIND ARROW CENTERED IN GRID ---
         // CurrentWindWidget.draw(
         //     dc,
@@ -1843,7 +1930,7 @@ class SlipperyView extends WatchUi.DataField {
         System.println("Playing alert tone");
         return;
     }
-  
+
     function showToastForAlert() as Void {
         if (!(WatchUi has :showToast)) {
             return;

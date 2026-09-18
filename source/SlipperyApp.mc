@@ -174,8 +174,8 @@ var gBeepOnAlertStateChange as Boolean = true;
 
 var gHSPshowValue as Boolean = false;
 var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
-var gUseEffectiveCrossGust as Boolean = true; 
 var gUseFeelsLikeTemperature as Boolean = true;
+var gUseEffectiveCrossGust as Boolean = true; 
 var gHideRiskAdvice as Boolean = false;
 var gShortHazard as Boolean = false;
 var gHideUnitsWhenActive as Boolean = true;

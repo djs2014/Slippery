@@ -17,25 +17,34 @@ auto mode / layout fonts
     - icon
     - alert icon
     - fonts
-
+    - wind: wind + cx gust + net wind
+    - temp: air/fl + surf + dewpnt
+    
 2 large field
+    - icons
+    - alert icon
+    - wind: wind + gust
+        cx gust + net wind
+    - temp: air/feel like + surf 
+         dewpnt + humidity
+
 3 small 
+    - icons
+    - alert icon
+    wind: Cx Gust + Net Wind
+    cold: air/feel like + surf
+    heat/normal: air/feel like + dewpnt
+        
 4 one field -> reorder fields
+    - icons
+    - alert icon
 
-settings: warning levels headwind customize 15km headwind default
+    air / feel like + surface
+    dewp + humidity
+    wind + gust 
+    net wind + cruss gust
 
-
-
-fix demo
-
-Add gustSeverity to the DemoWeatherService getDemoWeatherMetrics
-And fill the showersForecast because that is missing in the demo data
-Also the dewpointForecast is missing in the demo data
-
-And optionally fill in some 
-minutelyRainForecast with 4 entries and
-minutelySnowForecast with 4 entries
-
+x settings: warning levels headwind customize 15km headwind default
 
 replace all getColor
    
