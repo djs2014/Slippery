@@ -24,7 +24,19 @@ auto mode / layout fonts
 
 settings: warning levels headwind customize 15km headwind default
 
+
+
 fix demo
+
+Add gustSeverity to the DemoWeatherService getDemoWeatherMetrics
+And fill the showersForecast because that is missing in the demo data
+Also the dewpointForecast is missing in the demo data
+
+And optionally fill in some 
+minutelyRainForecast with 4 entries and
+minutelySnowForecast with 4 entries
+
+
 replace all getColor
    
 - alert on incoming rain/snow

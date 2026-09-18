@@ -20,6 +20,7 @@ class DemoWeatherService {
             wd.windSpeed = 5.0f;
             wd.windGust = 7.0f;
             wd.windDirection = 90;
+            wd.gustSeverity = 1;
 
             wd.rain12hSum = 0.0f;
             wd.snow12hSum = 0.0f;
@@ -69,6 +70,7 @@ class DemoWeatherService {
             wd.windSpeed = 18.0f;
             wd.windGust = 28.0f;
             wd.windDirection = 270;
+            wd.gustSeverity = 2;
 
             wd.rain12hSum = 1.2f;
             wd.snow12hSum = 0.0f;
@@ -118,6 +120,7 @@ class DemoWeatherService {
             wd.windSpeed = 25.0f;
             wd.windGust = 42.0f;
             wd.windDirection = 220;
+            wd.gustSeverity = 2;
 
             wd.rain12hSum = 6.5f;
             wd.snow12hSum = 0.0f;
@@ -167,6 +170,7 @@ class DemoWeatherService {
             wd.windSpeed = 32.0f;
             wd.windGust = 55.0f;
             wd.windDirection = 310;
+            wd.gustSeverity = 3;
 
             wd.rain12hSum = 18.0f;
             wd.snow12hSum = 0.0f;
@@ -216,6 +220,7 @@ class DemoWeatherService {
             wd.windSpeed = 20.0f;
             wd.windGust = 35.0f;
             wd.windDirection = 180;
+            wd.gustSeverity = 3;
 
             wd.rain12hSum = 12.0f;
             wd.snow12hSum = 0.0f;
@@ -265,6 +270,7 @@ class DemoWeatherService {
             wd.windSpeed = 28.0f;
             wd.windGust = 48.0f;
             wd.windDirection = 45;
+            wd.gustSeverity = 3;
 
             wd.rain12hSum = 14.0f;
             wd.snow12hSum = 5.0f;
@@ -303,6 +309,74 @@ class DemoWeatherService {
                 -2.2f, -2.8f, -3.3f, -3.8f, -4.2f, -4.6f, -4.8f, -5.0f, -5.2f,
                 -5.5f, -5.8f, -6.0f,
             ];
+        }
+
+        if (counter <= 5) {
+            wd.showersForecast = [
+                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                18.0f, 18.2f, 18.5f, 18.0f, 17.5f, 17.0f, 16.0f, 15.0f, 14.0f,
+                13.0f, 12.5f, 12.0f,
+            ];
+            wd.minutelyRainForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+            wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+        } else if (counter <= 10) {
+            wd.showersForecast = [
+                0.0f, 0.1f, 0.2f, 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                10.0f, 9.8f, 9.5f, 9.2f, 9.0f, 8.8f, 8.5f, 8.2f, 8.0f, 7.8f,
+                7.5f, 7.2f,
+            ];
+            wd.minutelyRainForecast = [0.0f, 0.0f, 0.2f, 0.5f];
+            wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+        } else if (counter <= 20) {
+            wd.showersForecast = [
+                0.3f, 0.4f, 0.3f, 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                7.0f, 6.8f, 6.5f, 6.2f, 6.0f, 5.8f, 5.5f, 5.2f, 5.0f, 4.8f,
+                4.5f, 4.2f,
+            ];
+            wd.minutelyRainForecast = [1.5f, 1.8f, 2.0f, 2.2f];
+            wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+        } else if (counter <= 30) {
+            wd.showersForecast = [
+                0.5f, 0.8f, 0.4f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                0.5f, -0.1f, -0.8f, -1.4f, -2.0f, -2.4f, -2.8f, -3.1f, -3.4f,
+                -3.7f, -4.0f, -4.3f,
+            ];
+            wd.minutelyRainForecast = [3.5f, 3.0f, 2.2f, 1.5f];
+            wd.minutelySnowForecast = [0.0f, 0.0f, 0.2f, 0.8f];
+        } else if (counter <= 40) {
+            wd.showersForecast = [
+                0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                2.8f, 2.2f, 1.6f, 1.0f, 0.4f, 0.0f, -0.4f, -0.8f, -1.1f, -1.4f,
+                -1.7f, -2.0f,
+            ];
+            wd.minutelyRainForecast = [0.2f, 0.1f, 0.0f, 0.0f];
+            wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+        } else if (counter <= 50) {
+            wd.showersForecast = [
+                0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
+            ];
+            wd.dewpointForecast = [
+                -2.0f, -2.5f, -3.0f, -3.5f, -3.9f, -4.3f, -4.6f, -4.9f, -5.1f,
+                -5.4f, -5.7f, -6.0f,
+            ];
+            wd.minutelyRainForecast = [0.8f, 0.5f, 0.2f, 0.0f];
+            wd.minutelySnowForecast = [1.5f, 2.0f, 2.5f, 2.8f];
         }
 
         if (wd.timeStampsForeCast.size() == 12) {
