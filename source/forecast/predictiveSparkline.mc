@@ -82,6 +82,35 @@ class PredictiveSparkline {
                 Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
             );
         }
+
+        // --- SHOW MINUTES TO NEXT HOUR ---
+        if (enableBadges && metrics.hourFractionRemaining < 1.0) {
+            //var minutesToNextHour = (metrics.hourFractionRemaining * 60).toNumber();
+            var minutesToNextHour = 60 - System.getClockTime().min;
+            System.println("Minutes to next hour: " + minutesToNextHour);
+            dc.setColor(
+                haloColor,
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x + width - 2,
+                y + height / 2,
+                Graphics.FONT_XTINY,
+                Lang.format("$1$", [minutesToNextHour]),
+                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+            dc.setColor(
+                AppState.activePalette[ThemeManager.COLOR_TEXT],
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x + width - 3,
+                y + height / 2,
+                Graphics.FONT_XTINY,
+                Lang.format("$1$", [minutesToNextHour]),
+                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+        }
     }
 
     public static function draw(
