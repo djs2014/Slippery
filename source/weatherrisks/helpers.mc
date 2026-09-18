@@ -466,6 +466,27 @@ public function getWindSpeedColor(
     }
 }
 
+public function getTemperatureColor(
+    temperature as Float,
+    isDark as Boolean
+) as Graphics.ColorType {
+    if (temperature <= 0.0f) {
+        return Graphics.COLOR_RED;
+    } else {
+        return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+    }
+}
+
+public function getHumidityColor(
+    humidity as Number,
+    isDark as Boolean
+) as Graphics.ColorType {
+    if (humidity >= 80.0f) {
+        return Graphics.COLOR_RED;
+    } else {
+        return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+    }
+}
 
 /*
 import Toybox.Graphics;

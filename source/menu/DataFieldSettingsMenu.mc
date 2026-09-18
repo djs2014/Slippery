@@ -159,6 +159,16 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
           null
         )
       );
+      boolean = Storage.getValue("useFeelsLikeTemperature") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Feels Like Temperature",
+          null,
+          "useFeelsLikeTemperature",
+          boolean,
+          null
+        )
+      );
       boolean = Storage.getValue("shortHazard") ? true : false;
       advMenu.addItem(
         new WatchUi.ToggleMenuItem(

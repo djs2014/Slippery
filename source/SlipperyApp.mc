@@ -64,6 +64,7 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("hsp_darklight_breakpoint", 180);    
                 Storage.setValue("showForecastHour", ForecastHourAbsolute);            
                 Storage.setValue("useEffectiveCrossGust", true);            
+                Storage.setValue("useFeelsLikeTemperature", true);            
                 Storage.setValue("shortHazard", false);            
                 Storage.setValue("hideRiskAdvice", false);            
                 Storage.setValue("hideUnitsWhenActive", true);
@@ -106,6 +107,8 @@ class SlipperyApp extends Application.AppBase {
                 $.getStorageValue("showForecastHour", ForecastHourAbsolute) as ShowForecastHour;
             $.gUseEffectiveCrossGust =
                 $.getStorageValue("useEffectiveCrossGust", true) as Boolean;
+            $.gUseFeelsLikeTemperature =
+                $.getStorageValue("useFeelsLikeTemperature", true) as Boolean;
             $.gHideRiskAdvice =
                 $.getStorageValue("hideRiskAdvice", false) as Boolean;  
             $.gShortHazard =
@@ -153,6 +156,7 @@ var gToastOnAlert as Boolean = false;
 var gHSPshowValue as Boolean = false;
 var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
 var gUseEffectiveCrossGust as Boolean = true; 
+var gUseFeelsLikeTemperature as Boolean = true;
 var gHideRiskAdvice as Boolean = false;
 var gShortHazard as Boolean = false;
 var gHideUnitsWhenActive as Boolean = true;
