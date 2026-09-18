@@ -32,7 +32,7 @@ class NetwindAnalyzer {
     }
 
     // Formatting Helper for UI Display: "+12 TW" or "-8 HW"
-    function formatNetWind(netWind as Float) as String {
+    static function formatNetWind(netWind as Float) as String {
         var absVal = Math.round(netWind.abs()).toNumber();
         if (netWind >= 0) {
             return "+" + absVal + " TW";

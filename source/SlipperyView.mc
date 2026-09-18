@@ -47,6 +47,15 @@ class SlipperyView extends WatchUi.DataField {
     private var mCurrentHour as Number = -1;
     private var _lastMinuteChecked as Number = -1;
 
+    private var mAlertState as AlertState = STATE_NORMAL;
+    private var mCrossWind as CrosswindResult = new CrosswindResult(
+        SEVERITY_LOW,
+        0.0f,
+        0
+    );
+    private var mNetHeadwindKmh as Float = 0.0f;
+    private var mFeelsLikeTemp as Float = 0.0f;
+
     function initialize() {
         DataField.initialize();
 
@@ -193,8 +202,36 @@ class SlipperyView extends WatchUi.DataField {
 
         mPaused = ActivityUtils.getPaused(info);
         handleForecastQuarterChange();
+
+        UpdateAlertState();
     }
 
+    function UpdateAlertState() as Void {
+        mCrossWind = CrosswindAnalyzer.evaluateCrosswind(
+            mWeatherMetrics.windDirection,
+            mHeadingDegrees,
+            mWeatherMetrics.windGust,
+            mIsDark
+        );
+        mFeelsLikeTemp = WeatherUtils.getApparentTemperature(
+            mWeatherMetrics.airTemp,
+            mWeatherMetrics.humidity,
+            mWeatherMetrics.windSpeed
+        );
+        mNetHeadwindKmh = NetwindAnalyzer.calculateNetWind(
+            mWeatherMetrics.windSpeed,
+            mWeatherMetrics.windDirection,
+            mHeadingDegrees
+        );
+
+        mAlertState = AlertStateAnalyzer.updateAndEvaluate(
+            mWeatherMetrics.surfaceTemp,
+            mCrossWind.crosswindGustKmH,
+            mWeatherMetrics.windSpeed,
+            mNetHeadwindKmh,
+            mFeelsLikeTemp
+        );
+    }
     function initializeMinutesUntilCounters() as Void {
         if (mWeatherMetrics.immediateRain < 0) {
             mMinutesUntilRain = -1;
@@ -731,12 +768,6 @@ class SlipperyView extends WatchUi.DataField {
 
         // Cell 6: Wind Gust or Cross gust
         if ($.gUseEffectiveCrossGust) {
-            var crossWind = CrosswindAnalyzer.evaluateCrosswind(
-                mWeatherMetrics.windDirection,
-                mHeadingDegrees,
-                mWeatherMetrics.windGust,
-                isDark
-            );
             drawGridCell(
                 dc,
                 x + colWidth,
@@ -744,11 +775,11 @@ class SlipperyView extends WatchUi.DataField {
                 colWidth,
                 rowHeight,
                 "CROSS GUST",
-                Lang.format("$1$", [crossWind.crosswindGustKmH.format("%.1f")]),
+                Lang.format("$1$", [mCrossWind.crosswindGustKmH.format("%.1f")]),
                 "km/h",
                 labelColor,
                 unitColor,
-                crossWind.color
+                mCrossWind.color
             );
         } else {
             drawGridCell(
@@ -774,12 +805,7 @@ class SlipperyView extends WatchUi.DataField {
             // Show when no advice or max 3 hazard
             gridLinePos += rowHeight;
 
-            // Cell 7: Feels like
-            var feelsLike = WeatherUtils.getApparentTemperature(
-                mWeatherMetrics.airTemp,
-                mWeatherMetrics.humidity,
-                mWeatherMetrics.windSpeed
-            );
+            // Cell 7: Feels like          
             drawGridCell(
                 dc,
                 x,
@@ -787,30 +813,25 @@ class SlipperyView extends WatchUi.DataField {
                 colWidth,
                 rowHeight,
                 "FEELS LIKE",
-                Lang.format("$1$", [feelsLike.format("%.1f")]),
+                Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
                 "°C",
                 labelColor,
                 unitColor,
-                $.getWindSpeedColor(feelsLike, isDark)
+                $.getWindSpeedColor(mFeelsLikeTemp, isDark)
             );
-            // Cell 8: Net wind
-            var netWindSpeed = NetwindAnalyzer.calculateNetWind(
-                mWeatherMetrics.windSpeed,
-                mWeatherMetrics.windDirection,
-                mHeadingDegrees
-            );
+            // Cell 8: Net wind            
             drawGridCell(
                 dc,
                 x + colWidth,
                 gridLinePos,
                 colWidth,
                 rowHeight,
-                "NET WIND " + NetwindAnalyzer.formatNetWind(netWindSpeed),
-                Lang.format("$1$", [netWindSpeed.format("%.1f")]),
+                "NET WIND " + NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
+                Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
                 "km/h",
                 labelColor,
                 unitColor,
-                $.getWindSpeedColor(netWindSpeed, isDark)
+                $.getWindSpeedColor(mNetHeadwindKmh, isDark)
             );
         }
         // --- CURRENT WIND ARROW CENTERED IN GRID HEADER ---
