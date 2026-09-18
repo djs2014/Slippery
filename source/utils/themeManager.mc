@@ -1,140 +1,188 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.System;
 
 /*
-// In draw routines (e.g., PredictiveSparkline.draw):
-var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
-var hazardColor = AppState.activePalette[ThemeManager.COLOR_HAZARD];
+// Option A: Direct palette access with explicit cast
+var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT as Number];
+var hazardColor = AppState.activePalette[ThemeManager.COLOR_HAZARD as Number];
+
+// Option B: Using the ThemeManager helper
+var textColor = ThemeManager.getThemeColor(ThemeManager.COLOR_TEXT, isDark);
 */
-// Initialize active palette pointer once when theme updates
 class AppState {
-    public static var activePalette as Array<ColorType> =
-        ThemeManager.DARK_PALETTE;
+    // Reference Graphics.ColorType explicitly
+    public static var activePalette as Array<Graphics.ColorType> = ThemeManager.DARK_PALETTE;
 
     public static function updateTheme(isDark as Boolean) as Void {
         activePalette = isDark
             ? ThemeManager.DARK_PALETTE
             : ThemeManager.LIGHT_PALETTE;
     }
+
+    public static function getColor(key as ThemeManager.ColorKey) as Graphics.ColorType {
+        var idx = key as Number;
+
+        // Bounds check safeguard
+        if (idx < 0 || idx >= activePalette.size()) {
+            System.println("AppState: Color index out of bounds: " + idx);
+            System.println("Key index requested: " + (key as Number));
+            System.println("Palette size: " + activePalette.size());
+            return Graphics.COLOR_WHITE; // Default fallback on error
+        }
+
+        return activePalette[idx];
+    }
 }
 
 class ThemeManager {
-    // 1. Raw Base Colors (Defined ONCE as shared primitives)
-    private static const RAW_BLUE = 0x00aaff;
-    private static const RAW_CYAN_BLUE = 0x00d5ff;
-    private static const RAW_ROYAL_BLUE = 0x0044cc;
-    private static const RAW_DARK_BLUE = 0x0000aa;
-    private static const RAW_YELLOW_DARK_THEME = 0xe5ff00;
-    private static const RAW_YELLOW_LIGHT_THEME = 0xc79c00;
-    private static const RAW_DARK_YELLOW = 0x997700;
-    private static const RAW_GREEN_DARK_THEME = 0x00ff66;
-    private static const RAW_GREEN_LIGHT_THEME = 0x008822;
-    private static const RAW_DARK_GREEN = 0x006600;
-    private static const RAW_RED_DARK_THEME = 0xff4444;
-    private static const RAW_RED_LIGHT_THEME = 0xcc3333;
-    private static const RAW_DARK_RED = 0xaa0000;
-    private static const RAW_GREY_MID = 0xaaaaaa;
-    private static const RAW_GREY_DARK = 0x555555;
-    private static const RAW_DEEP_CYAN = 0x0088cc;
-    private static const RAW_LIGHT_COLUMBIA_BLUE = 0x99ddff;
-    private static const RAW_INTL_ORANGE = 0xff5500;
-    private static const RAW_FREE_SPEECH_RED = 0xcc0000;
-    private static const RAW_ELECTRIC_BLUE = 0x0055ff;
-    private static const RAW_HAZARD_LIGHT = 0xb38f00;
+    // 1. Raw Base Colors
+    private static const RAW_BLUE                  = 0x00AAFF;
+    private static const RAW_CYAN_BLUE             = 0x00D5FF;
+    private static const RAW_ROYAL_BLUE            = 0x0044CC;
+    private static const RAW_DARK_BLUE             = 0x0000AA;
+    private static const RAW_YELLOW_DARK_THEME     = 0xE5FF00;
+    private static const RAW_YELLOW_LIGHT_THEME    = 0xC79C00;
+    private static const RAW_DARK_YELLOW           = 0x997700;
+    private static const RAW_GREEN_DARK_THEME      = 0x00FF66;
+    private static const RAW_GREEN_LIGHT_THEME     = 0x008822;
+    private static const RAW_DARK_GREEN            = 0x006600;
+    private static const RAW_RED_DARK_THEME        = 0xFF4444;
+    private static const RAW_RED_LIGHT_THEME       = 0xCC3333;
+    private static const RAW_DARK_RED              = 0xAA0000;
+    private static const RAW_GREY_MID              = 0xAAAAAA;
+    private static const RAW_GREY_DARK             = 0x555555;
+    private static const RAW_DEEP_CYAN             = 0x0088CC;
+    private static const RAW_LIGHT_COLUMBIA_BLUE  = 0x99DDFF;
+    private static const RAW_INTL_ORANGE           = 0xFF5500;
+    private static const RAW_FREE_SPEECH_RED       = 0xCC0000;
+    private static const RAW_ELECTRIC_BLUE         = 0x0055FF;
+    private static const RAW_HAZARD_LIGHT          = 0xB38F00;
+    private static const RAW_DEEP_PURPLE_LIGHT     = 0x5500AA;
+    private static const RAW_DEEP_PURPLE_DARK      = 0xAA00FF;
+    private static const RAW_SHADES_OF_TANGAROA    = 0x002244;
+    private static const RAW_SHADES_OF_ALICE_BLUE  = 0xDCEEFF;
+    private static const RAW_SHADES_OF_AQUA        = 0x00FFFF;
+    private static const RAW_SHADES_OF_OLIVE       = 0x666600;
 
-    // 2. Semantic Color Keys (Indexes)
-    enum ColorKey {
-        COLOR_BLUE = 0,
-        COLOR_CYAN_BLUE,
-        COLOR_ROYAL_BLUE,
-        COLOR_DARK_BLUE,
-        COLOR_YELLOW,
-        COLOR_DARK_YELLOW,
-        COLOR_GREEN,
-        COLOR_DARK_GREEN,
-        COLOR_RED,
-        COLOR_DARK_RED,
-        COLOR_GREY,
-        COLOR_DARK_GREY,
-        COLOR_TEXT,
-        COLOR_BG,
-        COLOR_LABEL,
-        COLOR_DIVIDER,
-        COLOR_HAZARD,
-        COLOR_DEEP_CYAN,
-        COLOR_DEEP_SKY_BLUE,
-        COLOR_LIGHT_COLUMBIA_BLUE,
-        COLOR_INTERNATIONAL_ORANGE,
-        COLOR_FREE_SPEECH_RED,
-        COLOR_LABEL_LIGHT,
-        COLOR_UNIT,
-        COLOR_ELECTRIC_BLUE,
+    // 2. Semantic Color Keys (0 through 30)
+    public enum ColorKey {
+        COLOR_BLUE,                        // 0
+        COLOR_CYAN_BLUE,                   // 1
+        COLOR_ROYAL_BLUE,                  // 2
+        COLOR_DARK_BLUE,                   // 3
+        COLOR_YELLOW,                      // 4
+        COLOR_DARK_YELLOW,                 // 5
+        COLOR_GREEN,                       // 6
+        COLOR_DARK_GREEN,                  // 7
+        COLOR_RED,                         // 8
+        COLOR_DARK_RED,                    // 9
+        COLOR_GREY,                        // 10
+        COLOR_DARK_GREY,                   // 11
+        COLOR_TEXT,                        // 12
+        COLOR_BG,                          // 13
+        COLOR_LABEL,                       // 14
+        COLOR_DIVIDER,                     // 15
+        COLOR_HAZARD,                      // 16
+        COLOR_DEEP_CYAN,                   // 17
+        COLOR_DEEP_SKY_BLUE,               // 18
+        COLOR_LIGHT_COLUMBIA_BLUE,         // 19
+        COLOR_INTERNATIONAL_ORANGE,        // 20
+        COLOR_FREE_SPEECH_RED,             // 21
+        COLOR_LABEL_LIGHT,                 // 22
+        COLOR_UNIT,                        // 23
+        COLOR_ELECTRIC_BLUE,               // 24
+        COLOR_DEEP_PURPLE_LIGHT,           // 25
+        COLOR_DEEP_PURPLE_DARK,            // 26
+        COLOR_FREEZING_TEMP_BACKGROUND,    // 27
+        COLOR_SNOW_PATTERN,                // 28
+        COLOR_SHOWERS,                     // 29
+        COLOR_OLIVE,                       // 30
+        COLOR_COUNT                        // 31 (Guard marker for palette size)
     }
 
-    // 3. Dark Palette (Maps semantic keys to raw colors or system graphics constants)
+    // 3. Dark Palette
     public static const DARK_PALETTE as Array<Graphics.ColorType> = [
-        RAW_BLUE, // 0: COLOR_BLUE
-        RAW_CYAN_BLUE, // 1: COLOR_CYAN_BLUE
-        Graphics.COLOR_WHITE, // 2: COLOR_ROYAL_BLUE
-        RAW_DARK_BLUE, // 3: COLOR_DARK_BLUE
-        RAW_YELLOW_DARK_THEME, // 4: COLOR_YELLOW
-        RAW_DARK_YELLOW, // 5: COLOR_DARK_YELLOW
-        RAW_GREEN_DARK_THEME, // 6: COLOR_GREEN
-        RAW_DARK_GREEN, // 7: COLOR_DARK_GREEN
-        RAW_RED_DARK_THEME, // 8: COLOR_RED
-        RAW_DARK_RED, // 9: COLOR_DARK_RED
-        RAW_GREY_MID, // 10: COLOR_GREY
-        RAW_GREY_DARK, // 11: COLOR_DARK_GREY
-        Graphics.COLOR_WHITE, // 12: COLOR_TEXT
-        Graphics.COLOR_BLACK, // 13: COLOR_BG
-        Graphics.COLOR_LT_GRAY, // 14: COLOR_LABEL
-        Graphics.COLOR_LT_GRAY, // 15: COLOR_DIVIDER
-        RAW_YELLOW_DARK_THEME, // 16: COLOR_HAZARD
-        RAW_DEEP_CYAN, // 17: COLOR_DEEP_CYAN
-        RAW_BLUE, // 18: COLOR_DEEP_SKY_BLUE
-        RAW_LIGHT_COLUMBIA_BLUE, // 19: COLOR_LIGHT_COLUMBIA_BLUE
-        RAW_INTL_ORANGE, // 20: COLOR_INTERNATIONAL_ORANGE
-        RAW_FREE_SPEECH_RED, // 21: COLOR_FREE_SPEECH_RED
-        Graphics.COLOR_DK_GRAY, // 22: COLOR_LABEL_LIGHT
-        Graphics.COLOR_LT_GRAY, // 23: COLOR_UNIT
-        RAW_ELECTRIC_BLUE, // 24: COLOR_ELECTRIC_BLUE
+        RAW_BLUE,                          // 0
+        RAW_CYAN_BLUE,                     // 1
+        Graphics.COLOR_WHITE,              // 2
+        RAW_DARK_BLUE,                     // 3
+        RAW_YELLOW_DARK_THEME,             // 4
+        RAW_DARK_YELLOW,                   // 5
+        RAW_GREEN_DARK_THEME,              // 6
+        RAW_DARK_GREEN,                    // 7
+        RAW_RED_DARK_THEME,                // 8
+        RAW_DARK_RED,                      // 9
+        RAW_GREY_MID,                      // 10
+        RAW_GREY_DARK,                     // 11
+        Graphics.COLOR_WHITE,              // 12
+        Graphics.COLOR_BLACK,              // 13
+        Graphics.COLOR_LT_GRAY,            // 14
+        Graphics.COLOR_LT_GRAY,            // 15
+        RAW_YELLOW_DARK_THEME,             // 16
+        RAW_DEEP_CYAN,                     // 17
+        RAW_BLUE,                          // 18
+        RAW_LIGHT_COLUMBIA_BLUE,           // 19
+        RAW_INTL_ORANGE,                   // 20
+        RAW_FREE_SPEECH_RED,               // 21
+        Graphics.COLOR_DK_GRAY,            // 22
+        Graphics.COLOR_LT_GRAY,            // 23
+        RAW_ELECTRIC_BLUE,                 // 24
+        RAW_DEEP_PURPLE_LIGHT,             // 25
+        RAW_DEEP_PURPLE_DARK,              // 26
+        RAW_SHADES_OF_TANGAROA,            // 27
+        Graphics.COLOR_WHITE,              // 28
+        RAW_DEEP_PURPLE_LIGHT,             // 29
+        RAW_SHADES_OF_OLIVE                // 30
     ];
 
-    // 4. Light Palette (Reuses identical constants, changes only theme-specific indices)
+    // 4. Light Palette
     public static const LIGHT_PALETTE as Array<Graphics.ColorType> = [
-        RAW_BLUE, // 0: COLOR_BLUE
-        Graphics.COLOR_WHITE, // 1: COLOR_CYAN_BLUE
-        RAW_ROYAL_BLUE, // 2: COLOR_ROYAL_BLUE
-        RAW_DARK_BLUE, // 3: COLOR_DARK_BLUE
-        RAW_YELLOW_LIGHT_THEME, // 4: COLOR_YELLOW
-        RAW_DARK_YELLOW, // 5: COLOR_DARK_YELLOW
-        RAW_GREEN_LIGHT_THEME, // 6: COLOR_GREEN
-        RAW_DARK_GREEN, // 7: COLOR_DARK_GREEN
-        RAW_RED_LIGHT_THEME, // 8: COLOR_RED
-        RAW_DARK_RED, // 9: COLOR_DARK_RED
-        RAW_GREY_DARK, // 10: COLOR_GREY
-        RAW_GREY_DARK, // 11: COLOR_DARK_GREY
-        Graphics.COLOR_BLACK, // 12: COLOR_TEXT
-        Graphics.COLOR_WHITE, // 13: COLOR_BG
-        Graphics.COLOR_DK_GRAY, // 14: COLOR_LABEL
-        Graphics.COLOR_DK_GRAY, // 15: COLOR_DIVIDER
-        RAW_HAZARD_LIGHT, // 16: COLOR_HAZARD
-        RAW_DEEP_CYAN, // 17: COLOR_DEEP_CYAN
-        RAW_BLUE, // 18: COLOR_DEEP_SKY_BLUE
-        RAW_LIGHT_COLUMBIA_BLUE, // 19: COLOR_LIGHT_COLUMBIA_BLUE
-        RAW_INTL_ORANGE, // 20: COLOR_INTERNATIONAL_ORANGE
-        RAW_FREE_SPEECH_RED, // 21: COLOR_FREE_SPEECH_RED
-        Graphics.COLOR_LT_GRAY, // 22: COLOR_LABEL_LIGHT
-        Graphics.COLOR_LT_GRAY, // 23: COLOR_UNIT
-        RAW_ELECTRIC_BLUE, // 24: COLOR_ELECTRIC_BLUE
+        RAW_BLUE,                          // 0
+        Graphics.COLOR_WHITE,              // 1
+        RAW_ROYAL_BLUE,                    // 2
+        RAW_DARK_BLUE,                     // 3
+        RAW_YELLOW_LIGHT_THEME,            // 4
+        RAW_DARK_YELLOW,                   // 5
+        RAW_GREEN_LIGHT_THEME,             // 6
+        RAW_DARK_GREEN,                    // 7
+        RAW_RED_LIGHT_THEME,               // 8
+        RAW_DARK_RED,                      // 9
+        RAW_GREY_DARK,                     // 10
+        RAW_GREY_DARK,                     // 11
+        Graphics.COLOR_BLACK,              // 12
+        Graphics.COLOR_WHITE,              // 13
+        Graphics.COLOR_DK_GRAY,            // 14
+        Graphics.COLOR_DK_GRAY,            // 15
+        RAW_HAZARD_LIGHT,                  // 16
+        RAW_DEEP_CYAN,                     // 17
+        RAW_BLUE,                          // 18
+        RAW_LIGHT_COLUMBIA_BLUE,           // 19
+        RAW_INTL_ORANGE,                   // 20
+        RAW_FREE_SPEECH_RED,               // 21
+        Graphics.COLOR_LT_GRAY,            // 22
+        Graphics.COLOR_LT_GRAY,            // 23
+        RAW_ELECTRIC_BLUE,                 // 24
+        RAW_DEEP_PURPLE_LIGHT,             // 25
+        RAW_DEEP_PURPLE_DARK,              // 26
+        RAW_SHADES_OF_ALICE_BLUE,          // 27
+        RAW_SHADES_OF_AQUA,                // 28
+        RAW_DEEP_PURPLE_DARK,              // 29
+        RAW_SHADES_OF_OLIVE                // 30
     ];
 
-    // Fast O(1) direct accessor
-    public static function getThemeColor(
-        key as ColorKey,
-        isDarkTheme as Boolean
-    ) as Graphics.ColorType {
+    public static function getThemeColor(key as ColorKey, isDarkTheme as Boolean) as Graphics.ColorType {
+        var idx = key as Number;
+
+        // Bounds check safeguard
+        if (idx < 0 || idx >= COLOR_COUNT) {
+            System.println("ThemeManager: Color index out of bounds: " + idx);
+            System.println("Key index requested: " + (key as Number));
+            System.println("Palette size: " + AppState.activePalette.size());
+            return Graphics.COLOR_WHITE; // Default fallback on error
+        }
+
         var palette = isDarkTheme ? DARK_PALETTE : LIGHT_PALETTE;
-        return palette[key as Number];
+        return palette[idx];
     }
 }

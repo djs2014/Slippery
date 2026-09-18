@@ -13,7 +13,8 @@
     - alert
 - wide field arrow + cross wind value  
 - alert on gust warning
-- rain > x mm dark blue ..or color scheme wweather
+- rain chance line?
+- rain > 2.0 mm darker blue ..or color scheme wweather
 switch hours -> will also need other minute rain data-> need 8 * 15 min ->
 
 // Setting? 
@@ -51,12 +52,6 @@ place wind arrow in center small field if enabled or no hazards
 in w weather ook effective gust option
 
 netto wind / indien geen gust
-
-open code use free models
-contex7
-skill connect iq
-integrate in VSCode
-
 ---
 x- getApparentTemperature Feels Like
 x- heatindex
@@ -82,16 +77,7 @@ show current day time
 
 [hourly rainandsnow, 12, 0.500000, 2026-09-17 17:00:00] Rain: 0.500000 Snow: 0.000000 <- current
 [hourly rainandsnow, 13, 0.400000, 2026-09-17 18:00:00] Rain: 0.400000 Snow: 0.000000
-[hourly rainandsnow, 14, 3.600000, 2026-09-17 19:00:00] Rain: 3.600000 Snow: 0.000000
-[hourly rainandsnow, 15, 0.200000, 2026-09-17 20:00:00] Rain: 0.200000 Snow: 0.000000
-[hourly rainandsnow, 16, 0.100000, 2026-09-17 21:00:00] Rain: 0.100000 Snow: 0.000000
-[hourly rainandsnow, 17, 0.100000, 2026-09-17 22:00:00] Rain: 0.100000 Snow: 0.000000
-[hourly rainandsnow, 18, 0.000000, 2026-09-17 23:00:00] Rain: 0.000000 Snow: 0.000000
-[hourly rainandsnow, 19, 0.000000, 2026-09-18 00:00:00] Rain: 0.000000 Snow: 0.000000
-[hourly rainandsnow, 20, 0.000000, 2026-09-18 01:00:00] Rain: 0.000000 Snow: 0.000000
-[hourly rainandsnow, 21, 0.000000, 2026-09-18 02:00:00] Rain: 0.000000 Snow: 0.000000
-[hourly rainandsnow, 22, 0.000000, 2026-09-18 03:00:00] Rain: 0.000000 Snow: 0.000000
-[hourly rainandsnow, 23, 0.000000, 2026-09-18 04:00:00] Rain: 0.000000 Snow: 0.000000
+..
 // per quarter
 [minutely rainandsnow, 0, 0.100000, 2026-09-17 17:45:00] Rain: 0.100000 Snow: 0.000000
 [minutely rainandsnow, 1, 0.100000, 2026-09-17 18:00:00] Rain: 0.100000 Snow: 0.000000
@@ -115,23 +101,6 @@ rain,mm,Liquid precipitation only (excluding snow/freezing rain).
 showers,mm,"Convective precipitation (e.g., brief intense rain showers from unstable air/thunderstorms)."
 snowfall,cm,Amount of snowfall measured in centimeters (note: differs from rain/precipitation unit).
 precipitation_probability,%,Probability of precipitation occurring during that forecast hour (0−100%).
-
-
-
-
-Best Practice for 15-Minute Data in CIQ
-When handling 15-minute precipitation data in your app:
-
-Rely on total precipitation for the 15-minute array to capture all liquid volume (which already accounts for shower intensity internally).
-
-Use rain + showers specifically when summing or parsing hourly arrays.
-
-// Fallback definitions for non-native color constants
-const COLOR_DEEP_PURPLE_LIGHT = 0x5500AA; // Deep Indigo/Purple for Light Mode
-const COLOR_DEEP_PURPLE_DARK  = 0xAA00FF; // Electric Purple for Dark Mode
-
-// Inside your rendering or palette selector logic
-var showerColor = isDark ? COLOR_DEEP_PURPLE_DARK : COLOR_DEEP_PURPLE_LIGHT;
 
 // Focus on wind related
 // - Aero pacing / cross gust / net wind 
@@ -197,3 +166,69 @@ public static function drawAeroPacingOverlay(
         );
     }
 }
+
+oneField is ok?
+
+wide/large/small field
+
+airTemp / feels like temp
+windGust / effect cross Gust
+wind / net wind
+
+forecast
+enum AlertState {
+    STATE_NORMAL = 0,
+        airTemp 
+    STATE_ICE_ALERT = 1,
+        surfaceTemp
+        dewpoint
+        humidity
+    STATE_HEAVY_RAIN = 2,
+        
+    STATE_HIGH_CROSSWIND = 3,
+        windGust -> effective crossgust
+        crossGust
+        crossWind
+        net Wind
+    STATE_RAIN_SOON = 4,
+
+    STATE_AERO_HEADWIND = 5,
+        windspeed
+        crossWind
+        net Wind
+    STATE_HEAT_STRESS = 6,
+}
+
+Display amount mm in coming hour
+ rainIn30MinMmHr as Float, // Forecasted rain in next 15-30 mins
+ rainIntensityMmHr as Float, // Current precipitation intensity (mm/h)
+ // 2. Heavy Rain active or imminent (>2.5 mm/h is moderate/heavy rain)
+        // if (rainIntensityMmHr >= 2.5f || rainIn30MinMmHr >= 2.5f) {
+        //     return STATE_HEAVY_RAIN;
+        // }
+
+// 4. Light rain or incoming shower soon (0.5 mm to 2.5 mm/h forecast)
+        if (rainIntensityMmHr > 0.1f || rainIn30MinMmHr >= 0.5f) {
+            return STATE_RAIN_SOON;
+        }
+
+------------------------------------------------------
+Fields + configuration
+
+- air/feels like temp - relevant if <= 3 or => 20 
+- surface temp <= 3
+- dewpoint >= 20
+- humidity >= 80
+- wind speed > 20 km
+- wind gust >= 20 (or gust level)
+- net wind >= 15
+- effective cross gust >= 20
+
+Fields array 8|4|4
+[none, airTemp, .. , automatic]
+automatic -> not in list, then show most relevant
+
+redesign layout wide field -> bigger number? and 4 fields?
+
+aan eind C bar -> countdown to full hour
+check hardcode colors 

@@ -88,10 +88,7 @@ class PredictiveSparkline {
             //var minutesToNextHour = (metrics.hourFractionRemaining * 60).toNumber();
             var minutesToNextHour = 60 - System.getClockTime().min;
             System.println("Minutes to next hour: " + minutesToNextHour);
-            dc.setColor(
-                haloColor,
-                Graphics.COLOR_TRANSPARENT
-            );
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + width - 2,
                 y + height / 2,
@@ -254,7 +251,9 @@ class PredictiveSparkline {
                 surfaceTempForecast[i] <= 0.0f
             ) {
                 dc.setColor(
-                    isDark ? 0x002244 : 0xdceeff,
+                    AppState.activePalette[
+                        ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND
+                    ],
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.fillRectangle(
@@ -309,7 +308,7 @@ class PredictiveSparkline {
                 if (snow > 0.0f) {
                     // Snow gets top visual priority (cyan/white)
                     dc.setColor(
-                        isDark ? Graphics.COLOR_WHITE : 0x00ffff,
+                        AppState.activePalette[ThemeManager.COLOR_SNOW_PATTERN],
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.fillRectangle(colX, by, colW, barH);
@@ -320,8 +319,10 @@ class PredictiveSparkline {
                     dc.drawPoint(px, by + 1);
                 } else if (showers > rain) {
                     // Convective showers column (purple)
-                    var showerColor = isDark ? Graphics.COLOR_PURPLE : 0x5500aa;
-                    dc.setColor(showerColor, Graphics.COLOR_TRANSPARENT);
+                    dc.setColor(
+                        AppState.activePalette[ThemeManager.COLOR_SHOWERS],
+                        Graphics.COLOR_TRANSPARENT
+                    );
                     dc.fillRectangle(colX, by, colW, barH);
                 } else {
                     // Steady stratiform rain column (blue)
@@ -365,7 +366,7 @@ class PredictiveSparkline {
                               : Graphics.COLOR_BLACK
                           : isDark
                             ? Graphics.COLOR_YELLOW
-                            : 0x666600;
+                            : AppState.activePalette[ThemeManager.COLOR_OLIVE];
 
                 if (prevStX != -1) {
                     dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
@@ -406,8 +407,10 @@ class PredictiveSparkline {
                         ? Graphics.COLOR_WHITE
                         : Graphics.COLOR_BLACK
                     : isDark
-                      ? 0xff5500
-                      : 0xcc0000;
+                      ? AppState.activePalette[ThemeManager.RAW_INTL_ORANGE]
+                      : AppState.activePalette[
+                            ThemeManager.RAW_FREE_SPEECH_RED
+                        ];
 
             if (prevWindX != -1 && i % 2 == 0) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
@@ -472,7 +475,7 @@ class PredictiveSparkline {
 
         // --- LINE UNDER THE SPARKLINE ---
         dc.setColor(
-            AppState.activePalette[ThemeManager.COLOR_TEXT],
+            AppState.getColor(ThemeManager.COLOR_TEXT),
             Graphics.COLOR_TRANSPARENT
         );
         dc.drawLine(x, baselineY, x + width, baselineY);
@@ -489,7 +492,7 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? Graphics.COLOR_YELLOW : 0x666600,
+                    isDark ? Graphics.COLOR_YELLOW : AppState.getColor(ThemeManager.COLOR_OLIVE),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -510,7 +513,7 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? 0xff5500 : 0xcc0000,
+                    isDark ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE) : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -524,7 +527,7 @@ class PredictiveSparkline {
         }
 
         if (hasIceAhead) {
-            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+            dc.setColor(AppState.getColor(ThemeManager.COLOR_RED), Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + width,
                 y,
