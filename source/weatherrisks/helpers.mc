@@ -243,6 +243,7 @@ function getRiskLevelString(riskLevel as RiskLevel) as Lang.String {
     }
     return "";
 }
+
 function getShortRiskLabel(riskLevel as RiskLevel) as Lang.String {
     if (riskLevel == RiskLevelNoData) {
         return "-";
@@ -488,33 +489,3 @@ public function getHumidityColor(
     }
 }
 
-/*
-import Toybox.Graphics;
-import Toybox.Lang;
-
-class WindColorMapper {
-
-    // Returns dynamic metric color scaling from neutral to Red/Magenta based on gust speed (km/h)
-    public static function getWindGustColor(gustSpeed as Float, isDark as Boolean) as Graphics.ColorType {
-        if (gustSpeed < 15.0f) {>
-            // Calm / Minor gusts: Standard high-contrast neutral
-            return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
-        } else if (gustSpeed < 25.0f) {
-            // Mild gusts (15-24 km/h): Noticeable but safe
-            return isDark ? Graphics.COLOR_GREEN : Graphics.COLOR_DK_GREEN;
-        } else if (gustSpeed < 35.0f) {
-            // Moderate gusts (25-34 km/h): Caution required on deep rims
-            return Graphics.COLOR_YELLOW;
-        } else if (gustSpeed < 45.0f) {
-            // Strong gusts (35-44 km/h): Handling hazard / Orange warning
-            return Graphics.COLOR_ORANGE;
-        } else if (gustSpeed < 55.0f) {
-            // Severe gusts (45-54 km/h): High risk of being blown sideways / Red
-            return Graphics.COLOR_RED;
-        } else {
-            // Extreme gusts (55+ km/h): Dangerous control conditions / Purple
-            return Graphics.COLOR_PURPLE;
-        }
-    }
-}
-*/

@@ -1,11 +1,25 @@
 - linux taskbar app for local use
-- weather app also same track heading mechanism
+- weather app also same track heading mechanism / edgefield
 
-- option to collect lat/lon during commute 
-    - for predict commute track
-    - reset option after activity done
-    - option use hazard abbreviation 
+Widefield
+ Label icons
+ Font larger
+ beep on alertmode change
+ icon alertmode temp / wind
+ label to toplevel small after x sec
+ ? zen mode -> na 20 sec label / unit weg wanneer niet trappen 3 sec dan tonen 
+ no unit -> font bigger
 
+auto mode / layout fonts
+1 wide field
+2 large field
+3 small 
+4 one field -> reorder fields
+
+settings: warning levels headwind customize 15km headwind default
+
+fix demo
+replace all 
    
 - alert on incoming rain/snow
 - alert on ice forecast 

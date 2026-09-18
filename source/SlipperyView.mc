@@ -610,12 +610,28 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         var centerHeaderY = y + (headerHeight - headerLineHeight) / 2;
+        var headerTextPosX = x + w - 6;
         dc.drawText(
-            x + w - 6,
+            headerTextPosX,
             centerHeaderY,
             Graphics.FONT_SMALL,
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
+        );
+        var headerTextLength = dc.getTextWidthInPixels(
+            riskLevelText,
+            Graphics.FONT_SMALL
+        );
+
+        var iconSize = (headerHeight * 0.4).toNumber();
+        RiskIconRenderer.drawRiskIcon(
+            dc,            
+            w / 2,
+            centerHeaderY,
+            iconSize,
+            mRiskAssessment.riskLevel,
+            riskTextColor,
+            riskColor
         );
 
         if ($.gHSPshowValue) {
@@ -694,7 +710,7 @@ class SlipperyView extends WatchUi.DataField {
             "°C",
             labelColor,
             unitColor,
-            $.getTemperatureColor(mWeatherMetrics.airTemp, isDark)            
+            $.getTemperatureColor(mWeatherMetrics.airTemp, isDark)
         );
 
         // Cell 2: Surface Temp
@@ -967,16 +983,17 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, badgeWidth, badgeHeight);
 
-        var headerText = getShortRiskLabel(mRiskAssessment.riskLevel);
         var headerLineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
         var linePos = y + headerLineHeight;
-        dc.setColor(badgeTextColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
+
+        RiskIconRenderer.drawRiskIcon(
+            dc,
             x + badgeWidth / 2,
             linePos,
-            Graphics.FONT_XTINY,
-            headerText,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            (badgeHeight * 0.6).toNumber(),
+            mRiskAssessment.riskLevel,
+            badgeTextColor,
+            riskColor
         );
 
         linePos = y + h / 2;
@@ -1164,7 +1181,6 @@ class SlipperyView extends WatchUi.DataField {
         isDark as Boolean
     ) as Void {
         var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
-        var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
         var isRiskColorLight = $.isColorLight(riskColor);
         var riskTextColor = isRiskColorLight
             ? Graphics.COLOR_BLACK
@@ -1175,21 +1191,22 @@ class SlipperyView extends WatchUi.DataField {
         // =========================================================================
         // 1. LEFT COLUMN (35%): RISK BADGE + LARGE RELATIVE WIND ARROW
         // =========================================================================
-        var leftWidth = (w * 0.35).toNumber();
+        var leftWidth = (w * 0.25).toNumber();
         var lineHeightRiskText = Graphics.getFontHeight(Graphics.FONT_MEDIUM);
         var heightRiskBlock = (lineHeightRiskText + 2).toNumber();
 
         // Risk Level Badge Top
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, leftWidth, heightRiskBlock);
-
-        dc.setColor(riskTextColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
+        
+        RiskIconRenderer.drawRiskIcon(
+            dc,
             x + leftWidth / 2,
             y + (heightRiskBlock / 2).toNumber(),
-            Graphics.FONT_MEDIUM,
-            riskLevelText,
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            (heightRiskBlock * 0.7).toNumber(),
+            mRiskAssessment.riskLevel,
+            riskTextColor,
+            riskColor
         );
 
         // Render Large Wind Arrow centered in the remaining lower area of the left box
@@ -1226,7 +1243,7 @@ class SlipperyView extends WatchUi.DataField {
         var colW = (w - leftWidth) / 3;
 
         // Compact columns height (~40% of field height)
-        var colHeight = (h * 0.42).toNumber();
+        var colHeight = (h * 0.5).toNumber();
 
         // Show wind related if ..
         if (
@@ -1294,16 +1311,16 @@ class SlipperyView extends WatchUi.DataField {
                 y,
                 colW,
                 colHeight,
-                "W " + NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
+                NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
                 Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
                 "km/h",
                 labelColor,
                 $.getWindSpeedColor(mNetHeadwindKmh, isDark),
-                unitColor,
+                unitColor
             );
         } else {
             if ($.gUseFeelsLikeTemperature) {
-                // Col 1: Feels Like Temp 
+                // Col 1: Feels Like Temp
                 drawMetricColumn(
                     dc,
                     x + rightX,
@@ -1311,16 +1328,14 @@ class SlipperyView extends WatchUi.DataField {
                     colW,
                     colHeight,
                     "FEELS LIKE",
-                    Lang.format("$1$", [
-                        mFeelsLikeTemp.format("%.1f"),
-                    ]),
+                    Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
                     "°C",
                     labelColor,
                     $.getTemperatureColor(mFeelsLikeTemp, isDark),
                     unitColor
                 );
             } else {
-                // Col 1: Air Temp                
+                // Col 1: Air Temp
                 drawMetricColumn(
                     dc,
                     x + rightX,
@@ -1480,12 +1495,27 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         var centerHeaderY = y + (headerHeight - headerLineHeight) / 2;
+        var headerTextPosX = x + w - 6;
         dc.drawText(
-            x + w - 6,
+            headerTextPosX,
             centerHeaderY,
             Graphics.FONT_SMALL,
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
+        );
+        var headerTextLength = dc.getTextWidthInPixels(
+            riskLevelText,
+            Graphics.FONT_SMALL
+        );
+        var iconSize = (headerHeight * 0.8).toNumber();
+        RiskIconRenderer.drawRiskIcon(
+            dc,
+            headerTextPosX - headerTextLength - iconSize - 1,
+            y + (headerHeight / 2).toNumber(),
+            iconSize,
+            mRiskAssessment.riskLevel,
+            riskTextColor,
+            riskColor
         );
 
         // --- Center Alert Strip ---
@@ -1679,23 +1709,33 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.TEXT_JUSTIFY_CENTER
         );
 
-        // 2. Draw Metric Value (Mild/Medium font centered vertically in remaining space)
+        var offsetX = 0;
+        var hideUnits =
+            unit.length() == 0 or ($.gHideUnitsWhenActive and !mPaused);
+        var valueWidth = colWidth;
+        if (!hideUnits) {
+            // Units need to fit too, so make width smaller
+            var unitWidth = dc.getTextWidthInPixels(unit, Graphics.FONT_XTINY);
+            valueWidth -= unitWidth;
+            offsetX = unitWidth / 2;
+        }
 
+        // 2. Draw Metric Value (Mild/Medium font centered vertically in remaining space)
         var font =
-            $.getMatchingFont(dc, mFontsNumbers, colWidth, height, value) as
+            $.getMatchingFont(dc, mFontsNumbers, valueWidth, height, value) as
             FontType;
 
         dc.setColor(valueColor, Graphics.COLOR_TRANSPARENT);
         var valueY = y + (height * 0.68).toNumber();
         dc.drawText(
-            centerX,
+            centerX - offsetX,
             valueY,
             font,
             value,
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
-        if ($.gHideUnitsWhenActive and !mPaused) {
+        if (hideUnits) {
             return;
         }
 
@@ -1705,7 +1745,7 @@ class SlipperyView extends WatchUi.DataField {
         var fontDescent = Graphics.getFontDescent(font);
 
         // Horizontal position: Right edge of main value + small gap (e.g., 2px)
-        var unitX = centerX + valueWidth / 2 + 2;
+        var unitX = centerX - offsetX + valueWidth / 2 + 2;
 
         // Vertical baseline calculation: Align with the bottom baseline of the main font
         var mainBaselineY = valueY + fontAscent / 2 - fontDescent / 2;
