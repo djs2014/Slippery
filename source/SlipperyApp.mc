@@ -60,6 +60,7 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("demo", false);
                 Storage.setValue("alert_beep", true);
                 Storage.setValue("alert_toast", false);
+                Storage.setValue("alert_beep_state_change", true);
                 Storage.setValue("hsp_showvalue", false);                
                 Storage.setValue("hsp_darklight_breakpoint", 180);    
                 Storage.setValue("showForecastHour", ForecastHourAbsolute);            
@@ -104,10 +105,10 @@ class SlipperyApp extends Application.AppBase {
             if ($.gDemo) {
                 Storage.setValue("demo", false);
             }
-            $.gBeepOnAlert = $.getStorageValue("alert_beep", false) as Boolean;
+            $.gBeepOnAlert = $.getStorageValue("alert_beep", true) as Boolean;
             $.gToastOnAlert =
                 $.getStorageValue("alert_toast", false) as Boolean;
-
+            $.gBeepOnAlertStateChange = $.getStorageValue("alert_beep_state_change", true) as Boolean;
             $.gHSPshowValue =
                 $.getStorageValue("hsp_showvalue", false) as Boolean;
 
@@ -167,8 +168,10 @@ var _BGServiceHandler as BGServiceHandler?;
 var gMinimalGPSquality as Number = 3;
 var gDemo as Boolean = false;
 
-var gBeepOnAlert as Boolean = false;
+var gBeepOnAlert as Boolean = true;
 var gToastOnAlert as Boolean = false;
+var gBeepOnAlertStateChange as Boolean = true;
+
 var gHSPshowValue as Boolean = false;
 var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
 var gUseEffectiveCrossGust as Boolean = true; 

@@ -98,6 +98,16 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
           null
         )
       );
+      boolean = Storage.getValue("alert_beep_state_change") ? true : false;
+      alertMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Beep on alert state change",
+          null,
+          "alert_beep_state_change",
+          boolean,
+          null
+        )
+      );
 
       if (id instanceof String && item instanceof ToggleMenuItem) {
         $.StorageSetValue(id as String, item.isEnabled());
@@ -118,7 +128,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       var mi;
 
       mi = new WatchUi.MenuItem(
-        "Ice Alert|-10-10.0 (°C)",
+        "Ice Alert|-10~10.0 (°C)",
         null,
         "threshIceAlert",
         null
@@ -127,7 +137,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "High Crosswind|0-100.0 (km/h)",
+        "High Crosswind|0~100.0 (km/h)",
         null,
         "threshHighCrosswind",
         null
@@ -136,7 +146,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "Cross Gust|0-100.0 (km/h)",
+        "Cross Gust|0~100.0 (km/h)",
         null,
         "threshCrossGust",
         null
@@ -145,7 +155,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "Heavy Wind|0-100.0 (km/h)",
+        "Heavy Wind|0~100.0 (km/h)",
         null,
         "threshHeavyWind",
         null
@@ -154,7 +164,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "Sustained Wind|0-100.0 (km/h)",
+        "Sustained Wind|0~100.0 (km/h)",
         null,
         "threshSustainedWind",
         null
@@ -163,7 +173,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "Headwind|0-100.0 (km/h)",
+        "Headwind|0~100.0 (km/h)",
         null,
         "threshHeadwind",
         null
@@ -172,7 +182,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       trshMenu.addItem(mi);
 
       mi = new WatchUi.MenuItem(
-        "Heat Stress|0-50.0 (°C)",
+        "Heat Stress|0~50.0 (°C)",
         null,
         "threshHeatStress",
         null

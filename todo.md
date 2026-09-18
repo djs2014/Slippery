@@ -10,6 +10,8 @@ Widefield
  ? zen mode -> na 20 sec label / unit weg wanneer niet trappen 3 sec dan tonen 
  no unit -> font bigger
 
+readme update alertmode thresholds
+
 auto mode / layout fonts
 1 wide field
     - icon

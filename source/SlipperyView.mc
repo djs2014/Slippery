@@ -234,7 +234,11 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
+        if ($.gBeepOnAlertStateChange) {
+            AlertAudioNotifier.notifyStateChange(mAlertState);
+        }         
     }
+
     function initializeMinutesUntilCounters() as Void {
         if (mWeatherMetrics.immediateRain < 0) {
             mMinutesUntilRain = -1;
@@ -1218,7 +1222,7 @@ class SlipperyView extends WatchUi.DataField {
             mAlertCategory,
             riskTextColor
         );
-    
+
         // Render Large Wind Arrow centered in the remaining lower area of the left box
         var arrowAreaCenterY =
             y + heightRiskBlock + ((h - heightRiskBlock) / 2).toNumber();
@@ -1838,7 +1842,7 @@ class SlipperyView extends WatchUi.DataField {
         Attention.playTone(Attention.TONE_ALERT_HI);
         return;
     }
-
+  
     function showToastForAlert() as Void {
         if (!(WatchUi has :showToast)) {
             return;
