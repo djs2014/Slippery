@@ -232,3 +232,12 @@ redesign layout wide field -> bigger number? and 4 fields?
 
 aan eind C bar -> countdown to full hour
 check hardcode colors 
+
+Search for
+AppState.activePalette[<ThemeManager.COLOR_SNOW_PATTERN>]
+and replace it with
+AppState.getColor(<ThemeManager.COLOR_SNOW_PATTERN>)
+in this project *.mc files
+
+get skill for connect IQ
+nieuwe muis - met scrollen past text!

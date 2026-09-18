@@ -317,7 +317,7 @@ class SlipperyView extends WatchUi.DataField {
         if ($.gDemo) {
             // Draw demo enabled
             dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_TEXT],
+                AppState.getColor(ThemeManager.COLOR_TEXT),
                 Graphics.COLOR_TRANSPARENT
             );
 
@@ -348,7 +348,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // 3. Draw Divider Line
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -402,7 +402,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // 3. Draw Divider Line
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -453,7 +453,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // 3. Draw Divider Line
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -505,7 +505,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // 3. Draw Divider Line
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
 
@@ -595,7 +595,7 @@ class SlipperyView extends WatchUi.DataField {
             var alertH = alertLineHeight + 4;
 
             dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
                 Graphics.COLOR_TRANSPARENT
             ); // Deep Cyan
             dc.fillRectangle(x, alertY, w, alertH);
@@ -619,10 +619,10 @@ class SlipperyView extends WatchUi.DataField {
         var colWidth = w / 2;
         var rowHeight = gridHeight / 3;
 
-        var labelColor = AppState.activePalette[ThemeManager.COLOR_LABEL];
-        var unitColor = AppState.activePalette[ThemeManager.COLOR_UNIT];
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL);
+        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
         // Grid Separator Lines
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(
             x + colWidth,
@@ -659,7 +659,7 @@ class SlipperyView extends WatchUi.DataField {
             unitColor,
             mWeatherMetrics.airTemp <= 0
                 ? Graphics.COLOR_RED
-                : AppState.activePalette[ThemeManager.COLOR_TEXT]
+                : AppState.getColor(ThemeManager.COLOR_TEXT)
         );
 
         // Cell 2: Surface Temp
@@ -676,7 +676,7 @@ class SlipperyView extends WatchUi.DataField {
             unitColor,
             mWeatherMetrics.surfaceTemp <= 0
                 ? Graphics.COLOR_RED
-                : AppState.activePalette[ThemeManager.COLOR_TEXT]
+                : AppState.getColor(ThemeManager.COLOR_TEXT)
         );
 
         gridLinePos += rowHeight;
@@ -709,7 +709,7 @@ class SlipperyView extends WatchUi.DataField {
             unitColor,
             mWeatherMetrics.humidity >= 80
                 ? Graphics.COLOR_RED
-                : AppState.activePalette[ThemeManager.COLOR_TEXT]
+                : AppState.getColor(ThemeManager.COLOR_TEXT)
         );
 
         gridLinePos += rowHeight;
@@ -843,7 +843,7 @@ class SlipperyView extends WatchUi.DataField {
                 w,
                 localHazards.size(), // maxLines
                 $.gHideRiskAdvice ? Graphics.FONT_SMALL : Graphics.FONT_TINY,
-                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+                AppState.getColor(ThemeManager.COLOR_HAZARD)
             );
         }
 
@@ -856,7 +856,7 @@ class SlipperyView extends WatchUi.DataField {
                 w,
                 localAdvice.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.activePalette[ThemeManager.COLOR_TEXT]
+                AppState.getColor(ThemeManager.COLOR_TEXT)
             );
         }
     }
@@ -966,9 +966,9 @@ class SlipperyView extends WatchUi.DataField {
 
         // Right 70%: Metrics Grid & Hazards
         var rightAreaX = x + badgeWidth + 4;
-        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
-        var labelColor = AppState.activePalette[ThemeManager.COLOR_LABEL];
-        var unitColor = AppState.activePalette[ThemeManager.COLOR_UNIT];
+        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL);
+        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
         var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
         var linePosMetrics = y + lineHeight;
 
@@ -1065,7 +1065,7 @@ class SlipperyView extends WatchUi.DataField {
         linePosMetrics += lineHeight / 2;
 
         // Horizontal dividing line under columns
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, linePosMetrics, x + w, linePosMetrics);
 
@@ -1082,7 +1082,7 @@ class SlipperyView extends WatchUi.DataField {
                 totalWidth,
                 localHazards.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+                AppState.getColor(ThemeManager.COLOR_HAZARD)
             );
         }
 
@@ -1097,7 +1097,7 @@ class SlipperyView extends WatchUi.DataField {
             var alertW = w;
 
             dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
                 Graphics.COLOR_TRANSPARENT
             );
             dc.fillRectangle(alertX, alertY, alertW, alertH);
@@ -1153,7 +1153,7 @@ class SlipperyView extends WatchUi.DataField {
             ? Graphics.COLOR_BLACK
             : Graphics.COLOR_WHITE;
 
-        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
+        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
 
         // =========================================================================
         // 1. LEFT COLUMN (35%): RISK BADGE + LARGE RELATIVE WIND ARROW
@@ -1196,15 +1196,15 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // Divider Line between Left & Right Columns
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + leftWidth, y, x + leftWidth, y + h);
 
         // =========================================================================
         // 2. RIGHT COLUMN (65%): COMPRESSED COLUMNS (TOP ~40%) & HAZARDS (BOTTOM)
         // =========================================================================
-        var labelColor = AppState.activePalette[ThemeManager.COLOR_LABEL_LIGHT];
-        var unitColor = AppState.activePalette[ThemeManager.COLOR_UNIT];
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
+        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
         var rightX = leftWidth;
         var colW = (w - leftWidth) / 3;
 
@@ -1280,7 +1280,7 @@ class SlipperyView extends WatchUi.DataField {
                 totalWidth,
                 localHazards.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+                AppState.getColor(ThemeManager.COLOR_HAZARD)
             );
         }
 
@@ -1296,7 +1296,7 @@ class SlipperyView extends WatchUi.DataField {
             var alertW = colW * 3;
 
             dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
                 Graphics.COLOR_TRANSPARENT
             );
             dc.fillRectangle(alertX, alertY, alertW, alertH);
@@ -1345,7 +1345,7 @@ class SlipperyView extends WatchUi.DataField {
             ? Graphics.COLOR_BLACK
             : Graphics.COLOR_WHITE;
 
-        var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
+        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.15).toNumber();
 
@@ -1384,7 +1384,7 @@ class SlipperyView extends WatchUi.DataField {
             var alertH = alertLineHeight + 4;
 
             dc.setColor(
-                AppState.activePalette[ThemeManager.COLOR_DEEP_CYAN],
+                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
                 Graphics.COLOR_TRANSPARENT
             ); // Deep Cyan
             dc.fillRectangle(alertX, alertY, w / 3, alertH);
@@ -1409,14 +1409,14 @@ class SlipperyView extends WatchUi.DataField {
         var rowH = gridHeight / 2;
 
         // Grid Dividers
-        var dividerColor = AppState.activePalette[ThemeManager.COLOR_DIVIDER];
+        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + halfW, gridTop, x + halfW, gridTop + gridHeight);
         dc.drawLine(x, gridTop + rowH, x + w, gridTop + rowH);
         dc.drawLine(x, gridTop + gridHeight, x + w, gridTop + gridHeight);
 
-        var labelColor = AppState.activePalette[ThemeManager.COLOR_LABEL_LIGHT];
-        var unitColor = AppState.activePalette[ThemeManager.COLOR_UNIT];
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
+        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
         drawGridCell(
             dc,
             x,
@@ -1488,7 +1488,7 @@ class SlipperyView extends WatchUi.DataField {
         // 4. Hazards & Advice Section
 
         dc.setColor(
-            AppState.activePalette[ThemeManager.COLOR_HAZARD],
+            AppState.getColor(ThemeManager.COLOR_HAZARD),
             Graphics.COLOR_TRANSPARENT
         );
 
@@ -1506,7 +1506,7 @@ class SlipperyView extends WatchUi.DataField {
                 w,
                 localHazards.size(), // maxLines
                 Graphics.FONT_TINY,
-                AppState.activePalette[ThemeManager.COLOR_HAZARD]
+                AppState.getColor(ThemeManager.COLOR_HAZARD)
             );
         }
 
@@ -1519,7 +1519,7 @@ class SlipperyView extends WatchUi.DataField {
                 w,
                 localAdvice.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.activePalette[ThemeManager.COLOR_TEXT]
+                AppState.getColor(ThemeManager.COLOR_TEXT)
             );
         }
         // --- CURRENT WIND ARROW CENTERED IN GRID ---

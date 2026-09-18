@@ -43,8 +43,8 @@ public function drawBackgroundServiceStats(
         ]);
     }
 
-    var textColor = AppState.activePalette[ThemeManager.COLOR_TEXT];
-    var backColor = AppState.activePalette[ThemeManager.COLOR_BG];
+    var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
+    var backColor = AppState.getColor(ThemeManager.COLOR_BG);
 
     // Measure once
     var statsWH = dc.getTextDimensions(stats, Graphics.FONT_XTINY);
