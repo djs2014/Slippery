@@ -2,7 +2,7 @@
 - weather app also same track heading mechanism / edgefield
 
 Widefield
- Label icons
+ Label icons - check using debug
  Font larger
  beep on alertmode change
  icon alertmode temp / wind
@@ -12,6 +12,10 @@ Widefield
 
 auto mode / layout fonts
 1 wide field
+    - icon
+    - alert icon
+    - fonts
+
 2 large field
 3 small 
 4 one field -> reorder fields
@@ -19,7 +23,7 @@ auto mode / layout fonts
 settings: warning levels headwind customize 15km headwind default
 
 fix demo
-replace all 
+replace all getColor
    
 - alert on incoming rain/snow
 - alert on ice forecast 

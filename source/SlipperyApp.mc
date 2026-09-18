@@ -68,6 +68,14 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("shortHazard", false);            
                 Storage.setValue("hideRiskAdvice", false);            
                 Storage.setValue("hideUnitsWhenActive", true);
+
+                Storage.setValue("threshIceAlert", 3.0f);
+                Storage.setValue("threshHighCrosswind", 25.0f);
+                Storage.setValue("threshCrossGust", 18.0f);
+                Storage.setValue("threshHeavyWind", 35.0f);
+                Storage.setValue("threshSustainedWind", 25.0f);
+                Storage.setValue("threshHeadwind", 12.0f);
+                Storage.setValue("threshHeatStress", 32.0f);
             }
 
             $.g_bg_timeout_seconds =
@@ -114,7 +122,15 @@ class SlipperyApp extends Application.AppBase {
             $.gShortHazard =
                 $.getStorageValue("shortHazard", false) as Boolean;  
             $.gHideUnitsWhenActive =
-                $.getStorageValue("hideUnitsWhenActive", true) as Boolean;            
+                $.getStorageValue("hideUnitsWhenActive", true) as Boolean;  
+
+            AlertStateAnalyzer.setTreshIceAlert($.getStorageValue("threshIceAlert", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshHighCrosswind($.getStorageValue("threshHighCrossw ind", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshCrossGust($.getStorageValue("threshCrossGust", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeavyWind($.getStorageValue("threshHeavyWind", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshSustainedWind($.getStorageValue("threshSustainedWind", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeadwind($.getStorageValue("threshHeadwind", 0.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeatStress($.getStorageValue("threshHeatStress", 0.0f) as Float);              
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();

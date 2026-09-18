@@ -206,6 +206,7 @@ class SlipperyView extends WatchUi.DataField {
         UpdateAlertState();
     }
 
+    hidden var mAlertCategory as AlertCategory = CATEGORY_NONE;
     function UpdateAlertState() as Void {
         mCrossGust = CrosswindAnalyzer.evaluateCrosswind(
             mWeatherMetrics.windDirection,
@@ -231,6 +232,8 @@ class SlipperyView extends WatchUi.DataField {
             mNetHeadwindKmh,
             mFeelsLikeTemp
         );
+
+        mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
     }
     function initializeMinutesUntilCounters() as Void {
         if (mWeatherMetrics.immediateRain < 0) {
@@ -618,14 +621,10 @@ class SlipperyView extends WatchUi.DataField {
             riskLevelText,
             Graphics.TEXT_JUSTIFY_RIGHT
         );
-        var headerTextLength = dc.getTextWidthInPixels(
-            riskLevelText,
-            Graphics.FONT_SMALL
-        );
 
         var iconSize = (headerHeight * 0.4).toNumber();
         RiskIconRenderer.drawRiskIcon(
-            dc,            
+            dc,
             w / 2,
             centerHeaderY,
             iconSize,
@@ -1198,10 +1197,12 @@ class SlipperyView extends WatchUi.DataField {
         // Risk Level Badge Top
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, leftWidth, heightRiskBlock);
-        
+
+        var colIconW = (leftWidth / 3).toNumber();
+        var posIconX = x + colIconW;
         RiskIconRenderer.drawRiskIcon(
             dc,
-            x + leftWidth / 2,
+            posIconX,
             y + (heightRiskBlock / 2).toNumber(),
             (heightRiskBlock * 0.7).toNumber(),
             mRiskAssessment.riskLevel,
@@ -1209,6 +1210,15 @@ class SlipperyView extends WatchUi.DataField {
             riskColor
         );
 
+        AlertCategoryRenderer.drawCategoryIcon(
+            dc,
+            posIconX + colIconW,
+            y + (heightRiskBlock / 2).toNumber(),
+            (heightRiskBlock * 0.7).toNumber(),
+            mAlertCategory,
+            riskTextColor
+        );
+    
         // Render Large Wind Arrow centered in the remaining lower area of the left box
         var arrowAreaCenterY =
             y + heightRiskBlock + ((h - heightRiskBlock) / 2).toNumber();
@@ -1245,12 +1255,7 @@ class SlipperyView extends WatchUi.DataField {
         // Compact columns height (~40% of field height)
         var colHeight = (h * 0.5).toNumber();
 
-        // Show wind related if ..
-        if (
-            mAlertState == STATE_HIGH_CROSSWIND ||
-            mAlertState == STATE_AERO_HEADWIND ||
-            mAlertState == STATE_HEAVY_WIND
-        ) {
+        if (mAlertCategory == CATEGORY_WIND) {
             // Col 1: Wind
             drawMetricColumn(
                 dc,

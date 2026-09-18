@@ -112,6 +112,78 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       return;
     }
 
+    if (id instanceof String && id.equals("thresholds")) {
+      var trshMenu = new WatchUi.Menu2({ :title => "Thresholds" });
+
+      var mi;
+
+      mi = new WatchUi.MenuItem(
+        "Ice Alert|-10-10.0 (°C)",
+        null,
+        "threshIceAlert",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "High Crosswind|0-100.0 (km/h)",
+        null,
+        "threshHighCrosswind",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "Cross Gust|0-100.0 (km/h)",
+        null,
+        "threshCrossGust",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "Heavy Wind|0-100.0 (km/h)",
+        null,
+        "threshHeavyWind",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "Sustained Wind|0-100.0 (km/h)",
+        null,
+        "threshSustainedWind",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "Headwind|0-100.0 (km/h)",
+        null,
+        "threshHeadwind",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      mi = new WatchUi.MenuItem(
+        "Heat Stress|0-50.0 (°C)",
+        null,
+        "threshHeatStress",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
+      WatchUi.pushView(trshMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
+      return;
+    }
+
     if (id instanceof String && id.equals("advanced")) {
       var advMenu = new WatchUi.Menu2({ :title => "Advanced" });
 
