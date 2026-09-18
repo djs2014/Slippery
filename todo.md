@@ -11,6 +11,7 @@ Widefield
  no unit -> font bigger
 
 readme update alertmode thresholds
+setting incoming rain minimal mm/h alert
 
 auto mode / layout fonts
 1 wide field
@@ -31,11 +32,12 @@ auto mode / layout fonts
 3 small 
     - icons
     - alert icon
+    met label en unit -> zen
     wind: Cx Gust + Net Wind
     cold: air/feel like + surf
     heat/normal: air/feel like + dewpnt
         
-4 one field -> reorder fields
+4 one field -> icons smaller en bij de tekst
     - icons
     - alert icon
 
@@ -46,8 +48,10 @@ auto mode / layout fonts
 
 x settings: warning levels headwind customize 15km headwind default
 
-replace all getColor
-   
+replace all getColor 
+forecast -> color > riskleve x -> draw normal risklevel color
+
+
 - alert on incoming rain/snow
 - alert on ice forecast 
 - check forecast x hours if it gets slippery

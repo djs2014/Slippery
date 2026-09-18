@@ -237,6 +237,7 @@ class SlipperyView extends WatchUi.DataField {
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
         }
+        mAlertCategory = CATEGORY_HEAT;
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -628,11 +629,29 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.TEXT_JUSTIFY_RIGHT
         );
 
+        var headerTextLength = dc.getTextWidthInPixels(
+            mAppName,
+            Graphics.FONT_SMALL
+        );
+        var riskLevelTextLength = dc.getTextWidthInPixels(
+            riskLevelText,
+            Graphics.FONT_SMALL
+        );
         var iconSize = (headerHeight * 0.4).toNumber();
+
+        AlertCategoryRenderer.drawCategoryIcon(
+            dc,
+            y + headerTextLength + iconSize,
+            centerHeaderY + iconSize / 2,
+            iconSize,
+            mAlertCategory,
+            riskTextColor
+        );
+
         RiskIconRenderer.drawRiskIcon(
             dc,
-            w / 2,
-            centerHeaderY,
+            w - riskLevelTextLength - iconSize,
+            centerHeaderY + iconSize / 2,
             iconSize,
             mRiskAssessment.riskLevel,
             riskTextColor,
@@ -984,136 +1003,187 @@ class SlipperyView extends WatchUi.DataField {
             : Graphics.COLOR_WHITE;
 
         // Left 30%: Solid risk badge
-        var badgeWidth = (w * 0.2).toNumber();
+        var badgeWidth = (w * 0.15).toNumber();
         var badgeHeight = (h * 0.4).toNumber();
         dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
         dc.fillRectangle(x, y, badgeWidth, badgeHeight);
 
-        var headerLineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
-        var linePos = y + headerLineHeight;
+        //var headerLineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
 
+        var iconSize = (badgeHeight * 0.4).toNumber();
+        var iconPosY = y + iconSize / 2 + 1;
         RiskIconRenderer.drawRiskIcon(
             dc,
             x + badgeWidth / 2,
-            linePos,
-            (badgeHeight * 0.6).toNumber(),
+            iconPosY,
+            iconSize,
             mRiskAssessment.riskLevel,
             badgeTextColor,
             riskColor
         );
 
-        linePos = y + h / 2;
+        AlertCategoryRenderer.drawCategoryIcon(
+            dc,
+            x + badgeWidth / 2,
+            iconPosY + iconSize + 2,
+            iconSize,
+            mAlertCategory,
+            badgeTextColor
+        );
+
+        // linePos = y + h / 2;
 
         // Right 70%: Metrics Grid & Hazards
-        var rightAreaX = x + badgeWidth + 4;
         var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
-        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL);
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
         var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
-        var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
-        var linePosMetrics = y + lineHeight;
+        //var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
 
-        // --- ROW 1: Side-by-Side (2x2 Grid) ---
+        // --- ROW 1: Side-by-Side (1x1 Grid) ---
 
-        // Calculate based on max widths
-        var labelWidth = dc.getTextWidthInPixels("Ws", Graphics.FONT_XTINY);
-        var col1Width =
-            labelWidth +
-            dc.getTextWidthInPixels("88.8", Graphics.FONT_TINY) +
-            dc.getTextWidthInPixels("%", Graphics.FONT_XTINY) -
-            2;
+        var rightX = badgeWidth;
+        var colW = (w - badgeWidth) / 2;
+        var colHeight = badgeHeight;
 
-        drawMetricField(
-            dc,
-            rightAreaX,
-            linePosMetrics,
-            labelWidth,
-            "Ts",
-            mWeatherMetrics.surfaceTemp.format("%.1f"),
-            "°",
-            labelColor,
-            mWeatherMetrics.surfaceTemp <= 0 ? Graphics.COLOR_RED : textColor,
-            unitColor
-        );
+        if (mAlertCategory == CATEGORY_WIND) {
+            // Col1: Cross Gust or Gust
+            if ($.gUseEffectiveCrossGust) {
+                drawMetricColumn(
+                    dc,
+                    x + rightX,
+                    y,
+                    colW,
+                    colHeight,
+                    "Cx GUST",
+                    Lang.format("$1$", [
+                        mCrossGust.crosswindGustKmH.format("%.1f"),
+                    ]),
+                    "km/h",
+                    labelColor,
+                    mCrossGust.color,
+                    unitColor
+                );
+            } else {
+                drawMetricColumn(
+                    dc,
+                    x + rightX,
+                    y,
+                    colW,
+                    colHeight,
+                    "GUST",
+                    Lang.format("$1$", [
+                        mWeatherMetrics.windGust.format("%.1f"),
+                    ]),
+                    "km/h",
+                    labelColor,
+                    $.getGustSeverityColor(
+                        mWeatherMetrics.gustSeverity,
+                        isDark
+                    ),
+                    unitColor
+                );
+            }
 
-        // Col 2: Wind Speed
+            // Col 2: Net wind
 
-        drawMetricField(
-            dc,
-            rightAreaX + col1Width,
-            linePosMetrics,
-            labelWidth,
-            "Ws",
-            mWeatherMetrics.windSpeed.format("%.1f"),
-            "km/h",
-            labelColor,
-            $.getWindSpeedColor(mWeatherMetrics.windSpeed, isDark),
-            unitColor
-        );
-
-        linePosMetrics += lineHeight;
-
-        // --- ROW 2:  ---
-
-        drawMetricField(
-            dc,
-            rightAreaX,
-            linePosMetrics,
-            labelWidth,
-            "Rh",
-            mWeatherMetrics.humidity.format("%d"),
-            "%",
-            labelColor,
-            $.getHumidityColor(mWeatherMetrics.humidity, isDark),
-            unitColor
-        );
-
-        if ($.gUseEffectiveCrossGust) {
-            var crossWind = CrosswindAnalyzer.evaluateCrosswind(
-                mWeatherMetrics.windDirection,
-                mHeadingDegrees,
-                mWeatherMetrics.windGust,
-                isDark
-            );
-
-            drawMetricField(
+            drawMetricColumn(
                 dc,
-                rightAreaX + col1Width,
-                linePosMetrics,
-                labelWidth,
-                "Cx",
-                crossWind.crosswindGustKmH.format("%.1f"),
+                x + rightX + colW,
+                y,
+                colW,
+                colHeight,
+                NetwindAnalyzer.formatNetWind(mNetHeadwindKmh),
+                Lang.format("$1$", [mNetHeadwindKmh.format("%.1f")]),
                 "km/h",
                 labelColor,
-                crossWind.color,
+                $.getNetSpeedColor(mNetHeadwindKmh, isDark),
                 unitColor
             );
         } else {
-            drawMetricField(
-                dc,
-                rightAreaX + col1Width,
-                linePosMetrics,
-                labelWidth,
-                "Gu",
-                mWeatherMetrics.windGust.format("%.1f"),
-                "km/h",
-                labelColor,
-                $.getGustSeverityColor(mWeatherMetrics.gustSeverity, isDark),
-                unitColor
-            );
-        }
+            if ($.gUseFeelsLikeTemperature) {
+                // Col 1: Feels Like Temp
+                drawMetricColumn(
+                    dc,
+                    x + rightX,
+                    y,
+                    colW,
+                    colHeight,
+                    "FEELS LIKE",
+                    Lang.format("$1$", [mFeelsLikeTemp.format("%.1f")]),
+                    "°C",
+                    labelColor,
+                    $.getTemperatureColor(mFeelsLikeTemp, isDark),
+                    unitColor
+                );
+            } else {
+                // Col 1: Air Temp
+                drawMetricColumn(
+                    dc,
+                    x + rightX,
+                    y,
+                    colW,
+                    colHeight,
+                    "AIR",
+                    Lang.format("$1$", [
+                        mWeatherMetrics.airTemp.format("%.1f"),
+                    ]),
+                    "°C",
+                    labelColor,
+                    $.getTemperatureColor(mWeatherMetrics.airTemp, isDark),
+                    unitColor
+                );
+            }
 
-        linePosMetrics += lineHeight / 2;
+            // Col 2: Surface Temp or dew point
+            if (mAlertCategory == CATEGORY_COLD) {
+                // Col 2: Surface Temp
+                drawMetricColumn(
+                    dc,
+                    x + rightX + colW,
+                    y,
+                    colW,
+                    colHeight,
+                    "SURF",
+                    Lang.format("$1$", [
+                        mWeatherMetrics.surfaceTemp.format("%.1f"),
+                    ]),
+                    "°C",
+                    labelColor,
+                    mWeatherMetrics.surfaceTemp <= 0
+                        ? Graphics.COLOR_RED
+                        : textColor,
+                    unitColor
+                );
+            } else {
+                // Col 2: Dew Point
+                drawMetricColumn(
+                    dc,
+                    x + rightX + colW,
+                    y,
+                    colW,
+                    colHeight,
+                    "DEW",
+                    Lang.format("$1$", [
+                        mWeatherMetrics.dewPoint.format("%.1f"),
+                    ]),
+                    "°C",
+                    labelColor,
+                    $.getTemperatureColor(mWeatherMetrics.dewPoint, isDark),
+                    unitColor
+                );
+            }
+        }
 
         // Horizontal dividing line under columns
         var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x, linePosMetrics, x + w, linePosMetrics);
+        dc.drawLine(x, colHeight, x + w, colHeight);
 
         // --- ROW 3+: Shortened Hazard Strings ---
-
+        var linePosMetrics = colHeight;
         var localHazards = mHazardStringsShortened;
         if (localHazards.size() > 0) {
-            var totalWidth = w - rightAreaX;
+            var totalWidth = w;
             linePosMetrics += StringListRenderer.drawWrappedStrings(
                 dc,
                 localHazards,
@@ -1207,23 +1277,24 @@ class SlipperyView extends WatchUi.DataField {
 
         var colIconW = (leftWidth / 3).toNumber();
         var posIconX = x + colIconW;
-        RiskIconRenderer.drawRiskIcon(
+
+        AlertCategoryRenderer.drawCategoryIcon(
             dc,
             posIconX,
+            y + (heightRiskBlock / 2).toNumber(),
+            (heightRiskBlock * 0.7).toNumber(),
+            mAlertCategory,
+            riskTextColor
+        );
+
+        RiskIconRenderer.drawRiskIcon(
+            dc,
+            posIconX + colIconW,
             y + (heightRiskBlock / 2).toNumber(),
             (heightRiskBlock * 0.7).toNumber(),
             mRiskAssessment.riskLevel,
             riskTextColor,
             riskColor
-        );
-
-        AlertCategoryRenderer.drawCategoryIcon(
-            dc,
-            posIconX + colIconW,
-            y + (heightRiskBlock / 2).toNumber(),
-            (heightRiskBlock * 0.7).toNumber(),
-            mAlertCategory,
-            riskTextColor
         );
 
         // Render Large Wind Arrow centered in the remaining lower area of the left box
@@ -1483,7 +1554,7 @@ class SlipperyView extends WatchUi.DataField {
             ? Graphics.COLOR_BLACK
             : Graphics.COLOR_WHITE;
 
-        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
+        // var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
         // --- DRAW HEADER BAR ---
         var headerHeight = (h * 0.15).toNumber();
 
@@ -1506,7 +1577,10 @@ class SlipperyView extends WatchUi.DataField {
         var iconSize = (headerHeight * 0.7).toNumber();
         AlertCategoryRenderer.drawCategoryIcon(
             dc,
-            x + 6 + dc.getTextWidthInPixels(mAppName, Graphics.FONT_SMALL) + iconSize,
+            x +
+                6 +
+                dc.getTextWidthInPixels(mAppName, Graphics.FONT_SMALL) +
+                iconSize,
             centerHeaderY + iconSize / 2,
             iconSize,
             mAlertCategory,
@@ -1525,11 +1599,11 @@ class SlipperyView extends WatchUi.DataField {
             riskLevelText,
             Graphics.FONT_SMALL
         );
-        
+
         RiskIconRenderer.drawRiskIcon(
             dc,
             headerTextPosX - headerTextLength - iconSize - 1,
-            centerHeaderY + iconSize / 2, 
+            centerHeaderY + iconSize / 2,
             iconSize,
             mRiskAssessment.riskLevel,
             riskTextColor,
@@ -1682,7 +1756,7 @@ class SlipperyView extends WatchUi.DataField {
                 "°C",
                 labelColor,
                 $.getTemperatureColor(mWeatherMetrics.surfaceTemp, isDark),
-                unitColor,
+                unitColor
             );
             drawGridCell(
                 dc,
@@ -1695,7 +1769,7 @@ class SlipperyView extends WatchUi.DataField {
                 "°C",
                 labelColor,
                 DewpointPalette.getColor(mWeatherMetrics.dewPoint, isDark),
-                unitColor,
+                unitColor
             );
             drawGridCell(
                 dc,
@@ -1708,7 +1782,7 @@ class SlipperyView extends WatchUi.DataField {
                 "%",
                 labelColor,
                 $.getHumidityColor(mWeatherMetrics.humidity, isDark),
-                unitColor,
+                unitColor
             );
         }
         // // --- CURRENT WIND ARROW CENTERED IN GRID ---
@@ -1784,7 +1858,7 @@ class SlipperyView extends WatchUi.DataField {
         dc as Graphics.Dc,
         x as Number,
         y as Number,
-        colWidth as Number,
+        width as Number,
         height as Number,
         label as String,
         value as String,
@@ -1793,7 +1867,7 @@ class SlipperyView extends WatchUi.DataField {
         valueColor as Number,
         unitColor as Number
     ) as Void {
-        var centerX = x + colWidth / 2;
+        var centerX = x + width / 2;
 
         // 1. Draw Metric Label (Small / XTiny at the top)
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
@@ -1808,7 +1882,7 @@ class SlipperyView extends WatchUi.DataField {
         var offsetX = 0;
         var hideUnits =
             unit.length() == 0 or ($.gHideUnitsWhenActive and !mPaused);
-        var valueWidth = colWidth;
+        var valueWidth = width;
         if (!hideUnits) {
             // Units need to fit too, so make width smaller
             var unitWidth = dc.getTextWidthInPixels(unit, Graphics.FONT_XTINY);
@@ -1836,7 +1910,6 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // Unit
-        var valueWidth = dc.getTextWidthInPixels(value, font);
         var fontAscent = Graphics.getFontAscent(font);
         var fontDescent = Graphics.getFontDescent(font);
 
@@ -1862,14 +1935,15 @@ class SlipperyView extends WatchUi.DataField {
 
         // 3. Optional Right Divider Line
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x + colWidth, y + 4, x + colWidth, y + height - 4);
+        dc.drawLine(x + width, y + 4, x + width, y + height - 4);
     }
 
     private function drawMetricField(
         dc as Graphics.Dc,
         x as Number,
         y as Number,
-        labelWidth as Number,
+        width as Number,
+        height as Number,
         label as String,
         value as String,
         unit as String,
@@ -1877,48 +1951,75 @@ class SlipperyView extends WatchUi.DataField {
         valueColor as Number,
         unitColor as Number
     ) as Void {
-        var valueFont = Graphics.FONT_TINY;
-        var valueWidth = dc.getTextWidthInPixels(value, valueFont);
-        var fontAscent = Graphics.getFontAscent(valueFont);
-        var fontDescent = Graphics.getFontDescent(valueFont);
+        var centerX = x + width / 2;
 
-        // Vertical baseline calculation: Align with the bottom baseline of the main font
-        var mainBaselineY = y + fontAscent / 2 - fontDescent / 2;
-        var xtinyAscent = Graphics.getFontAscent(Graphics.FONT_XTINY);
-
-        // Vertical position: Offset back up by XTINY's ascent so its baseline aligns perfectly
-        var labelAndUnitY = mainBaselineY - xtinyAscent;
-
+        // 1. Draw Metric Label (Small / XTiny at the top)
         dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            x,
-            labelAndUnitY,
+            centerX,
+            y + 4,
             Graphics.FONT_XTINY,
             label,
-            Graphics.TEXT_JUSTIFY_LEFT
+            Graphics.TEXT_JUSTIFY_CENTER
         );
 
+        var offsetX = 0;
+        var hideUnits =
+            unit.length() == 0 or ($.gHideUnitsWhenActive and !mPaused);
+        var valueWidth = width;
+        if (!hideUnits) {
+            // Units need to fit too, so make width smaller
+            var unitWidth = dc.getTextWidthInPixels(unit, Graphics.FONT_XTINY);
+            valueWidth -= unitWidth;
+            offsetX = unitWidth / 2;
+        }
+
+        // 2. Draw Metric Value (Mild/Medium font centered vertically in remaining space)
+        var font =
+            $.getMatchingFont(dc, mFontsNumbers, valueWidth, height, value) as
+            FontType;
+
+        var valueY = y + (height * 0.68).toNumber();
         dc.setColor(valueColor, Graphics.COLOR_TRANSPARENT);
         dc.drawText(
-            x + labelWidth,
-            y,
-            Graphics.FONT_TINY,
+            centerX - offsetX,
+            valueY,
+            font,
             value,
-            Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
         );
 
-        if ($.gHideUnitsWhenActive and !mPaused) {
+        if (hideUnits) {
             return;
         }
 
+        // Unit
+        var fontAscent = Graphics.getFontAscent(font);
+        var fontDescent = Graphics.getFontDescent(font);
+
+        // Horizontal position: Right edge of main value + small gap (e.g., 2px)
+        var unitX = centerX - offsetX + valueWidth / 2 + 2;
+
+        // Vertical baseline calculation: Align with the bottom baseline of the main font
+        var mainBaselineY = valueY + fontAscent / 2 - fontDescent / 2;
+        var xtinyAscent = Graphics.getFontAscent(Graphics.FONT_XTINY);
+
+        // Vertical position: Offset back up by XTINY's ascent so its baseline aligns perfectly
+        var unitY = mainBaselineY - xtinyAscent;
+
         dc.setColor(unitColor, Graphics.COLOR_TRANSPARENT);
+        // 3. Draw unit tag
         dc.drawText(
-            x + labelWidth + valueWidth,
-            labelAndUnitY,
+            unitX,
+            unitY,
             Graphics.FONT_XTINY,
             unit,
-            Graphics.TEXT_JUSTIFY_LEFT
+            Graphics.TEXT_JUSTIFY_LEFT // Left-aligned so it extends to the right
         );
+
+        // 3. Optional Right Divider Line
+        dc.setColor(labelColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(x + width, y + 4, x + width, y + height - 4);
     }
 
     function playAlert() as Void {
