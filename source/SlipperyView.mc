@@ -276,7 +276,7 @@ class SlipperyView extends WatchUi.DataField {
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
             // Add your alert processing logic here
             newAlert = true;
-            Toybox.System.println("Alert for " + mRiskAssessment.riskLevel);
+            Toybox.System.println("Alert for level" + mRiskAssessment.riskLevel);
         } else if (mRiskAssessment.riskLevel != mAlertProcessedForLevel) {
             // Reset to current risk level
             mAlertProcessedForLevel = mRiskAssessment.riskLevel;
@@ -1840,6 +1840,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         Attention.playTone(Attention.TONE_ALERT_HI);
+        System.println("Playing alert tone");
         return;
     }
   
