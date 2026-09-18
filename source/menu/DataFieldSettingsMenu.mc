@@ -159,6 +159,16 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
           null
         )
       );
+      boolean = Storage.getValue("shortHazard") ? true : false;
+      advMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Short Hazard",
+          null,
+          "shortHazard",
+          boolean,
+          null
+        )
+      );
       boolean = Storage.getValue("hideRiskAdvice") ? true : false;
       advMenu.addItem(
         new WatchUi.ToggleMenuItem(

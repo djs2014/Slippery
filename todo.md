@@ -4,6 +4,7 @@
 - option to collect lat/lon during commute 
     - for predict commute track
     - reset option after activity done
+    - option use hazard abbreviation 
 
    
 - alert on incoming rain/snow
@@ -11,7 +12,8 @@
 - check forecast x hours if it gets slippery
     - alert
 - wide field arrow + cross wind value  
-
+- alert on gust warning
+- rain > x mm dark blue ..or color scheme wweather
 switch hours -> will also need other minute rain data-> need 8 * 15 min ->
 
 // Setting? 
@@ -130,3 +132,68 @@ const COLOR_DEEP_PURPLE_DARK  = 0xAA00FF; // Electric Purple for Dark Mode
 
 // Inside your rendering or palette selector logic
 var showerColor = isDark ? COLOR_DEEP_PURPLE_DARK : COLOR_DEEP_PURPLE_LIGHT;
+
+// Focus on wind related
+// - Aero pacing / cross gust / net wind 
+// Focus on temperature / humidity
+
+
+public static function drawAeroPacingOverlay(
+    dc as Graphics.Dc,
+    x as Number,
+    y as Number,
+    width as Number,
+    power3s as Number,
+    targetPowerBase as Number,
+    virtualGrade as Float,
+    crossGustKmh as Float,
+    isDark as Boolean
+) as Void {
+    var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+    var accentColor = isDark ? Graphics.COLOR_YELLOW : 0x666600;
+
+    // --- 1. VIRTUAL GRADE BADGE (Top Right) ---
+    var gradeText = Lang.format("vG: $1$%", [virtualGrade.format("%.1f")]);
+    dc.setColor(accentColor, Graphics.COLOR_TRANSPARENT);
+    dc.drawText(
+        x + width - 4, 
+        y + 2, 
+        Graphics.FONT_XTINY, 
+        gradeText, 
+        Graphics.TEXT_JUSTIFY_RIGHT
+    );
+
+    // --- 2. PACING DELTA ALERT (Target vs Actual 3s Power) ---
+    var deltaW = AeroPacingCalculator.calculatePacingDeltaWatts(targetPowerBase, virtualGrade);
+    if (deltaW != 0) {
+        var deltaText = (deltaW > 0) 
+            ? Lang.format("PUSH +$1$W", [deltaW]) 
+            : Lang.format("EASE $1$W", [deltaW]);
+            
+        var alertColor = (deltaW > 0) ? Graphics.COLOR_RED : Graphics.COLOR_BLUE;
+        dc.setColor(alertColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(
+            x + (width / 2), 
+            y + 2, 
+            Graphics.FONT_XTINY, 
+            deltaText, 
+            Graphics.TEXT_JUSTIFY_CENTER
+        );
+    }
+
+    // --- 3. CROSS-GUST STABILITY WARNING BANNER ---
+    // High cross-gusts (>30 km/h) trigger a subtle stability cue at the bottom
+    if (crossGustKmh >= 30.0f) {
+        dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(x, y + 36, width, 14);
+        
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        dc.drawText(
+            x + (width / 2), 
+            y + 36, 
+            Graphics.FONT_XTINY, 
+            Lang.format("GUST ALERT: $1$ km/h", [crossGustKmh.format("%d")]), 
+            Graphics.TEXT_JUSTIFY_CENTER
+        );
+    }
+}

@@ -101,12 +101,19 @@ class SlipperyView extends WatchUi.DataField {
         var currentMin = System.getClockTime().min;
 
         // Gate: Only calculate ONCE per minute instead of every second
-        if (mHasWeatherData &&currentMin != _lastMinuteChecked) {
+        if (mHasWeatherData && currentMin != _lastMinuteChecked) {
             _lastMinuteChecked = currentMin;
-            
+
             var nowEpoch = Time.now().value();
-            mWeatherMetrics.hourFractionRemaining = ForecastAligner.getFirstHourRemainingFraction(mWeatherMetrics.timeStampsForeCast, nowEpoch);            
-            System.println("Cached hour fraction updated to: " + mWeatherMetrics.hourFractionRemaining);
+            mWeatherMetrics.hourFractionRemaining =
+                ForecastAligner.getFirstHourRemainingFraction(
+                    mWeatherMetrics.timeStampsForeCast,
+                    nowEpoch
+                );
+            System.println(
+                "Cached hour fraction updated to: " +
+                    mWeatherMetrics.hourFractionRemaining
+            );
         }
     }
 
@@ -114,11 +121,16 @@ class SlipperyView extends WatchUi.DataField {
         var hazardStrings = [];
         var hazardStringsShortened = [];
         for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
-            var fullHazardStr = getHazardString(mRiskAssessment.hazards[i]);
-            hazardStrings.add(fullHazardStr);
-            hazardStringsShortened.add(
-                getShortHazardString(mRiskAssessment.hazards[i])
+            var shortHazardStr = getShortHazardString(
+                mRiskAssessment.hazards[i]
             );
+            if ($.gShortHazard) {
+                hazardStrings.add(shortHazardStr);
+            } else {
+                var fullHazardStr = getHazardString(mRiskAssessment.hazards[i]);
+                hazardStrings.add(fullHazardStr);
+            }
+            hazardStringsShortened.add(shortHazardStr);
         }
         var adviceStrings = [];
         for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
@@ -757,7 +769,7 @@ class SlipperyView extends WatchUi.DataField {
         // Capture pointer once at start of frame
         var localHazards = mHazardStrings;
         var localAdvice = mAdviceStrings;
-        
+
         if ($.gHideRiskAdvice || localHazards.size() <= 3) {
             // Show when no advice or max 3 hazard
             gridLinePos += rowHeight;
@@ -1458,21 +1470,21 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.humidity >= 80 ? Graphics.COLOR_RED : textColor
         );
 
-        // --- CURRENT WIND ARROW CENTERED IN GRID ---
-        CurrentWindWidget.draw(
-            dc,
-            w / 2, // Widget X center
-            gridTop + gridHeight / 2, // Widget Y center
-            0,
-            h,
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            isDark,
-            false // Big field scaling
-        );
+        // // --- CURRENT WIND ARROW CENTERED IN GRID ---
+        // CurrentWindWidget.draw(
+        //     dc,
+        //     w / 2, // Widget X center
+        //     h / 2, // gridTop + gridHeight / 2, // Widget Y center
+        //     0,
+        //     h,
+        //     mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+        //     mWeatherMetrics.windGust, // e.g. 38.0f km/h
+        //     mWeatherMetrics.windDirection, // e.g. 180.0f deg
+        //     mHeadingDegrees, // Heading from activity
+        //     true, // true = Relative to bike heading, false = Cardinal North
+        //     isDark,
+        //     false // Big field scaling
+        // );
         // 4. Hazards & Advice Section
 
         dc.setColor(
@@ -1510,6 +1522,21 @@ class SlipperyView extends WatchUi.DataField {
                 AppState.activePalette[ThemeManager.COLOR_TEXT]
             );
         }
+        // --- CURRENT WIND ARROW CENTERED IN GRID ---
+        CurrentWindWidget.draw(
+            dc,
+            w / 2, // Widget X center
+            h / 2, // Widget Y center
+            0,
+            h,
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark,
+            false // Big field scaling
+        );
     }
 
     private function drawMetricColumn(
