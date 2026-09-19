@@ -8,6 +8,8 @@ class DemoWeatherService {
     ) as WeatherMetrics {
         var wd = new WeatherMetrics();
         var now = System.getTimer() / 1000; // Base Unix timestamp (in seconds)
+        // Absolute hour labels follow the real clock, not hour 0.
+        wd.currentHour = System.getClockTime().hour;
 
         if (counter <= 5) {
             // --- SAFE: Ideal Summer Ride ---
@@ -20,7 +22,7 @@ class DemoWeatherService {
             wd.windSpeed = 5.0f;
             wd.windGust = 7.0f;
             wd.windDirection = 90;
-            wd.gustSeverity = 1;
+            wd.gustSeverity = 1; // gust 7 < 25 but ratio 1.4 >= 1.3
 
             wd.rain12hSum = 0.0f;
             wd.snow12hSum = 0.0f;
@@ -60,24 +62,24 @@ class DemoWeatherService {
                 17.5f, 17.0f, 16.5f,
             ];
         } else if (counter <= 10) {
-            // --- RISK LEVEL SLIGHT: Autumn Dampness & Incoming Rain ---
+            // --- RISK LEVEL SLIGHT: Autumn Morning Dew (bone dry, rain only in forecast) ---
             wd.airTemp = 12.0f;
             wd.surfaceTemp = 11.0f;
-            wd.dewPoint = 10.0f;
-            wd.humidity = 88;
+            wd.dewPoint = 10.2f;
+            wd.humidity = 92;
             wd.rainCurrent = 0.0f;
             wd.snowCurrent = 0.0f;
             wd.windSpeed = 18.0f;
-            wd.windGust = 28.0f;
+            wd.windGust = 22.0f;
             wd.windDirection = 270;
-            wd.gustSeverity = 2;
+            wd.gustSeverity = 0; // gust 22 < 25, ratio ~1.2 < 1.3
 
-            wd.rain12hSum = 1.2f;
+            wd.rain12hSum = 0.0f;
             wd.snow12hSum = 0.0f;
-            wd.dryStreak = 1;
+            wd.dryStreak = 12;
             wd.currentSeason = SeasonAutumn;
 
-            wd.immediateRain = 30; // Rain approaching in 30 mins
+            wd.immediateRain = -1;
             wd.immediateSnow = -1;
 
             // Forecast: Dry now, light rain starting at hour 1-2, winds picking up
@@ -98,7 +100,7 @@ class DemoWeatherService {
                 270, 265, 260, 255, 250, 245, 240, 240, 245, 250, 255, 260,
             ];
             wd.windGustForecast = [
-                28.0f, 32.0f, 38.0f, 42.0f, 40.0f, 35.0f, 30.0f, 28.0f, 25.0f,
+                22.0f, 32.0f, 38.0f, 42.0f, 40.0f, 35.0f, 30.0f, 28.0f, 25.0f,
                 22.0f, 20.0f, 18.0f,
             ];
             wd.airTempForecast = [
@@ -115,12 +117,12 @@ class DemoWeatherService {
             wd.surfaceTemp = 7.0f;
             wd.dewPoint = 7.0f;
             wd.humidity = 93;
-            wd.rainCurrent = 1.8f;
+            wd.rainCurrent = 2.1f; // == rainForecast[0] + showersForecast[0]
             wd.snowCurrent = 0.0f;
             wd.windSpeed = 25.0f;
-            wd.windGust = 42.0f;
+            wd.windGust = 34.0f;
             wd.windDirection = 220;
-            wd.gustSeverity = 2;
+            wd.gustSeverity = 1; // gust 34 >= 25, ratio ~1.36 >= 1.3
 
             wd.rain12hSum = 6.5f;
             wd.snow12hSum = 0.0f;
@@ -148,7 +150,7 @@ class DemoWeatherService {
                 220, 225, 230, 235, 240, 245, 250, 250, 245, 240, 235, 230,
             ];
             wd.windGustForecast = [
-                42.0f, 46.0f, 48.0f, 44.0f, 38.0f, 32.0f, 28.0f, 25.0f, 22.0f,
+                34.0f, 46.0f, 48.0f, 44.0f, 38.0f, 32.0f, 28.0f, 25.0f, 22.0f,
                 20.0f, 18.0f, 15.0f,
             ];
             wd.airTempForecast = [
@@ -165,7 +167,7 @@ class DemoWeatherService {
             wd.surfaceTemp = 0.8f;
             wd.dewPoint = 0.5f;
             wd.humidity = 95;
-            wd.rainCurrent = 4.5f;
+            wd.rainCurrent = 5.0f; // == rainForecast[0] + showersForecast[0]
             wd.snowCurrent = 0.0f;
             wd.windSpeed = 32.0f;
             wd.windGust = 55.0f;
@@ -215,7 +217,7 @@ class DemoWeatherService {
             wd.surfaceTemp = 3.2f;
             wd.dewPoint = 2.8f;
             wd.humidity = 92;
-            wd.rainCurrent = 0.2f;
+            wd.rainCurrent = 0.3f; // == rainForecast[0] + showersForecast[0]
             wd.snowCurrent = 0.0f;
             wd.windSpeed = 20.0f;
             wd.windGust = 35.0f;
@@ -227,7 +229,7 @@ class DemoWeatherService {
             wd.dryStreak = 0;
             wd.currentSeason = SeasonWinter;
 
-            wd.immediateRain = -1;
+            wd.immediateRain = 0; // drizzle active now (minutely[0] >= 0.1)
             wd.immediateSnow = -1;
 
             // Forecast: Light drizzle clearing, temperatures dropping steadily toward 0°C
@@ -265,7 +267,7 @@ class DemoWeatherService {
             wd.surfaceTemp = -2.2f;
             wd.dewPoint = -2.0f;
             wd.humidity = 98;
-            wd.rainCurrent = 0.8f;
+            wd.rainCurrent = 1.0f; // == rainForecast[0] + showersForecast[0]
             wd.snowCurrent = 1.5f;
             wd.windSpeed = 28.0f;
             wd.windGust = 48.0f;
@@ -328,10 +330,10 @@ class DemoWeatherService {
                 0.0f, 0.0f,
             ];
             wd.dewpointForecast = [
-                10.0f, 9.8f, 9.5f, 9.2f, 9.0f, 8.8f, 8.5f, 8.2f, 8.0f, 7.8f,
+                10.2f, 9.8f, 9.5f, 9.2f, 9.0f, 8.8f, 8.5f, 8.2f, 8.0f, 7.8f,
                 7.5f, 7.2f,
             ];
-            wd.minutelyRainForecast = [0.0f, 0.0f, 0.2f, 0.5f];
+            wd.minutelyRainForecast = [0.0f, 0.0f, 0.0f, 0.0f];
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
         } else if (counter <= 20) {
             wd.showersForecast = [
@@ -354,7 +356,7 @@ class DemoWeatherService {
                 -3.7f, -4.0f, -4.3f,
             ];
             wd.minutelyRainForecast = [3.5f, 3.0f, 2.2f, 1.5f];
-            wd.minutelySnowForecast = [0.0f, 0.0f, 0.2f, 0.8f];
+            wd.minutelySnowForecast = [0.0f, 0.2f, 0.8f, 1.5f]; // snow from ~15 min
         } else if (counter <= 40) {
             wd.showersForecast = [
                 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -390,59 +392,34 @@ class DemoWeatherService {
     }
 
     var currentRiskLevel = RiskLevelSafe;
+    // Derives the demo assessment from the demo metrics through the real
+    // risk engine, so demo level/hazards/advice can never drift from the
+    // demo weather again (single source of truth).
     public static function getDemoRiskAssessment(
-        counter as Number
+        metrics as WeatherMetrics
     ) as RiskAssessment {
-        // TODO demo weather data
-        var ra = new RiskAssessment();
-        if (counter <= 5) {
-            ra.riskLevel = RiskLevelSafe;
-        } else if (counter <= 10) {
-            ra.riskLevel = RiskLevelSlight;
-            addHazard(ra, HazardWetAsphaltSurface);
-            addAdvice(ra, AdviceIncreaseBreakingDistance);
-            addAdvice(ra, AdviceReduceCorneringLeanAngle);
-        } else if (counter <= 20) {
-            ra.riskLevel = RiskLevelModerate;
-            addHazard(ra, HazardStrongCrosswinds);
-            addAdvice(ra, AdviceBewareOfOpenFieldsAndBridges);
-            addAdvice(ra, AdviceHoldHandlebarsFirmly);
-        } else if (counter <= 30) {
-            ra.riskLevel = RiskLevelHigh;
-            addHazard(ra, HazardImminentRain);
-            addAdvice(ra, AdviceIncreaseBreakingDistance);
-            addAdvice(ra, AdviceReduceSpeedAndIncreaseGripMargin);
-        } else if (counter <= 40) {
-            ra.riskLevel = RiskLevelModerate;
-            addHazard(ra, HazardStrongCrosswinds);
-            addAdvice(ra, AdviceBewareOfOpenFieldsAndBridges);
-            addAdvice(ra, AdviceHoldHandlebarsFirmly);
-        } else if (counter <= 50) {
-            ra.riskLevel = RiskLevelCritical;
-            addHazard(ra, HazardGaleForceWinds);
-            addAdvice(ra, AdviceBewareOfOpenFieldsAndBridges);
-            addAdvice(ra, AdviceHoldHandlebarsFirmly);
-            addAdvice(ra, AdviceConsiderLowerProfileWheels);
-        }
+        var assessment = new RiskAssessment();
 
-        return ra;
-    }
-
-    static function addHazard(
-        assessment as RiskAssessment,
-        hazard as WeatherHazard
-    ) as Void {
-        if (assessment.hazards.indexOf(hazard) == -1) {
-            assessment.hazards.add(hazard);
-        }
-    }
-
-    static function addAdvice(
-        assessment as RiskAssessment,
-        advice as WeatherAdvice
-    ) as Void {
-        if (assessment.advice.indexOf(advice) == -1) {
-            assessment.advice.add(advice);
-        }
+        RiskCalculator.setRiskOnly(false);
+        assessment.riskLevel = RiskCalculator.evaluateRisk(
+            metrics.airTemp,
+            metrics.surfaceTemp,
+            metrics.dewPoint,
+            metrics.humidity,
+            metrics.rainCurrent,
+            metrics.rain12hSum,
+            metrics.snow12hSum,
+            metrics.dryStreak,
+            metrics.currentSeason,
+            metrics.windSpeed,
+            metrics.windGust,
+            metrics.immediateRain,
+            metrics.immediateSnow,
+            metrics.surfaceTemp - metrics.dewPoint,
+            metrics.snowCurrent
+        );
+        assessment.hazards = RiskCalculator.getHazards();
+        assessment.advice = RiskCalculator.getAdvice();
+        return assessment;
     }
 }

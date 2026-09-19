@@ -167,7 +167,7 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics =
                 DemoWeatherService.getDemoWeatherMetrics(demoCounter);
             mRiskAssessment =
-                DemoWeatherService.getDemoRiskAssessment(demoCounter);
+                DemoWeatherService.getDemoRiskAssessment(mWeatherMetrics);
             setHazardAndAdviceStrings();
             initializeMinutesUntilCounters();
             if (demoCounter > 50) {
