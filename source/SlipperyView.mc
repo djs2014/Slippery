@@ -224,13 +224,40 @@ class SlipperyView extends WatchUi.DataField {
             mWeatherMetrics.windDirection,
             mHeadingDegrees
         );
+        // Peak upcoming precipitation over the forecast window; drives the
+        // RAIN_AHEAD / SHOWERS_AHEAD outlook states (same threshold as the
+        // sparkline badges).
+        var maxRainAhead = 0.0f;
+        for (
+            var rf = 0;
+            rf < mWeatherMetrics.rainForecast.size();
+            rf++
+        ) {
+            var rainValue = mWeatherMetrics.rainForecast[rf];
+            if (rainValue != null && rainValue > maxRainAhead) {
+                maxRainAhead = rainValue;
+            }
+        }
+        var maxShowersAhead = 0.0f;
+        for (
+            var sf = 0;
+            sf < mWeatherMetrics.showersForecast.size();
+            sf++
+        ) {
+            var showerValue = mWeatherMetrics.showersForecast[sf];
+            if (showerValue != null && showerValue > maxShowersAhead) {
+                maxShowersAhead = showerValue;
+            }
+        }
 
         mAlertState = AlertStateAnalyzer.updateAndEvaluate(
             mWeatherMetrics.surfaceTemp,
             mCrossGust.crosswindGustKmH,
             mWeatherMetrics.windSpeed,
             mNetHeadwindKmh,
-            mFeelsLikeTemp
+            mFeelsLikeTemp,
+            maxRainAhead,
+            maxShowersAhead
         );
 
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);

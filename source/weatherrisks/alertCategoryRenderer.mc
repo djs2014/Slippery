@@ -7,6 +7,7 @@ import Toybox.Graphics;
         CATEGORY_WIND,
         CATEGORY_COLD,
         CATEGORY_HEAT,
+        CATEGORY_RAIN,
     }
 public class AlertCategoryRenderer {
     public static function getCategoryForState(
@@ -25,6 +26,10 @@ public class AlertCategoryRenderer {
 
             case STATE_HEAT_STRESS:
                 return CATEGORY_HEAT;
+
+            case STATE_SHOWERS_AHEAD:
+            case STATE_RAIN_AHEAD:
+                return CATEGORY_RAIN;
 
             case STATE_NORMAL:
             default:
@@ -98,6 +103,30 @@ public class AlertCategoryRenderer {
 
                 // Rounded top cap for tube
                 dc.fillCircle(cx, cy - r + 2, stemWidth / 2);
+                break;
+
+            case CATEGORY_RAIN:
+                // Draw 3 slanted rain streaks (same line language as wind)
+                dc.setPenWidth(2);
+                var streakDx = (r / 2).toNumber();
+                if (streakDx < 2) {
+                    streakDx = 2;
+                }
+                var streakTop = cy - r + 2;
+                var streakBottom = cy + r - 2;
+                dc.drawLine(
+                    cx - streakDx,
+                    streakTop,
+                    cx - streakDx - 2,
+                    streakBottom
+                );
+                dc.drawLine(cx, streakTop, cx - 2, streakBottom);
+                dc.drawLine(
+                    cx + streakDx,
+                    streakTop,
+                    cx + streakDx - 2,
+                    streakBottom
+                );
                 break;
 
             default:

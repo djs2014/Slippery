@@ -174,8 +174,9 @@ class PredictiveSparkline {
         var minSt = 1000.0f;
         var maxSt = -1000.0f;
         var hasIceAhead = false;
-        // Significant precip burst floor (matches the rain color tiers).
-        var precipHlThreshold = 0.5f;
+        // Significant precip floor shared with AlertStateAnalyzer
+        // (threshPrecipAhead setting): drives badges, outlines, segment floor.
+        var precipHlThreshold = AlertStateAnalyzer.threshPrecipAhead;
         // First hours with significant showers / steady rain; drive badges + outlines.
         var firstShowerIdx = -1;
         var firstRainIdx = -1;

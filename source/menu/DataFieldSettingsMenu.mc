@@ -190,6 +190,15 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
       trshMenu.addItem(mi);
 
+      mi = new WatchUi.MenuItem(
+        "Precip Ahead|0~20.0 (mm/h)",
+        null,
+        "threshPrecipAhead",
+        null
+      );
+      mi.setSubLabel($.getStorageFloatAsString(mi.getId() as String));
+      trshMenu.addItem(mi);
+
       WatchUi.pushView(trshMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
       return;
     }

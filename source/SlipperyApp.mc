@@ -77,6 +77,7 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("threshSustainedWind", 25.0f);
                 Storage.setValue("threshHeadwind", 12.0f);
                 Storage.setValue("threshHeatStress", 32.0f);
+                Storage.setValue("threshPrecipAhead", 0.5f);
             }
 
             $.g_bg_timeout_seconds =
@@ -136,6 +137,7 @@ class SlipperyApp extends Application.AppBase {
             seedStorageDefault("threshSustainedWind", 25.0f);
             seedStorageDefault("threshHeadwind", 12.0f);
             seedStorageDefault("threshHeatStress", 32.0f);
+            seedStorageDefault("threshPrecipAhead", 0.5f);
 
             // Fallback defaults mirror the seeded values above so behavior is
             // correct even when storage has no threshold keys (e.g. upgrades).
@@ -146,6 +148,7 @@ class SlipperyApp extends Application.AppBase {
             AlertStateAnalyzer.setTreshSustainedWind($.getStorageValue("threshSustainedWind", 25.0f) as Float);              
             AlertStateAnalyzer.setTreshHeadwind($.getStorageValue("threshHeadwind", 12.0f) as Float);              
             AlertStateAnalyzer.setTreshHeatStress($.getStorageValue("threshHeatStress", 32.0f) as Float);              
+            AlertStateAnalyzer.setTreshPrecipAhead($.getStorageValue("threshPrecipAhead", 0.5f) as Float);              
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();

@@ -13,6 +13,8 @@ enum AlertState {
     STATE_SUSTAINED_WIND = 5,
     STATE_AERO_HEADWIND = 6,
     STATE_HEAT_STRESS = 7,
+    STATE_SHOWERS_AHEAD = 8,
+    STATE_RAIN_AHEAD = 9,
 }
 
 public class AlertStateAnalyzer {
@@ -26,21 +28,27 @@ public class AlertStateAnalyzer {
     // NOTE: this is intentionally NOT the AlertState enum order (where e.g.
     // STATE_ICE_ALERT = 1 < STATE_HEAT_STRESS = 7). All escalation /
     // de-escalation decisions must compare severities, never raw enum values.
+    // Outlook states (rain/showers ahead) rank below current conditions:
+    // what is happening now always wins over what is coming.
     public static function getSeverity(state as AlertState) as Number {
         switch (state) {
             case STATE_ICE_ALERT:
-                return 7;
+                return 9;
             case STATE_HIGH_CROSSWIND:
-                return 6;
+                return 8;
             case STATE_HEAVY_WIND:
-                return 5;
+                return 7;
             case STATE_MODERATE_CROSSWIND:
-                return 4;
+                return 6;
             case STATE_SUSTAINED_WIND:
-                return 3;
+                return 5;
             case STATE_AERO_HEADWIND:
-                return 2;
+                return 4;
             case STATE_HEAT_STRESS:
+                return 3;
+            case STATE_SHOWERS_AHEAD:
+                return 2;
+            case STATE_RAIN_AHEAD:
                 return 1;
             case STATE_NORMAL:
             default:
@@ -53,7 +61,9 @@ public class AlertStateAnalyzer {
         crossGustKmh as Float,
         sustainedWindKmh as Float,
         netHeadwindKmh as Float,
-        feelsLikeTemp as Float
+        feelsLikeTemp as Float,
+        maxRainAhead as Float,
+        maxShowersAhead as Float
     ) as AlertState {
         // 1. Calculate the instantaneous state based on raw thresholds
         var rawState = evaluateRawState(
@@ -61,7 +71,9 @@ public class AlertStateAnalyzer {
             crossGustKmh,
             sustainedWindKmh,
             netHeadwindKmh,
-            feelsLikeTemp
+            feelsLikeTemp,
+            maxRainAhead,
+            maxShowersAhead
         );
 
         // 2. Immediate Escalation: Higher severity state triggers instantly
@@ -117,6 +129,9 @@ public class AlertStateAnalyzer {
     public static function setTreshHeatStress(value as Float) as Void {
         threshHeatStress = value;
     }
+    public static function setTreshPrecipAhead(value as Float) as Void {
+        threshPrecipAhead = value;
+    }
 
     // User-configurable thresholds
     public static var threshIceAlert as Float = 3.0f;
@@ -129,13 +144,16 @@ public class AlertStateAnalyzer {
 
     public static var threshHeadwind as Float = -12.0f; // Negative sign convention
     public static var threshHeatStress as Float = 32.0f;
+    public static var threshPrecipAhead as Float = 0.5f; // mm/h: significant rain/showers ahead
 
     private static function evaluateRawState(
         surfaceTemp as Float,
         crossGustKmh as Float,
         sustainedWindKmh as Float,
         netHeadwindKmh as Float,
-        feelsLikeTemp as Float
+        feelsLikeTemp as Float,
+        maxRainAhead as Float,
+        maxShowersAhead as Float
     ) as AlertState {
         // 1. Direct Safety Hazard: Ice
         if (surfaceTemp <= threshIceAlert) {
@@ -170,6 +188,16 @@ public class AlertStateAnalyzer {
         // 7. Thermal Comfort
         if (feelsLikeTemp >= threshHeatStress) {
             return STATE_HEAT_STRESS;
+        }
+
+        // 8. Outlook: convective showers approaching (sudden grip loss)
+        if (maxShowersAhead >= threshPrecipAhead) {
+            return STATE_SHOWERS_AHEAD;
+        }
+
+        // 9. Outlook: steady rain approaching
+        if (maxRainAhead >= threshPrecipAhead) {
+            return STATE_RAIN_AHEAD;
         }
 
         return STATE_NORMAL;
