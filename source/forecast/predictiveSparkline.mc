@@ -689,10 +689,18 @@ class PredictiveSparkline {
         var tailY = cy - (halfLen * uY).toNumber();
 
         // 2. GUST SEVERITY LEVELS
+        // Same tiers as calculateGustSeverity() and drawWindArrow():
+        // 3 barbs at gust >= 45 or ratio >= 1.7, 2 at >= 35 / 1.5,
+        // 1 at >= 25 / 1.3, 0 below (caller gates arrow visibility).
         var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var isSevereGust = gust >= 40.0f || gustRatio >= 1.6f;
-        var isModerateGust =
-            gust >= 28.0f || (gustRatio >= 1.3f && !isSevereGust);
+        var numBarbs = 0;
+        if (gust >= 45.0f || gustRatio >= 1.7f) {
+            numBarbs = 3;
+        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
+            numBarbs = 2;
+        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
+            numBarbs = 1;
+        }
 
         var arrowColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
@@ -738,8 +746,7 @@ class PredictiveSparkline {
         dc.drawLine(tailBaseX1, tailBaseY1, tailBaseX2, tailBaseY2);
 
         // --- STEP C: DIAGONAL GUST BARBS AT TAIL ---
-        // Draw 1, 2, or 3 diagonal flags sloping backwards along the tail
-        var numBarbs = isSevereGust ? 3 : isModerateGust ? 2 : 1;
+        // Draw 0-3 diagonal flags sloping backwards along the tail
         var barbLength = 3;
         var barbSpacing = 3;
 
