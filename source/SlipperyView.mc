@@ -3,6 +3,7 @@ import Toybox.Lang;
 import Toybox.WatchUi;
 import Toybox.Graphics;
 import Toybox.Math;
+import Toybox.Time.Gregorian;
 
 class SlipperyView extends WatchUi.DataField {
     var mBGServiceHandler as BGServiceHandler;
@@ -691,6 +692,44 @@ class SlipperyView extends WatchUi.DataField {
             riskTextColor,
             riskColor
         );
+
+        // --- HEADER MIDDLE: Current day + time ("Sat 14:32", 24h) ---
+        // Puts the shown data in temporal context. Drawn only when the free
+        // middle stretch of the header bar fits it (XTINY keeps it compact).
+        var clockTime = System.getClockTime();
+        var dateInfo = Gregorian.info(Time.now(), Time.FORMAT_LONG);
+        var dayTimeText = Lang.format("$1$ $2$:$3$", [
+            dateInfo.day_of_week,
+            clockTime.hour.format("%02d"),
+            clockTime.min.format("%02d"),
+        ]);
+        var dayTimeFontHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+        if (headerHeight >= dayTimeFontHeight + 4) {
+            var dayTimeLeft = x + 6 + headerTextLength + 2 * iconSize + 8;
+            var dayTimeRight =
+                x + w - 6 - riskLevelTextLength - 2 * iconSize - 8;
+            var dayTimeWidth = dc.getTextWidthInPixels(
+                dayTimeText,
+                Graphics.FONT_XTINY
+            );
+            // Center on the full header line; draw only when clear of the
+            // app/risk blocks on both sides.
+            var dayTimeCenterX = x + w / 2;
+            var dayTimeHalf = dayTimeWidth / 2;
+            if (
+                dayTimeCenterX - dayTimeHalf >= dayTimeLeft &&
+                dayTimeCenterX + dayTimeHalf <= dayTimeRight
+            ) {
+                dc.setColor(riskTextColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    dayTimeCenterX,
+                    y + (headerHeight - dayTimeFontHeight) / 2,
+                    Graphics.FONT_XTINY,
+                    dayTimeText,
+                    Graphics.TEXT_JUSTIFY_CENTER
+                );
+            }
+        }
 
         if ($.gHSPshowValue) {
             drawOptionalHsp(dc, isDark);
