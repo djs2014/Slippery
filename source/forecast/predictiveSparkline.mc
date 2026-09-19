@@ -174,10 +174,11 @@ class PredictiveSparkline {
         var minSt = 1000.0f;
         var maxSt = -1000.0f;
         var hasIceAhead = false;
-        // Significant convective burst floor (matches the rain color tiers).
-        var showerHlThreshold = 0.5f;
-        // First hour with significant showers; drives badge + outline.
+        // Significant precip burst floor (matches the rain color tiers).
+        var precipHlThreshold = 0.5f;
+        // First hours with significant showers / steady rain; drive badges + outlines.
         var firstShowerIdx = -1;
+        var firstRainIdx = -1;
         var hasTempData = surfaceTempForecast.size() > 0;
 
         for (var i = 0; i < numHours; i++) {
@@ -187,16 +188,23 @@ class PredictiveSparkline {
                 maxPrecip = totalP;
             }
 
-            // 2. First significant shower hour
+            // 2. First significant shower / steady-rain hours
             if (
                 firstShowerIdx < 0 &&
                 i < showersForecast.size() &&
-                showersForecast[i] >= showerHlThreshold
+                showersForecast[i] >= precipHlThreshold
             ) {
                 firstShowerIdx = i;
             }
+            if (
+                firstRainIdx < 0 &&
+                i < rainForecast.size() &&
+                rainForecast[i] >= precipHlThreshold
+            ) {
+                firstRainIdx = i;
+            }
 
-            // 3. Temp Range & Ice check
+            // 4. Temp Range & Ice check
             if (hasTempData && i < surfaceTempForecast.size()) {
                 var st = surfaceTempForecast[i];
                 if (st <= 0.0f) {
@@ -354,7 +362,7 @@ class PredictiveSparkline {
                             showerH = liquidH;
                         }
                         if (
-                            showers >= showerHlThreshold && showerH < 2
+                            showers >= precipHlThreshold && showerH < 2
                         ) {
                             showerH = liquidH < 2 ? liquidH : 2;
                         }
@@ -420,6 +428,16 @@ class PredictiveSparkline {
                 if (i == firstShowerIdx) {
                     dc.setColor(
                         AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                        Graphics.COLOR_TRANSPARENT
+                    );
+                    dc.drawRectangle(colX, baselineY - barH, colW, barH);
+                }
+
+                // First-rain highlight (blue); skipped when the shower
+                // outline already marks this column.
+                if (i == firstRainIdx && firstRainIdx != firstShowerIdx) {
+                    dc.setColor(
+                        AppState.getColor(ThemeManager.COLOR_BLUE),
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.drawRectangle(colX, baselineY - barH, colW, barH);
@@ -664,18 +682,22 @@ class PredictiveSparkline {
             }
         }
 
+        // Outlook badges, stacked top-right in attention order:
+        // ice (danger), showers (sudden), steady rain (expected).
+        var badgeY = y;
         if (hasIceAhead) {
             dc.setColor(AppState.getColor(ThemeManager.COLOR_RED), Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + width,
-                y,
+                badgeY,
                 Graphics.FONT_XTINY,
                 "ICE AHEAD",
                 Graphics.TEXT_JUSTIFY_RIGHT
             );
+            badgeY += 12;
         }
 
-        // Convective outlook badge; stacked below ICE AHEAD when both fire.
+        // Convective outlook badge.
         if (firstShowerIdx >= 0) {
             dc.setColor(
                 AppState.getColor(ThemeManager.COLOR_SHOWERS),
@@ -683,11 +705,28 @@ class PredictiveSparkline {
             );
             dc.drawText(
                 x + width,
-                hasIceAhead ? y + 12 : y,
+                badgeY,
                 Graphics.FONT_XTINY,
                 "SHOWERS AHEAD",
                 Graphics.TEXT_JUSTIFY_RIGHT
             );
+            badgeY += 12;
+        }
+
+        // Steady-rain outlook badge.
+        if (firstRainIdx >= 0) {
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_BLUE),
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x + width,
+                badgeY,
+                Graphics.FONT_XTINY,
+                "RAIN AHEAD",
+                Graphics.TEXT_JUSTIFY_RIGHT
+            );
+            badgeY += 12;
         }
     }
 
