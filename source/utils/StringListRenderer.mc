@@ -8,6 +8,8 @@ class StringListRenderer {
 
     /// Draws an array of strings wrapped within a specified width and line limit.
     /// Returns the total height occupied by the rendered text.
+    /// Lines that would cross bottomY are skipped (clipped), so content can
+    /// never overflow the caller's remaining space.
     public static function drawWrappedStrings(
         dc as Graphics.Dc,
         items as Array<String>,
@@ -16,10 +18,12 @@ class StringListRenderer {
         maxWidth as Number,
         maxLines as Number,
         font as Graphics.FontDefinition,
-        color as Graphics.ColorValue
+        color as Graphics.ColorValue,
+        bottomY as Number
     ) as Number {
         var numItems = items.size();
         if (numItems == 0) { return 0; }
+        if (y + dc.getFontHeight(font) > bottomY) { return 0; }
 
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
 
@@ -60,6 +64,8 @@ class StringListRenderer {
                 if (lineCount > maxLines) { break; } // Respect line limit constraint
 
                 currentY += fontHeight;
+                if (currentY + fontHeight > bottomY) { break; } // Clip to bounds
+
                 currentLineWidth = 0;
 
                 // Draw item at the start of the new line
@@ -73,6 +79,8 @@ class StringListRenderer {
 
     /// Draws an array of strings centered and wrapped within a specified width and line limit.
     /// Returns the total height occupied by the rendered text.
+    /// Lines that would cross bottomY are skipped (clipped), so content can
+    /// never overflow the caller's remaining space.
     public static function drawCenteredWrappedStrings(
         dc as Graphics.Dc,
         items as Array<String>,
@@ -81,7 +89,8 @@ class StringListRenderer {
         maxWidth as Number,
         maxLines as Number,
         font as Graphics.FontDefinition,
-        color as Graphics.ColorValue
+        color as Graphics.ColorValue,
+        bottomY as Number
     ) as Number {
         var numItems = items.size();
         if (numItems == 0) { return 0; }
@@ -133,6 +142,7 @@ class StringListRenderer {
         for (var l = 0; l <= currentLine && l < maxLines; l++) {
             var count = lineItemCounts[l];
             if (count == 0) { break; }
+            if (currentY + fontHeight > bottomY) { break; } // Clip to bounds
 
             var totalLineWidth = lineLineWidths[l];
             // Compute centered starting offset

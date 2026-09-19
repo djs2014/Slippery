@@ -2,9 +2,7 @@
 - weather app also same track heading mechanism / edgefield
 
 - add precipitation_probability
-- if showers > setting, then mark them under the bar! + warning icon and alert
 - readme update alertmode thresholds
-- setting incoming rain minimal mm/h alert
 
 
 
@@ -47,10 +45,9 @@ auto mode / layout fonts
 
 - alert on incoming rain/snow
 - alert on ice forecast 
-- check forecast x hours if it gets slippery
-    - alert
 - rain chance line?
 - show current day time
+- on edgeone field if hide advice enabled -> only hide advice if it not fits 
 
 
 

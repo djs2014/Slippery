@@ -916,31 +916,44 @@ class SlipperyView extends WatchUi.DataField {
         gridLinePos += rowHeight;
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
 
+        // Footer text inset: keeps wrapped lines off the screen bezels.
+        // Measure and draw calls below must use this same geometry.
+        var footerX = x + 4;
+        var footerW = w - 8;
+
         // var linePos = y + gridTop + gridHeight + 2;
         var linePos = gridLinePos;
+        var hazardFont = $.gHideRiskAdvice
+            ? Graphics.FONT_SMALL
+            : Graphics.FONT_TINY;
+        // Footer blocks clip at the field bottom: trailing lines are dropped
+        // rather than overflowing. In hide mode the advice draws whenever any
+        // of it fits (a space saver, not a gag).
         if (localHazards.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localHazards,
-                x,
+                footerX,
                 linePos,
-                w,
+                footerW,
                 localHazards.size(), // maxLines
-                $.gHideRiskAdvice ? Graphics.FONT_SMALL : Graphics.FONT_TINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD)
+                hazardFont,
+                AppState.getColor(ThemeManager.COLOR_HAZARD),
+                y + h
             );
         }
 
-        if (!$.gHideRiskAdvice && localAdvice.size() > 0) {
+        if (localAdvice.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localAdvice,
-                x,
+                footerX,
                 linePos,
-                w,
+                footerW,
                 localAdvice.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_TEXT)
+                AppState.getColor(ThemeManager.COLOR_TEXT),
+                y + h
             );
         }
     }
@@ -1205,20 +1218,29 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, colHeight, x + w, colHeight);
 
-        // --- ROW 3+: Shortened Hazard Strings ---
-        var linePosMetrics = colHeight;
+        // --- ROW 3+: Shortened Hazard Strings (clipped at the rain strip) ---
+        var linePosMetrics = y + colHeight;
         var localHazards = mHazardStringsShortened;
+        // The bottom-anchored rain strip overlaps the footer while imminent
+        // precipitation is in range; keep text above it.
+        var footerBottom = y + h;
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            footerBottom -= Graphics.getFontHeight(Graphics.FONT_XTINY) + 4;
+        }
         if (localHazards.size() > 0) {
-            var totalWidth = w;
             linePosMetrics += StringListRenderer.drawWrappedStrings(
                 dc,
                 localHazards,
-                x,
+                x + 4,
                 linePosMetrics,
-                totalWidth,
+                w - 8,
                 localHazards.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD)
+                AppState.getColor(ThemeManager.COLOR_HAZARD),
+                footerBottom
             );
         }
 
@@ -1499,23 +1521,34 @@ class SlipperyView extends WatchUi.DataField {
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x + rightX, y + colHeight, x + w, y + colHeight);
 
-        // --- HAZARD LIST (BELOW METRIC COLUMNS) ---
+        // --- HAZARD LIST (BELOW METRIC COLUMNS, clipped at the precip strip) ---
         var hazardY = y + colHeight;
 
         var localHazards = mHazardStrings;
+        // The bottom-anchored precip strip overlaps the footer while imminent
+        // precipitation is in range; keep text above it.
+        var footerBottom = y + h;
+        if (
+            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        ) {
+            footerBottom -= Graphics.getFontHeight(Graphics.FONT_XTINY) + 4;
+        }
+        // 2px side pads: keep text off the badge edge (left) and bezel (right).
+        var hazardWidth = 3 * colW - 4;
+        var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+        var linePos = hazardY + (lineHeight / 2).toNumber();
         if (localHazards.size() > 0) {
-            var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-            var linePos = hazardY + (lineHeight / 2).toNumber();
-            var totalWidth = 3 * colW;
             linePos += StringListRenderer.drawWrappedStrings(
                 dc,
                 localHazards,
                 x + rightX + 2,
                 linePos,
-                totalWidth,
+                hazardWidth,
                 localHazards.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD)
+                AppState.getColor(ThemeManager.COLOR_HAZARD),
+                footerBottom
             );
         }
 
@@ -1837,30 +1870,39 @@ class SlipperyView extends WatchUi.DataField {
         // Capture pointer once at start of frame
         var localHazards = mHazardStrings;
         var localAdvice = mAdviceStrings;
+        // Footer text inset: keeps wrapped lines off the screen bezels.
+        // Measure and draw calls below must use this same geometry.
+        var footerX = x + 4;
+        var footerW = w - 8;
         var linePos = gridTop + gridHeight + 2;
+        // Footer blocks clip at the field bottom: trailing lines are dropped
+        // rather than overflowing. In hide mode the advice draws whenever any
+        // of it fits (a space saver, not a gag).
         if (localHazards.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localHazards,
-                x,
+                footerX,
                 linePos,
-                w,
+                footerW,
                 localHazards.size(), // maxLines
                 Graphics.FONT_TINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD)
+                AppState.getColor(ThemeManager.COLOR_HAZARD),
+                y + h
             );
         }
 
-        if (!$.gHideRiskAdvice && localAdvice.size() > 0) {
+        if (localAdvice.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localAdvice,
-                x,
+                footerX,
                 linePos,
-                w,
+                footerW,
                 localAdvice.size(), // maxLines
                 Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_TEXT)
+                AppState.getColor(ThemeManager.COLOR_TEXT),
+                y + h
             );
         }
         // --- CURRENT WIND ARROW CENTERED IN GRID ---
