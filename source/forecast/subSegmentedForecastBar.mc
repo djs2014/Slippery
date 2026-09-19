@@ -32,7 +32,8 @@ class SubSegmentedForecastBar {
     }
 
     /**
-     * Draws a 1-hour forecast bar subdivided into 4 x 15-min blocks,
+     * Draws the remaining 15-min blocks of the current hour (1-4 blocks:
+     * elapsed quarters are sliced off by the caller when data goes stale),
      * scaled relative to a global maxPrecip value across all hours.
      * Bar height: is rain + snow combined. If snow is present, it will be overlaid with diagonal hatching.
      *
@@ -49,7 +50,14 @@ class SubSegmentedForecastBar {
         maxPrecipMmh as Float,
         isDark as Boolean
     ) as Void {
-        var numSubBlocks = 4;
+        // Block count follows the sliced input arrays (4 fresh, fewer stale).
+        var numSubBlocks = rain15min.size();
+        if (snow15min.size() > numSubBlocks) {
+            numSubBlocks = snow15min.size();
+        }
+        if (numSubBlocks <= 0) {
+            return;
+        }
         var subGap = 1;
         var totalGaps = (numSubBlocks - 1) * subGap;
         var subWidth = (barWidth - totalGaps) / numSubBlocks;

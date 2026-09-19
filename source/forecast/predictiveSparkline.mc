@@ -208,12 +208,6 @@ class PredictiveSparkline {
             }
         }
 
-        var maxMinutelyPrecip = SubSegmentedForecastBar.computeGlobalMaxRate(
-            minutelyRainForecast,
-            minutelySnowForecast,
-            maxPrecip
-        );
-
         // Baseline Line
         dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(x, baselineY, x + width, baselineY);
@@ -493,17 +487,72 @@ class PredictiveSparkline {
         }
 
         // --- SUB-SEGMENTED MINUTELY PRECIPITATION SPARKLINE ---
-        SubSegmentedForecastBar.drawSubdividedHourScaled(
-            dc,
-            x,
-            baselineY - chartHeight,
-            standardBarWidth,
-            chartHeight,
-            minutelyRainForecast,
-            minutelySnowForecast,
-            maxMinutelyPrecip,
-            isDark
-        );
+        // Minutely slots start at the fetch-time quarter, not at wall-clock
+        // "now": drop elapsed quarters so stale data is never rendered as
+        // upcoming rain, then keep only the quarters covered by the shrunk
+        // first column (its width = remaining hour fraction). Fully stale
+        // series (or no room) -> no overlay; the hourly bars already carry
+        // the information.
+        var skippedQuarters = 0;
+        if (metrics.minutelyStartEpoch > 0) {
+            skippedQuarters =
+                (Time.now().value() - metrics.minutelyStartEpoch) / 900;
+            if (skippedQuarters < 0) {
+                skippedQuarters = 0; // clock skew / future data
+            }
+        }
+        // hourFractionRemaining is quarter-quantized (1.0/0.75/0.5/0.25),
+        // so this yields 4/3/2/1 quarters respectively.
+        var quartersToShow =
+            (4.0f * metrics.hourFractionRemaining + 0.99f).toNumber();
+        if (quartersToShow < 1) {
+            quartersToShow = 1;
+        }
+        if (quartersToShow > 4) {
+            quartersToShow = 4;
+        }
+        var slicedRain = [] as Array<Float>;
+        var rainTaken = 0;
+        for (var q = skippedQuarters; q < minutelyRainForecast.size(); q++) {
+            if (rainTaken >= quartersToShow) {
+                break;
+            }
+            slicedRain.add(minutelyRainForecast[q]);
+            rainTaken++;
+        }
+        var slicedSnow = [] as Array<Float>;
+        var snowTaken = 0;
+        for (var q = skippedQuarters; q < minutelySnowForecast.size(); q++) {
+            if (snowTaken >= quartersToShow) {
+                break;
+            }
+            slicedSnow.add(minutelySnowForecast[q]);
+            snowTaken++;
+        }
+        // Overlay needs 1px per block plus 1px gaps; when the shrunk first
+        // column has no room, skip the detail (hourly bars still show).
+        var slicedBlocks = slicedRain.size();
+        if (slicedSnow.size() > slicedBlocks) {
+            slicedBlocks = slicedSnow.size();
+        }
+        if (slicedBlocks > 0 && bar0Width >= 2 * slicedBlocks - 1) {
+            var slicedMax = SubSegmentedForecastBar.computeGlobalMaxRate(
+                slicedRain,
+                slicedSnow,
+                maxPrecip
+            );
+            SubSegmentedForecastBar.drawSubdividedHourScaled(
+                dc,
+                x,
+                baselineY - chartHeight,
+                bar0Width,
+                chartHeight,
+                slicedRain,
+                slicedSnow,
+                slicedMax,
+                isDark
+            );
+        }
 
         // --- LINE UNDER THE SPARKLINE ---
         dc.setColor(

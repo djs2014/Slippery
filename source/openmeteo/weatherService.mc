@@ -270,9 +270,16 @@ class WeatherService {
             // Minutely starts at current time and has 4 15-minute intervals
             var minutelyData = data.get("minutely_15") as Dictionary?;
             if (minutelyData != null) {
-                // var timeStampArray = minutelyData.get("time") as Array<Number>?;
+                var timeStampArray = minutelyData.get("time") as Array<Number>?;
                 var rainArray = minutelyData.get("rain") as Array<Float>?;
                 var snowArray = minutelyData.get("snowfall") as Array<Float>?;
+                // Anchor the 15-min slots to wall-clock time so the UI can
+                // skip elapsed quarters when this data goes stale.
+                // 0 = unknown (timestamps missing) -> UI assumes fresh.
+                metrics.minutelyStartEpoch =
+                    timeStampArray != null && timeStampArray.size() > 0
+                        ? timeStampArray[0]
+                        : 0;
                 // TEST DATA
                 // rainArray =  [0.1f, 0.1f, 0.1f, 0.9f];
                 // snowArray =  [0.1f, 1.0f, 0.0f, 1.0f];

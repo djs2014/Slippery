@@ -46,6 +46,7 @@ class WeatherMetrics {
     var immediateSnow as Number = -1;
     var minutelyRainForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
     var minutelySnowForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
+    var minutelyStartEpoch as Number = 0; // Unixtime (s) of minutely_15 slot 0; 0 = unknown
     
     public function toString() as String {
         return (
@@ -80,6 +81,8 @@ class WeatherMetrics {
             immediateRain +
             ", immediateSnow=" +
             immediateSnow +
+            ", minutelyStartEpoch=" +
+            minutelyStartEpoch +
             ", timeStampsForeCast=" +
             timeStampsForeCast +
             ", rainForecast=" +
