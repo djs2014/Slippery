@@ -439,7 +439,8 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             2,
             mWeatherMetrics,
-            isDark
+            isDark,
+            mEdgeField
         );
 
         PredictiveSparkline.draw(
@@ -452,7 +453,8 @@ class SlipperyView extends WatchUi.DataField {
             mRiskAssessment.hourlyRisksLevels,
             isDark,
             false,
-            ForecastHourNone
+            ForecastHourNone,
+            mEdgeField
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -490,7 +492,8 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             10,
             mWeatherMetrics,
-            isDark
+            isDark,
+            mEdgeField
         );
 
         PredictiveSparkline.draw(
@@ -503,7 +506,8 @@ class SlipperyView extends WatchUi.DataField {
             mRiskAssessment.hourlyRisksLevels,
             isDark,
             true,
-            $.gShowForecastHour
+            $.gShowForecastHour,
+            mEdgeField
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -541,7 +545,8 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             6,
             mWeatherMetrics,
-            isDark
+            isDark,
+            mEdgeField
         );
 
         PredictiveSparkline.draw(
@@ -554,7 +559,8 @@ class SlipperyView extends WatchUi.DataField {
             mRiskAssessment.hourlyRisksLevels,
             isDark,
             true,
-            $.gShowForecastHour
+            $.gShowForecastHour,
+            mEdgeField
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -593,7 +599,8 @@ class SlipperyView extends WatchUi.DataField {
             width - paddingX * 2,
             4,
             mWeatherMetrics,
-            isDark
+            isDark,
+            mEdgeField
         );
 
         PredictiveSparkline.draw(
@@ -606,7 +613,8 @@ class SlipperyView extends WatchUi.DataField {
             mRiskAssessment.hourlyRisksLevels,
             isDark,
             false,
-            ForecastHourNone
+            ForecastHourNone,
+            mEdgeField
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)

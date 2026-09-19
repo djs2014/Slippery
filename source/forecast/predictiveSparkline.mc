@@ -12,14 +12,17 @@ class PredictiveSparkline {
         width as Number,
         height as Number,
         metrics as WeatherMetrics,
-        isDark as Boolean
+        isDark as Boolean,
+        edgeField as EdgeField
     ) {
         var dewpointForecast = metrics.dewpointForecast; // Float (°C)
         var numHours = dewpointForecast.size();
         if (numHours == 0) {
             return;
         }
-        var smallWidth = width < 180;
+        // Layout-driven (not pixel-driven): matches the field classification
+        // in field_utils, so small slots stay compact on high-res devices too.
+        var smallWidth = edgeField == EfSmall;
         var barGap = smallWidth ? 1 : 2;
         var totalGaps = (numHours - 1) * barGap;
         var standardBarWidth = (width - totalGaps) / numHours;
@@ -120,7 +123,8 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         isDark as Boolean,
         showLabels as Boolean,
-        showForecastHour as ShowForecastHour
+        showForecastHour as ShowForecastHour,
+        edgeField as EdgeField
     ) as Void {
         var timeStampsForeCast = metrics.timeStampsForeCast;
         var numHours = timeStampsForeCast.size();
@@ -139,7 +143,10 @@ class PredictiveSparkline {
         var minutelyRainForecast = metrics.minutelyRainForecast;
         var minutelySnowForecast = metrics.minutelySnowForecast;
 
-        var smallWidth = width < 180;
+        // Layout-driven (not pixel-driven): matches the field classification
+        // in field_utils, so small slots stay compact on high-res devices too.
+        // Drives bar gaps, compact arrows, and gust-dot suppression.
+        var smallWidth = edgeField == EfSmall;
         var barGap = smallWidth ? 1 : 2;
         var totalGaps = (numHours - 1) * barGap;
         var standardBarWidth = (width - totalGaps) / numHours;
@@ -523,7 +530,10 @@ class PredictiveSparkline {
                 dc.drawLine(prevWindX, prevWindY, px, windPy);
             }
 
-            if (gust >= 35.0f) {
+            // Gust node marker (wide layouts only: on small fields the
+            // severity-colored arrow carries this signal, and the blob
+            // would cover the risk bars underneath).
+            if (gust >= 35.0f && !smallWidth) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.fillCircle(px, windPy, 4);
                 dc.setColor(windLineColor, Graphics.COLOR_TRANSPARENT);
@@ -846,6 +856,10 @@ class PredictiveSparkline {
         }
     }
 
+    // Compact wind arrow for narrow fields: shaft + head + tail tick only,
+    // drawn single-pass with NO halo so the risk bars underneath stay readable.
+    // Gust severity is encoded in COLOR (not barb geometry).
+    // Points WHERE the wind blows TO (angleDeg + 180), like drawWindArrow.
     private static function drawWindArrow_line(
         dc as Graphics.Dc,
         cx as Number,
@@ -864,12 +878,13 @@ class PredictiveSparkline {
             len = isCompact ? 8 : 12;
         }
 
-        // Direction unit vector (0 deg = North)
-        var rad = Math.toRadians(angleDeg);
+        // Direction unit vector: flip by 180 deg so the arrow points WHERE
+        // the wind is blowing TO (same convention as drawWindArrow).
+        var rad = Math.toRadians(angleDeg + 180.0f);
         var uX = Math.sin(rad);
         var uY = -Math.cos(rad);
 
-        // Perpendicular vector for crossbars/flags (rotated +90 degrees)
+        // Perpendicular vector for arrowhead wings (rotated +90 degrees)
         var pX = -uY;
         var pY = uX;
 
@@ -881,9 +896,9 @@ class PredictiveSparkline {
         var tailY = cy - (halfLen * uY).toNumber();
 
         // 2. GUST SEVERITY LEVELS
-        // Same tiers as calculateGustSeverity() and drawWindArrow():
-        // 3 barbs at gust >= 45 or ratio >= 1.7, 2 at >= 35 / 1.5,
-        // 1 at >= 25 / 1.3, 0 below (caller gates arrow visibility).
+        // Same tiers as calculateGustSeverity() and drawWindArrow(), but
+        // encoded in COLOR so the icon stays small: 0 neutral, 1 yellow,
+        // 2 orange, 3 red (see getGustSeverityColor).
         var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
         var numBarbs = 0;
         if (gust >= 45.0f || gustRatio >= 1.7f) {
@@ -894,18 +909,12 @@ class PredictiveSparkline {
             numBarbs = 1;
         }
 
-        var arrowColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
-        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+        dc.setColor(
+            $.getGustSeverityColor(numBarbs, isDark),
+            Graphics.COLOR_TRANSPARENT
+        );
 
-        // --- HELPER FUNCTION: DRAW HALOED LINE ---
-        // Draws a line with a 1px halo background stroke for contrast over heatmaps
-        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(tailX - 1, tailY, tipX - 1, tipY);
-        dc.drawLine(tailX + 1, tailY, tipX + 1, tipY);
-        dc.drawLine(tailX, tailY - 1, tipX, tipY - 1);
-        dc.drawLine(tailX, tailY + 1, tipX, tipY + 1);
-
-        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
+        // --- Shaft ---
         dc.drawLine(tailX, tailY, tipX, tipY);
 
         // --- STEP A: ARROWHEAD AT TIP ---
@@ -916,11 +925,6 @@ class PredictiveSparkline {
         var headX2 = tipX - (headLen * uX + 2 * pX).toNumber();
         var headY2 = tipY - (headLen * uY + 2 * pY).toNumber();
 
-        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(tipX, tipY, headX1, headY1);
-        dc.drawLine(tipX, tipY, headX2, headY2);
-
-        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(tipX, tipY, headX1, headY1);
         dc.drawLine(tipX, tipY, headX2, headY2);
 
@@ -932,29 +936,6 @@ class PredictiveSparkline {
         var tailBaseX2 = tailX + (baseW * pX).toNumber();
         var tailBaseY2 = tailY + (baseW * pY).toNumber();
 
-        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
         dc.drawLine(tailBaseX1, tailBaseY1, tailBaseX2, tailBaseY2);
-        dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(tailBaseX1, tailBaseY1, tailBaseX2, tailBaseY2);
-
-        // --- STEP C: DIAGONAL GUST BARBS AT TAIL ---
-        // Draw 0-3 diagonal flags sloping backwards along the tail
-        var barbLength = 3;
-        var barbSpacing = 3;
-
-        for (var b = 0; b < numBarbs; b++) {
-            // Position along the stem starting from tail forward
-            var stemOffsetX = tailX + (b * barbSpacing * uX).toNumber();
-            var stemOffsetY = tailY + (b * barbSpacing * uY).toNumber();
-
-            // Diagonal backward slant: combination of backward -u and sideways +p
-            var barbEndX = stemOffsetX + (barbLength * (pX - uX)).toNumber();
-            var barbEndY = stemOffsetY + (barbLength * (pY - uY)).toNumber();
-
-            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
-            dc.setColor(arrowColor, Graphics.COLOR_TRANSPARENT);
-            dc.drawLine(stemOffsetX, stemOffsetY, barbEndX, barbEndY);
-        }
     }
 }
