@@ -18,7 +18,13 @@ One honest caveat: the risk engine and the rain/showers-ahead alerts currently t
  
 
 
-
+check branch for stack overflow
+Remaining suspects, in the order I'd test
+1. Bisect the new plumbing: comment out just the projection call in parseOpenMeteoResponse — if clean, the trigger is inside the projection's prob code ([] as Array<Number> fallback, precipProbs[h+1] guards, or the new evaluateRisk arg choke point), not frame weight.
+2. Old data without the field: replay a cached response lacking precipitation_probability — isolates the nullable-array paths (precipProbs != null … ? … : … in three places).
+3. Hardware test: sim-only delivery-context stacks are a known category of false alarm; a real Edge may never reproduce it.
+4. Full sim console, not just the trace — anything above the error (a preceding null/type warning would reframe this instantly).
+My money is on 1 or 2 — something data/null-path-shaped rather than stack-shaped, given the mitigation changed nothing. Ping me when you pick it back up and we'll chase it down.
 
 
 

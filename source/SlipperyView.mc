@@ -165,18 +165,18 @@ class SlipperyView extends WatchUi.DataField {
     function processDemo() as Void {
         if ($.gDemo) {
             demoCounter = demoCounter + 1;
-            mWeatherMetrics =
-                DemoWeatherService.getDemoWeatherMetrics(demoCounter);
-            mRiskAssessment =
-                DemoWeatherService.getDemoRiskAssessment(mWeatherMetrics);
-            setHazardAndAdviceStrings();
-            initializeMinutesUntilCounters();
             if (demoCounter > 50) {
                 $.gDemo = false;
                 demoCounter = 0;
                 recalcRiskAssessment = true;
                 return;
             }
+            mWeatherMetrics =
+                DemoWeatherService.getDemoWeatherMetrics(demoCounter);
+            mRiskAssessment =
+                DemoWeatherService.getDemoRiskAssessment(mWeatherMetrics);
+            setHazardAndAdviceStrings();
+            initializeMinutesUntilCounters();
         }
         if (recalcRiskAssessment) {
             recalcRiskAssessment = false;
