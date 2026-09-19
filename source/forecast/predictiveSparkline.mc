@@ -174,6 +174,10 @@ class PredictiveSparkline {
         var minSt = 1000.0f;
         var maxSt = -1000.0f;
         var hasIceAhead = false;
+        // Significant convective burst floor (matches the rain color tiers).
+        var showerHlThreshold = 0.5f;
+        // First hour with significant showers; drives badge + outline.
+        var firstShowerIdx = -1;
         var hasTempData = surfaceTempForecast.size() > 0;
 
         for (var i = 0; i < numHours; i++) {
@@ -183,7 +187,16 @@ class PredictiveSparkline {
                 maxPrecip = totalP;
             }
 
-            // 2. Temp Range & Ice check
+            // 2. First significant shower hour
+            if (
+                firstShowerIdx < 0 &&
+                i < showersForecast.size() &&
+                showersForecast[i] >= showerHlThreshold
+            ) {
+                firstShowerIdx = i;
+            }
+
+            // 3. Temp Range & Ice check
             if (hasTempData && i < surfaceTempForecast.size()) {
                 var st = surfaceTempForecast[i];
                 if (st <= 0.0f) {
@@ -320,16 +333,35 @@ class PredictiveSparkline {
                 var liquidH = barH - snowH;
 
                 var precipY = baselineY;
-                // Liquid base (existing color language, absolute thresholds)
+                // Liquid split: steady rain (blue) at the base, convective
+                // showers (purple) above it. Significant bursts keep a 2px
+                // floor so they stay visible inside rain-dominated columns.
+                var rainH = 0;
+                var showerH = 0;
                 if (liquidH > 0 && liquid > 0.0f) {
-                    if (showers > rain) {
-                        // Convective showers (purple)
-                        dc.setColor(
-                            AppState.getColor(ThemeManager.COLOR_SHOWERS),
-                            Graphics.COLOR_TRANSPARENT
-                        );
+                    if (showers <= 0.0f) {
+                        rainH = liquidH;
+                    } else if (rain <= 0.0f) {
+                        showerH = liquidH;
                     } else {
-                        // Steady stratiform rain (blue)
+                        showerH = Math.round(
+                            (showers / liquid) * liquidH
+                        ).toNumber();
+                        if (showerH < 0) {
+                            showerH = 0;
+                        }
+                        if (showerH > liquidH) {
+                            showerH = liquidH;
+                        }
+                        if (
+                            showers >= showerHlThreshold && showerH < 2
+                        ) {
+                            showerH = liquidH < 2 ? liquidH : 2;
+                        }
+                        rainH = liquidH - showerH;
+                    }
+                    if (rainH > 0) {
+                        // Steady stratiform rain (blue, absolute tiers)
                         var rainColor =
                             rain >= 2.5f
                                 ? AppState.getColor(ThemeManager.COLOR_BLUE)
@@ -341,9 +373,23 @@ class PredictiveSparkline {
                                         ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
                                     );
                         dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
+                        dc.fillRectangle(colX, precipY - rainH, colW, rainH);
+                        precipY -= rainH;
                     }
-                    dc.fillRectangle(colX, precipY - liquidH, colW, liquidH);
-                    precipY -= liquidH;
+                    if (showerH > 0) {
+                        // Convective showers (purple)
+                        dc.setColor(
+                            AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                            Graphics.COLOR_TRANSPARENT
+                        );
+                        dc.fillRectangle(
+                            colX,
+                            precipY - showerH,
+                            colW,
+                            showerH
+                        );
+                        precipY -= showerH;
+                    }
                 }
                 // Snow cap
                 if (snowH > 0) {
@@ -366,6 +412,17 @@ class PredictiveSparkline {
                         Graphics.COLOR_TRANSPARENT
                     );
                     dc.drawPoint(px, precipY + 1);
+                }
+
+                // First-shower highlight: purple outline so the eye jumps to
+                // when convective rain starts (mirrors the risk rising-edge
+                // emphasis). This column always has total >= 0.5 > 0.05.
+                if (i == firstShowerIdx) {
+                    dc.setColor(
+                        AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                        Graphics.COLOR_TRANSPARENT
+                    );
+                    dc.drawRectangle(colX, baselineY - barH, colW, barH);
                 }
             }
 
@@ -614,6 +671,21 @@ class PredictiveSparkline {
                 y,
                 Graphics.FONT_XTINY,
                 "ICE AHEAD",
+                Graphics.TEXT_JUSTIFY_RIGHT
+            );
+        }
+
+        // Convective outlook badge; stacked below ICE AHEAD when both fire.
+        if (firstShowerIdx >= 0) {
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.drawText(
+                x + width,
+                hasIceAhead ? y + 12 : y,
+                Graphics.FONT_XTINY,
+                "SHOWERS AHEAD",
                 Graphics.TEXT_JUSTIFY_RIGHT
             );
         }
