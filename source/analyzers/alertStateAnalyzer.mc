@@ -22,6 +22,32 @@ public class AlertStateAnalyzer {
     // Hold state for 30 cycles (e.g., 30 seconds if tick is 1s) before clearing lower
     private static const HYSTERESIS_HOLD_CYCLES = 30;
 
+    // Severity rank, lowest (safe) to highest (most dangerous).
+    // NOTE: this is intentionally NOT the AlertState enum order (where e.g.
+    // STATE_ICE_ALERT = 1 < STATE_HEAT_STRESS = 7). All escalation /
+    // de-escalation decisions must compare severities, never raw enum values.
+    public static function getSeverity(state as AlertState) as Number {
+        switch (state) {
+            case STATE_ICE_ALERT:
+                return 7;
+            case STATE_HIGH_CROSSWIND:
+                return 6;
+            case STATE_HEAVY_WIND:
+                return 5;
+            case STATE_MODERATE_CROSSWIND:
+                return 4;
+            case STATE_SUSTAINED_WIND:
+                return 3;
+            case STATE_AERO_HEADWIND:
+                return 2;
+            case STATE_HEAT_STRESS:
+                return 1;
+            case STATE_NORMAL:
+            default:
+                return 0;
+        }
+    }
+
     public static function updateAndEvaluate(
         surfaceTemp as Float,
         crossGustKmh as Float,
@@ -38,15 +64,18 @@ public class AlertStateAnalyzer {
             feelsLikeTemp
         );
 
-        // 2. Immediate Escalation: Higher priority state triggers instantly
-        if (rawState > lastAlertState) {
+        // 2. Immediate Escalation: Higher severity state triggers instantly
+        // (compared by severity rank, not enum value)
+        var rawSeverity = getSeverity(rawState);
+        var lastSeverity = getSeverity(lastAlertState);
+        if (rawSeverity > lastSeverity) {
             lastAlertState = rawState;
             stateHysteresisCounter = HYSTERESIS_HOLD_CYCLES;
             return lastAlertState;
         }
 
         // 3. De-escalation: Hold state until counter expires
-        if (rawState < lastAlertState) {
+        if (rawSeverity < lastSeverity) {
             if (stateHysteresisCounter > 0) {
                 stateHysteresisCounter--;
                 return lastAlertState; // Keep displaying higher alert
@@ -78,8 +107,12 @@ public class AlertStateAnalyzer {
         threshSustainedWind = value;
     }
     public static function setTreshHeadwind(value as Float) as Void {
-        // Value selected is positive
-        threshHeadwind = value * -1.0f;
+        // Negative sign convention: menu stores a positive magnitude.
+        // Force negative so a stored negative value cannot invert the alert.
+        if (value > 0.0f) {
+            value = value * -1.0f;
+        }
+        threshHeadwind = value;
     }
     public static function setTreshHeatStress(value as Float) as Void {
         threshHeatStress = value;

@@ -125,13 +125,15 @@ class SlipperyApp extends Application.AppBase {
             $.gHideUnitsWhenActive =
                 $.getStorageValue("hideUnitsWhenActive", true) as Boolean;  
 
-            AlertStateAnalyzer.setTreshIceAlert($.getStorageValue("threshIceAlert", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshHighCrosswind($.getStorageValue("threshHighCrossw ind", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshCrossGust($.getStorageValue("threshCrossGust", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeavyWind($.getStorageValue("threshHeavyWind", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshSustainedWind($.getStorageValue("threshSustainedWind", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeadwind($.getStorageValue("threshHeadwind", 0.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeatStress($.getStorageValue("threshHeatStress", 0.0f) as Float);              
+            // Fallback defaults mirror the seeded values above so behavior is
+            // correct even when storage has no threshold keys (e.g. upgrades).
+            AlertStateAnalyzer.setTreshIceAlert($.getStorageValue("threshIceAlert", 3.0f) as Float);              
+            AlertStateAnalyzer.setTreshHighCrosswind($.getStorageValue("threshHighCrosswind", 25.0f) as Float);              
+            AlertStateAnalyzer.setTreshCrossGust($.getStorageValue("threshCrossGust", 18.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeavyWind($.getStorageValue("threshHeavyWind", 35.0f) as Float);              
+            AlertStateAnalyzer.setTreshSustainedWind($.getStorageValue("threshSustainedWind", 25.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeadwind($.getStorageValue("threshHeadwind", 12.0f) as Float);              
+            AlertStateAnalyzer.setTreshHeatStress($.getStorageValue("threshHeatStress", 32.0f) as Float);              
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();

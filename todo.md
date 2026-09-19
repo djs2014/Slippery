@@ -1,6 +1,8 @@
 - linux taskbar app for local use
 - weather app also same track heading mechanism / edgefield
 
+- if showers > setting, then mark them under the bar! + warning icon and alert
+
 Widefield
  Label icons - check using debug
  Font larger

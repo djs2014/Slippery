@@ -9,8 +9,12 @@ public class AlertAudioNotifier {
             return; // No change, do nothing
         }
 
-        // Only play audio on escalation (severity increasing)
-        if (newState > previousState) {
+        // Only play audio on escalation (severity increasing).
+        // Compared by severity rank: the AlertState enum order is not severity order.
+        if (
+            AlertStateAnalyzer.getSeverity(newState) >
+            AlertStateAnalyzer.getSeverity(previousState)
+        ) {
             playToneForState(newState);
         }
 
