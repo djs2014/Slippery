@@ -1,15 +1,93 @@
 {
+    "location-1-name": {
+        "type": "entry",
+        "default": "Home",
+        "description": "Location 1 name",
+        "tooltip": "Display name for the primary forecast point (panel chip shows this point)."
+    },
     "latitude": {
         "type": "entry",
         "default": "52.18895",
-        "description": "Latitude",
-        "tooltip": "Latitude of the forecast point, e.g. 52.18895"
+        "description": "Location 1 latitude",
+        "tooltip": "Latitude of forecast point 1, e.g. 52.18895"
     },
     "longitude": {
         "type": "entry",
         "default": "4.549666",
-        "description": "Longitude",
-        "tooltip": "Longitude of the forecast point, e.g. 4.549666"
+        "description": "Location 1 longitude",
+        "tooltip": "Longitude of forecast point 1, e.g. 4.549666"
+    },
+    "location-2-name": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 2 name",
+        "tooltip": "Empty name + empty coordinates = disabled. Max 5 points total (e.g. commute stops)."
+    },
+    "location-2-lat": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 2 latitude",
+        "tooltip": "Latitude of forecast point 2. Leave empty to disable."
+    },
+    "location-2-lon": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 2 longitude",
+        "tooltip": "Longitude of forecast point 2. Leave empty to disable."
+    },
+    "location-3-name": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 3 name",
+        "tooltip": "Empty coordinates = disabled."
+    },
+    "location-3-lat": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 3 latitude",
+        "tooltip": "Latitude of forecast point 3. Leave empty to disable."
+    },
+    "location-3-lon": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 3 longitude",
+        "tooltip": "Longitude of forecast point 3. Leave empty to disable."
+    },
+    "location-4-name": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 4 name",
+        "tooltip": "Empty coordinates = disabled."
+    },
+    "location-4-lat": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 4 latitude",
+        "tooltip": "Latitude of forecast point 4. Leave empty to disable."
+    },
+    "location-4-lon": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 4 longitude",
+        "tooltip": "Longitude of forecast point 4. Leave empty to disable."
+    },
+    "location-5-name": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 5 name",
+        "tooltip": "Empty coordinates = disabled."
+    },
+    "location-5-lat": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 5 latitude",
+        "tooltip": "Latitude of forecast point 5. Leave empty to disable."
+    },
+    "location-5-lon": {
+        "type": "entry",
+        "default": "",
+        "description": "Location 5 longitude",
+        "tooltip": "Longitude of forecast point 5. Leave empty to disable."
     },
     "refresh-minutes": {
         "type": "spinbutton",
@@ -21,9 +99,135 @@
         "description": "Refresh interval",
         "tooltip": "How often to fetch Open-Meteo data (minutes, minimum 5)."
     },
+    "startup-delay-sec": {
+        "type": "spinbutton",
+        "default": 30,
+        "min": 0,
+        "max": 300,
+        "step": 5,
+        "units": "sec",
+        "description": "Delay first fetch at startup",
+        "tooltip": "Wait N seconds after login before the first network fetch (lets NetworkManager come up). 0 = fetch immediately."
+    },
+    "forecast-hours": {
+        "type": "spinbutton",
+        "default": 8,
+        "min": 1,
+        "max": 12,
+        "step": 1,
+        "units": "h",
+        "description": "Coming hours shown in popup",
+        "tooltip": "How many coming forecast hours (risk + precipitation) to list in the popup. Covers the ride home after ~8h work."
+    },
     "show-temperature": {
         "type": "switch",
         "default": true,
         "description": "Show air temperature next to the risk label"
+    },
+    "color-mode": {
+        "type": "combobox",
+        "default": "bright",
+        "description": "Panel chip colors",
+        "tooltip": "bright = vivid risk colors; modest = muted risk colors; follow-theme = no background, panel theme decides.",
+        "options": {
+            "Bright colors": "bright",
+            "Modest colors": "modest",
+            "Follow theme (no background)": "follow-theme"
+        }
+    },
+    "use-hsp-text": {
+        "type": "switch",
+        "default": true,
+        "description": "Auto text color via HSP luminance",
+        "tooltip": "When on, chip text is black/white chosen by HSP brightness of the background. When off, use fixed black-on-yellow/orange, white-on-red."
+    },
+    "hsp-threshold": {
+        "type": "scale",
+        "default": 180,
+        "min": 0,
+        "max": 255,
+        "step": 1,
+        "description": "HSP dark/light breakpoint",
+        "tooltip": "HSP 0 = black, 255 = white (same default 180 as the Connect IQ app). Backgrounds brighter than this get black text. Popup shows a live sample per chip color."
+    },
+    "thresh-ice-alert": {
+        "type": "spinbutton",
+        "default": 3.0,
+        "min": -10,
+        "max": 10,
+        "step": 0.5,
+        "units": "°C",
+        "description": "Ice alert threshold",
+        "tooltip": "Big ICE warning when surface temperature is at/below this (like the Connect IQ app threshIceAlert, default 3.0°C)."
+    },
+    "thresh-high-crosswind": {
+        "type": "spinbutton",
+        "default": 25,
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "units": "km/h",
+        "description": "High crosswind threshold",
+        "tooltip": "Mirrors Connect IQ threshHighCrosswind."
+    },
+    "thresh-cross-gust": {
+        "type": "spinbutton",
+        "default": 18,
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "units": "km/h",
+        "description": "Cross gust threshold",
+        "tooltip": "Mirrors Connect IQ threshCrossGust (moderate crosswind alert)."
+    },
+    "thresh-heavy-wind": {
+        "type": "spinbutton",
+        "default": 35,
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "units": "km/h",
+        "description": "Heavy wind threshold",
+        "tooltip": "Mirrors Connect IQ threshHeavyWind."
+    },
+    "thresh-sustained-wind": {
+        "type": "spinbutton",
+        "default": 25,
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "units": "km/h",
+        "description": "Sustained wind threshold",
+        "tooltip": "Mirrors Connect IQ threshSustainedWind."
+    },
+    "thresh-headwind": {
+        "type": "spinbutton",
+        "default": 12,
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "units": "km/h",
+        "description": "Headwind threshold",
+        "tooltip": "Mirrors Connect IQ threshHeadwind (magnitude; alert when headwind component reaches this)."
+    },
+    "thresh-heat-stress": {
+        "type": "spinbutton",
+        "default": 32,
+        "min": 0,
+        "max": 50,
+        "step": 0.5,
+        "units": "°C",
+        "description": "Heat stress threshold",
+        "tooltip": "Mirrors Connect IQ threshHeatStress (feels-like temperature)."
+    },
+    "thresh-precip-ahead": {
+        "type": "spinbutton",
+        "default": 0.5,
+        "min": 0,
+        "max": 20,
+        "step": 0.1,
+        "units": "mm/h",
+        "description": "Precip-ahead threshold",
+        "tooltip": "Mirrors Connect IQ threshPrecipAhead: forecast rain/showers at/above this flag a RAIN/SHOWERS AHEAD alert."
     }
 }
