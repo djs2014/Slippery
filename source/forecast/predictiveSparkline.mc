@@ -84,28 +84,28 @@ class PredictiveSparkline {
         }
 
         // --- SHOW MINUTES TO NEXT HOUR ---
-        if (enableBadges && metrics.hourFractionRemaining < 1.0) {
+        if (!smallWidth && metrics.hourFractionRemaining < 1.0) {
             //var minutesToNextHour = (metrics.hourFractionRemaining * 60).toNumber();
             var minutesToNextHour = 60 - System.getClockTime().min;
             System.println("Minutes to next hour: " + minutesToNextHour);
             dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
-                x + width - 2,
+                x + width,
                 y + height / 2,
                 Graphics.FONT_XTINY,
                 Lang.format("$1$", [minutesToNextHour]),
-                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
             );
             dc.setColor(
                 AppState.getColor(ThemeManager.COLOR_TEXT),
                 Graphics.COLOR_TRANSPARENT
             );
             dc.drawText(
-                x + width - 3,
+                x + width - 1,
                 y + height / 2,
                 Graphics.FONT_XTINY,
                 Lang.format("$1$", [minutesToNextHour]),
-                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER
+                Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
             );
         }
     }
@@ -234,6 +234,7 @@ class PredictiveSparkline {
         // ==========================================
         // PASS 2: COMBINED DRAWING LOOP
         // ==========================================
+        var previousRisk = RiskLevelSafe;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -264,12 +265,20 @@ class PredictiveSparkline {
 
             // --- LAYER B: RISK HEATMAP & HOUR LABELS ---
             if (i < riskProfile.size()) {
-                // var blockX = (x + i * (width.toFloat() / numHours)).toNumber();
-                dc.setColor(
-                    $.getLightRiskColor(currentRisk, isDark),
-                    Graphics.COLOR_TRANSPARENT
-                );
+                // Show high color if risk level has increased compared to the previous hour
+                if (currentRisk > previousRisk) {
+                    dc.setColor(
+                        $.getRiskColor(currentRisk, isDark),
+                        Graphics.COLOR_TRANSPARENT
+                    );                    
+                } else {
+                    dc.setColor(
+                        $.getLightRiskColor(currentRisk, isDark),
+                        Graphics.COLOR_TRANSPARENT
+                    );
+                }
                 dc.fillRectangle(colX, riskBlockY, colW, riskBlockHeight);
+                previousRisk = currentRisk;                
 
                 if (showLabels && showForecastHour != ForecastHourNone) {
                     var hourLabel =

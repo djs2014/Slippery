@@ -236,8 +236,7 @@ class SlipperyView extends WatchUi.DataField {
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
-        }
-        mAlertCategory = CATEGORY_HEAT;
+        }        
     }
 
     function initializeMinutesUntilCounters() as Void {
