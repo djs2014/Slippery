@@ -35,29 +35,30 @@ class RiskProjectionEngine {
             var surfaceTemp = surfaceTemps[h];
             var dewPoint = dewPoints[h];
             var humidity = humidities[h];
-            var rainCurrent = rains[h] + showers[h];
+            // Combine rain and shower current values
+            var rainAndShowerCurrent = rains[h] + showers[h];
             var snowCurrent = snows[h];
             var windSpeed = windSpeeds[h];
-            var windGust = windGusts[h];
-            var showerCurrent = showers[h];
+            var windGust = windGusts[h];            
             var surfaceDewSpread = surfaceTemp - dewPoint;
 
             // --- 1. DIRECT 12-HOUR ROLLING RAIN & SNOW SUMS ---
-            var runningRain12h = 0.0f;
+            var runningRainAndShower12h = 0.0f;
             var runningSnow12h = 0.0f;
             var windowStart = h - 11 < 0 ? 0 : h - 11;
 
             for (var k = windowStart; k <= h; k++) {
-                runningRain12h += rains[k];
-                runningSnow12h += snows[k];
+                runningRainAndShower12h += rains[k] + showers[k];
+                runningSnow12h += snows[k];                
             }
 
             // --- 2. DIRECT DRY STREAK COMPUTATION ---
             var runningDryStreak = 0;
-            if (rainCurrent <= 0.1f && snowCurrent <= 0.0f) {
+            if (rainAndShowerCurrent <= 0.1f && snowCurrent <= 0.0f) {
                 // Count consecutive previous dry hours up to 24h
                 for (var d = h - 1; d >= 0; d--) {
-                    if (rains[d] <= 0.1f && snows[d] <= 0.0f) {
+                    // Combine rain and shower for dry streak check
+                    if (rains[d] + showers[d] <= 0.1f && snows[d] <= 0.0f) {
                         runningDryStreak++;
                     } else {
                         break;
@@ -66,18 +67,19 @@ class RiskProjectionEngine {
             }
 
             // --- 3. IMMEDIATE PRECIPITATION LOOKAHEAD ---
-            var immediateRain = -1;
-            var immediateSnow = -1;
-
-            if (rainCurrent > 0.0f) {
-                immediateRain = 0; // Active rain during this hour
-            } else if (h + 1 < rains.size() && rains[h + 1] > 0.1f) {
-                immediateRain = 60; // Starting within next hour block
+            // -1 no immediate precipitation, 0 active during this hour, 60 starting within next hour block
+            var PRECIP_THRESHOLD = 0.1f; // Minimum 0.1mm to count as meaningful precipitation
+            var immediateRainAndShower = -1;
+            if (rainAndShowerCurrent > PRECIP_THRESHOLD) {
+                immediateRainAndShower = 0; // Active rain during this hour
+            } else if (h + 1 < rains.size() && rains[h + 1] + showers[h + 1] > PRECIP_THRESHOLD) {
+                immediateRainAndShower = 60; // Starting within next hour block
             }
-
-            if (snowCurrent > 0.0f) {
+        
+            var immediateSnow = -1;
+            if (snowCurrent > PRECIP_THRESHOLD) {
                 immediateSnow = 0; // Active snow during this hour
-            } else if (h + 1 < snows.size() && snows[h + 1] > 0.0f) {
+            } else if (h + 1 < snows.size() && snows[h + 1] > PRECIP_THRESHOLD) {
                 immediateSnow = 60;
             }
 
@@ -87,14 +89,14 @@ class RiskProjectionEngine {
                 surfaceTemp,
                 dewPoint,
                 humidity,
-                rainCurrent,
-                runningRain12h,
-                runningSnow12h,
+                rainAndShowerCurrent,
+                runningRainAndShower12h,
+                runningSnow12h,                
                 runningDryStreak,
                 season,
                 windSpeed,
                 windGust,
-                immediateRain,
+                immediateRainAndShower,
                 immediateSnow,
                 surfaceDewSpread,
                 snowCurrent

@@ -49,7 +49,7 @@ auto mode / layout fonts
 x settings: warning levels headwind customize 15km headwind default
 
 replace all getColor 
-forecast -> color > riskleve x -> draw normal risklevel color
+forecast -> color > riskleve x -> draw normal risklevel color or only when risklevel goes up
 
 
 - alert on incoming rain/snow
@@ -62,14 +62,9 @@ forecast -> color > riskleve x -> draw normal risklevel color
 - rain > 2.0 mm darker blue ..or color scheme wweather
 switch hours -> will also need other minute rain data-> need 8 * 15 min ->
 
-// Setting? 
-temp to color <0, <10 <15 
-humidity to color
-
 Hazards in order of importance?
 
 --- finetune the rules
---- check wind relative direction 
 
 
 If times is strictly linear hourly steps (each entry is exactly $3600$ seconds apart), you can eliminate the for loop completely with single-line integer math:

@@ -36,14 +36,14 @@ public class RiskCalculator {
         surfaceTemp as Float,
         dewPoint as Float,
         humidity as Number,
-        rainCurrent as Float,
-        runningRain12h as Float,
+        rainAndShowerCurrent as Float,
+        runningRainAndShower12h as Float,
         runningSnow12h as Float,
         runningDryStreak as Number,
         season as MeteorologicalSeason,
         windSpeed as Float,
         windGust as Float,
-        immediateRain as Number,
+        immediateRainAndShower as Number,
         immediateSnow as Number,
         surfaceDewSpread as Float,
         snowCurrent as Float
@@ -53,8 +53,9 @@ public class RiskCalculator {
         // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
         if (
             (surfaceTemp <= 0.0 || airTemp <= 0.5) &&
-            ((runningRain12h > 0.0 || rainCurrent > 0.0) ||
-            (runningSnow12h > 0.0 || snowCurrent > 0.0))
+            (runningRainAndShower12h > 0.0 ||
+                rainAndShowerCurrent > 0.0 ||
+                runningSnow12h > 0.0 || snowCurrent > 0.0)
         ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardBlackIceFreezingWetRoad);
@@ -74,7 +75,9 @@ public class RiskCalculator {
         if (
             airTemp >= 0.0 &&
             airTemp <= 2.5 &&
-            (runningRain12h > 0.0 || humidity > 88 || runningSnow12h > 0.0)
+            (runningRainAndShower12h > 0.0 ||
+                humidity > 88 ||
+                runningSnow12h > 0.0)
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardIceOnBridges);
@@ -91,14 +94,14 @@ public class RiskCalculator {
 
         // --- 5. RAIN ---
         // --- CRITICAL: Torrential / Violent Downpour ---
-        if (rainCurrent >= 15.0f) {
+        if (rainAndShowerCurrent >= 15.0f) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardHeavyRainHydroplaning);
             addAdvice(AdviceReduceSpeedAndIncreaseGripMargin);
             addAdvice(AdviceIncreaseBreakingDistance);
         }
         // --- HIGH: Heavy Rain & Standing Water ---
-        else if (rainCurrent >= 7.5f) {
+        else if (rainAndShowerCurrent >= 7.5f) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardHeavyRainHydroplaning);
             addAdvice(AdviceIncreaseBreakingDistance);
@@ -108,8 +111,8 @@ public class RiskCalculator {
         // Light rain (0.1 - 2.5 mm/h) releases oil film without flushing it away
         else if (
             (season == SeasonSummer || season == SeasonSpring) &&
-            rainCurrent >= 0.1f &&
-            rainCurrent < 2.5f &&
+            rainAndShowerCurrent >= 0.1f &&
+            rainAndShowerCurrent < 2.5f &&
             runningDryStreak >= 10 // Dry hours preceding rain
         ) {
             upgradeRisk(RiskLevelModerate);
@@ -118,14 +121,14 @@ public class RiskCalculator {
             addAdvice(AdviceTractionImprovesAfterHeavierRain);
         }
         // --- MODERATE: Steady Rain ---
-        else if (rainCurrent >= 2.5f) {
+        else if (rainAndShowerCurrent >= 2.5f) {
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardWetAsphaltSurface);
             addAdvice(AdviceIncreaseBreakingDistance);
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
         // --- SLIGHT: Light Rain / Drizzle ---
-        else if (rainCurrent >= 0.2f) {
+        else if (rainAndShowerCurrent >= 0.2f) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardWetAsphaltSurface);
             addAdvice(AdviceIncreaseBreakingDistance);
@@ -134,13 +137,15 @@ public class RiskCalculator {
         // --- 6. MODERATE: Autumn Wet Leaves ---
         if (
             season == SeasonAutumn &&
-            (runningRain12h > 0.0 || humidity > 90 || runningSnow12h > 0.0)
+            (runningRainAndShower12h > 0.0 ||
+                humidity > 90 ||
+                runningSnow12h > 0.0)
         ) {
             // System.println(
             //     "Autumn Wet Leaves Risk Assessment: Season = " +
             //         season +
-            //         ", runningRain12h = " +
-            //         runningRain12h +
+            //         ", runningRainAndShower12h = " +
+            //         runningRainAndShower12h +
             //         ", humidity = " +
             //         humidity
             // );
@@ -203,13 +208,18 @@ public class RiskCalculator {
             upgradeRisk(RiskLevelSlight);
         }
 
+        var PRECIP_THRESHOLD = 0.1f; // Minimum 0.1mm to count as meaningful precipitation
         // --- 14. IMMEDIATE: Imminent Rain ---
-        if (immediateRain >= 0 && rainCurrent < 0.1f) {
+        // -1 no immediate precipitation, 0 active during this hour, 60 starting within next hour block
+        if (
+            immediateRainAndShower >= 0 &&
+            rainAndShowerCurrent < PRECIP_THRESHOLD
+        ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentRain);
         }
         // --- 15. IMMEDIATE: Imminent Snow ---
-        if (immediateSnow >= 0 && snowCurrent < 0.1f) {
+        if (immediateSnow >= 0 && snowCurrent < PRECIP_THRESHOLD) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentSnow);
         }
