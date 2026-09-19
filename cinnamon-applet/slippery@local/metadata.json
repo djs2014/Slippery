@@ -1,0 +1,16 @@
+{
+    "uuid": "slippery@local",
+    "name": "Slippery",
+    "description": "Cycling road-slip risk from Open-Meteo (port of the Slippery Connect IQ data field)",
+    "cinnamon-version": [
+        "5.4",
+        "5.6",
+        "5.8",
+        "6.0",
+        "6.2",
+        "6.4",
+        "6.6"
+    ],
+    "author": "local",
+    "last-edited": 1789852800
+}

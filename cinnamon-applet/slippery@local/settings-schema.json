@@ -1,0 +1,29 @@
+{
+    "latitude": {
+        "type": "entry",
+        "default": "52.18895",
+        "description": "Latitude",
+        "tooltip": "Latitude of the forecast point, e.g. 52.18895"
+    },
+    "longitude": {
+        "type": "entry",
+        "default": "4.549666",
+        "description": "Longitude",
+        "tooltip": "Longitude of the forecast point, e.g. 4.549666"
+    },
+    "refresh-minutes": {
+        "type": "spinbutton",
+        "default": 15,
+        "min": 5,
+        "max": 180,
+        "step": 5,
+        "units": "min",
+        "description": "Refresh interval",
+        "tooltip": "How often to fetch Open-Meteo data (minutes, minimum 5)."
+    },
+    "show-temperature": {
+        "type": "switch",
+        "default": true,
+        "description": "Show air temperature next to the risk label"
+    }
+}
