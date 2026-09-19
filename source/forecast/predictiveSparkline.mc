@@ -233,8 +233,7 @@ class PredictiveSparkline {
 
         // ==========================================
         // PASS 2: COMBINED DRAWING LOOP
-        // ==========================================
-        var previousRisk = RiskLevelSafe;
+        // ==========================================        
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -265,8 +264,8 @@ class PredictiveSparkline {
 
             // --- LAYER B: RISK HEATMAP & HOUR LABELS ---
             if (i < riskProfile.size()) {
-                // Show high color if risk level has increased compared to the previous hour
-                if (currentRisk > previousRisk) {
+                // Show high color if risk level is above moderate
+                if (currentRisk > RiskLevelModerate) {
                     dc.setColor(
                         $.getRiskColor(currentRisk, isDark),
                         Graphics.COLOR_TRANSPARENT
@@ -278,7 +277,6 @@ class PredictiveSparkline {
                     );
                 }
                 dc.fillRectangle(colX, riskBlockY, colW, riskBlockHeight);
-                previousRisk = currentRisk;                
 
                 if (showLabels && showForecastHour != ForecastHourNone) {
                     var hourLabel =
