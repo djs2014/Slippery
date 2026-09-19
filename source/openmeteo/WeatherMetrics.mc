@@ -14,15 +14,15 @@ class WeatherMetrics {
     var dewPoint as Float = 0.0; // in °C
     var humidity as Number = 0; // in %
     var rainCurrent as Float = 0.0; // in mm/h contains also showers
-    var snowCurrent as Float = 0.0; // in mm/h
+    var snowCurrent as Float = 0.0; // in cm/h
     var windSpeed as Float = 0.0; // in km/h
     var windGust as Float = 0.0; // in km/h
     var windDirection as Number = 0; // in degrees (0-359 deg) where the wind is coming from (standard weather map style)
     var gustSeverity as Number = 0; // Level of wind gust severity
 
     // Past 12h Context
-    var rain12hSum as Float = 0.0;
-    var snow12hSum as Float = 0.0;
+    var rain12hSum as Float = 0.0; // in mm
+    var snow12hSum as Float = 0.0; // in cm
     var dryStreak as Number = 0; // Length of the current dry streak in hours
 
     var currentSeason as MeteorologicalSeason = SeasonNoData;
@@ -36,7 +36,7 @@ class WeatherMetrics {
     var windDirForecast as Array<Number> = []; // Number items (0-359 deg) where the wind is coming from (standard weather map style)
     var windGustForecast as Array<Float> = []; // Float items (km/h)
     var airTempForecast as Array<Float> = []; // Float items (°C air)
-    var snowForecast as Array<Float> = []; // Float items (mm/h)
+    var snowForecast as Array<Float> = []; // Float items (cm/h)
     var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
     var dewpointForecast as Array<Float> = []; // Float items (°C)
 

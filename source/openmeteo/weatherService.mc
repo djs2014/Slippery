@@ -155,13 +155,17 @@ class WeatherService {
             metrics.snow12hSum = sumSnow;
 
             // Look back at dry streak length (for "first rain after dry spell" effect)
+            // Counts PRECEDING dry hours (excludes the current hour) so the
+            // first-rain rule can fire while it is raining now. Same definition
+            // and thresholds as RiskProjectionEngine (rain mm, snow cm).
             var dryStreak = 0;
-            for (var k = targetIdx; k >= 0; k--) {
+            for (var k = targetIdx - 1; k >= 0 && dryStreak < 24; k--) {
                 if (
                     k < rains.size() &&
-                    rains[k] == 0.0 &&
                     k < showers.size() &&
-                    showers[k] == 0.0
+                    k < snows.size() &&
+                    rains[k] + showers[k] <= 0.1f &&
+                    snows[k] <= 0.1f
                 ) {
                     dryStreak += 1;
                 } else {
@@ -232,40 +236,41 @@ class WeatherService {
             for (var l = targetIdx; l < maxForecastIdx; l++) {
                 metrics.timeStampsForeCast.add(times[l]);
 
-                var timestamp = times[l];
-                var rain = rains[l];
-                var shower = showers[l];
-                var snow = snows[l];
-                var total = rain + shower + snow;
-                // System.println(
-                //     [
-                //         "hourly rainandsnow",
-                //         l,
-                //         total,
-                //         formatUnixTime(timestamp),
-                //     ] +
-                //         " Rain: " +
-                //         rain +
-                //         " Shower: " +
-                //         shower +
-                //         " Snow: " +
-                //         snow
-                // );
-                metrics.rainForecast.add(rains[l]);
-                metrics.showersForecast.add(showers[l]);
-                metrics.windForecast.add(windSpeeds[l]);
-                metrics.windDirForecast.add(windDirections[l]);
-                metrics.windGustForecast.add(windGusts[l]);
-                metrics.airTempForecast.add(airTemps[l]);
-                metrics.snowForecast.add(snows[l]);
-                metrics.surfaceTempForecast.add(surfTemps[l]);
-                metrics.dewpointForecast.add(dewPoints[l]);
+                // Guard each array against ragged API responses (a size
+                // mismatch is only logged above); missing values default to dry/calm.
+                metrics.rainForecast.add(
+                    l < rains.size() ? rains[l] : 0.0f
+                );
+                metrics.showersForecast.add(
+                    l < showers.size() ? showers[l] : 0.0f
+                );
+                metrics.windForecast.add(
+                    l < windSpeeds.size() ? windSpeeds[l] : 0.0f
+                );
+                metrics.windDirForecast.add(
+                    l < windDirections.size() ? windDirections[l] : 0
+                );
+                metrics.windGustForecast.add(
+                    l < windGusts.size() ? windGusts[l] : 0.0f
+                );
+                metrics.airTempForecast.add(
+                    l < airTemps.size() ? airTemps[l] : 0.0f
+                );
+                metrics.snowForecast.add(
+                    l < snows.size() ? snows[l] : 0.0f
+                );
+                metrics.surfaceTempForecast.add(
+                    l < surfTemps.size() ? surfTemps[l] : 0.0f
+                );
+                metrics.dewpointForecast.add(
+                    l < dewPoints.size() ? dewPoints[l] : 0.0f
+                );
             }
 
             // Minutely starts at current time and has 4 15-minute intervals
             var minutelyData = data.get("minutely_15") as Dictionary?;
             if (minutelyData != null) {
-                var timeStampArray = minutelyData.get("time") as Array<Number>?;
+                // var timeStampArray = minutelyData.get("time") as Array<Number>?;
                 var rainArray = minutelyData.get("rain") as Array<Float>?;
                 var snowArray = minutelyData.get("snowfall") as Array<Float>?;
                 // TEST DATA

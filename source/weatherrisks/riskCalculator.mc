@@ -50,12 +50,20 @@ public class RiskCalculator {
     ) as RiskLevel {
         reset();
 
+        // Shared meaningful-precipitation thresholds, used by every rule so
+        // live assessment and forecast projection agree.
+        // Rain/showers are mm/h, snowfall is cm/h (Open-Meteo unit);
+        // 0.1 cm snow ~= 1 mm snow ~= 0.1 mm rain water equivalent.
+        var RAIN_THRESHOLD = 0.1f;
+        var SNOW_THRESHOLD = 0.1f;
+
         // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
         if (
             (surfaceTemp <= 0.0 || airTemp <= 0.5) &&
-            (runningRainAndShower12h > 0.0 ||
-                rainAndShowerCurrent > 0.0 ||
-                runningSnow12h > 0.0 || snowCurrent > 0.0)
+            (runningRainAndShower12h >= RAIN_THRESHOLD ||
+                rainAndShowerCurrent >= RAIN_THRESHOLD ||
+                runningSnow12h >= SNOW_THRESHOLD ||
+                snowCurrent >= SNOW_THRESHOLD)
         ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardBlackIceFreezingWetRoad);
@@ -63,8 +71,13 @@ public class RiskCalculator {
             addAdvice(AdviceLowerTirePressure);
         }
 
-        // --- 2. CRITICAL: Hoarfrost / Freezing" Fog ---
-        if (surfaceTemp <= 0.0 && surfaceDewSpread <= 2.0) {
+        // --- 2. CRITICAL: Hoarfrost / Freezing Fog ---
+        // Humid air is required: dry cold alone cannot deposit frost.
+        if (
+            surfaceTemp <= 0.0 &&
+            surfaceDewSpread <= 2.0 &&
+            humidity >= 80
+        ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardRoadSurfaceFrost);
             addAdvice(AdviceWatchOutForShadedAreasBridgesTreeLinedRoads);
@@ -75,9 +88,9 @@ public class RiskCalculator {
         if (
             airTemp >= 0.0 &&
             airTemp <= 2.5 &&
-            (runningRainAndShower12h > 0.0 ||
+            (runningRainAndShower12h >= RAIN_THRESHOLD ||
                 humidity > 88 ||
-                runningSnow12h > 0.0)
+                runningSnow12h >= SNOW_THRESHOLD)
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardIceOnBridges);
@@ -85,7 +98,13 @@ public class RiskCalculator {
         }
 
         // --- 4. HIGH: Snow / Slush Accumulation ---
-        if (runningSnow12h > 0.0) {
+        // Only when temperatures allow snow to settle; ignores trace amounts
+        // and warm conditions where past snow has melted.
+        // (runningSnow12h already includes the current hour.)
+        if (
+            runningSnow12h >= SNOW_THRESHOLD &&
+            (surfaceTemp <= 1.0 || airTemp <= 1.5)
+        ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardSnowOrSlushAccumulation);
             addAdvice(AdviceLossOfTractionInTurns);
@@ -135,27 +154,21 @@ public class RiskCalculator {
         }
 
         // --- 6. MODERATE: Autumn Wet Leaves ---
+        // Requires actual wetness. Damp air alone is covered by the dew rule (7).
         if (
             season == SeasonAutumn &&
-            (runningRainAndShower12h > 0.0 ||
-                humidity > 90 ||
-                runningSnow12h > 0.0)
+            (runningRainAndShower12h >= RAIN_THRESHOLD ||
+                runningSnow12h >= SNOW_THRESHOLD ||
+                rainAndShowerCurrent >= RAIN_THRESHOLD ||
+                snowCurrent >= SNOW_THRESHOLD)
         ) {
-            // System.println(
-            //     "Autumn Wet Leaves Risk Assessment: Season = " +
-            //         season +
-            //         ", runningRainAndShower12h = " +
-            //         runningRainAndShower12h +
-            //         ", humidity = " +
-            //         humidity
-            // );
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardWetLeafCoverage);
             addAdvice(AdviceExtremeSlipHazardOnCorneringLines);
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
-        // --- 8. SLIGHT: Dew Condensation ("Sweating Road") ---
+        // --- 7. SLIGHT: Dew Condensation ("Sweating Road") ---
         if (surfaceTemp > 0.0 && humidity > 90 && surfaceDewSpread <= 1.0) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardWetAsphaltSurface);
@@ -166,8 +179,12 @@ public class RiskCalculator {
         // --- GUST RATIO CALCULATION ---
         var gustRatio = windSpeed > 1.0f ? windGust / windSpeed : 1.0f;
 
-        // --- 10. CRITICAL: Gale-Force Winds, Extreme Gusts, or 3-Bar Severe Gust Spikes ---
-        // Matches: Triangle len 18px + 3 Gust Bars (gust >= 45 km/h OR ratio >= 1.7)
+        // --- 8. CRITICAL: Gale-Force Winds or Extreme Gusts ---
+        // Absolute gust/speed thresholds are deliberately one tier stricter than
+        // the sparkline gust bars (which warn early at 45/35/25): the bars show
+        // exposure, this rule upgrades the ride risk.
+        // Ratio spikes need a base-wind floor so that e.g. 2 -> 4 km/h gusts
+        // (ratio 2.0) at near-calm conditions do not trigger Critical.
         if (
             windSpeed >= 45.0f ||
             windGust >= 60.0f ||
@@ -179,8 +196,7 @@ public class RiskCalculator {
             addAdvice(AdviceHoldHandlebarsFirmly);
             addAdvice(AdviceConsiderLowerProfileWheels);
         }
-        // --- 11. HIGH: Strong Crosswinds / 2-Bar Heavy Gust Spikes ---
-        // Matches: Triangle len 15px + 2 Gust Bars (gust >= 35 km/h OR ratio >= 1.5)
+        // --- 9. HIGH: Strong Crosswinds / Heavy Gusts ---
         else if (
             windSpeed >= 35.0f ||
             windGust >= 45.0f ||
@@ -191,8 +207,7 @@ public class RiskCalculator {
             addAdvice(AdviceBewareOfOpenFieldsAndBridges);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
-        // --- 12. MODERATE: Moderate Winds / 1-Bar Gust Spikes ---
-        // Matches: Triangle len 13px + 1 Gust Bar (gust >= 25 km/h OR ratio >= 1.3)
+        // --- 10. MODERATE: Moderate Winds / Gust Spikes ---
         else if (
             windSpeed >= 25.0f ||
             windGust >= 35.0f ||
@@ -202,26 +217,38 @@ public class RiskCalculator {
             addHazard(HazardStrongCrosswinds);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
-        // --- 13. SLIGHT: Noticeable Breeze / Single Base Triangle ---
-        // Matches: Base Triangle display (windSpeed >= 20 km/h)
+        // --- 11. SLIGHT: Noticeable Breeze ---
+        // Names the cause so the UI never shows an unexplained Slight level.
         else if (windSpeed >= 20.0f) {
             upgradeRisk(RiskLevelSlight);
+            addHazard(HazardStrongCrosswinds);
+            addAdvice(AdviceHoldHandlebarsFirmly);
         }
 
-        var PRECIP_THRESHOLD = 0.1f; // Minimum 0.1mm to count as meaningful precipitation
-        // --- 14. IMMEDIATE: Imminent Rain ---
-        // -1 no immediate precipitation, 0 active during this hour, 60 starting within next hour block
+        // --- 12. IMMEDIATE: Imminent Rain ---
+        // -1 no immediate precipitation, 0 active now, >0 minutes until start.
+        // Suppressed while it is already raining (covered by the rain ladder).
         if (
             immediateRainAndShower >= 0 &&
-            rainAndShowerCurrent < PRECIP_THRESHOLD
+            rainAndShowerCurrent < RAIN_THRESHOLD
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentRain);
+            if (immediateRainAndShower == 0) {
+                addAdvice(AdviceRainStartingNow);
+            } else {
+                addAdvice(AdviceRainExpectedShortly);
+            }
         }
-        // --- 15. IMMEDIATE: Imminent Snow ---
-        if (immediateSnow >= 0 && snowCurrent < PRECIP_THRESHOLD) {
+        // --- 13. IMMEDIATE: Imminent Snow ---
+        if (immediateSnow >= 0 && snowCurrent < SNOW_THRESHOLD) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentSnow);
+            if (immediateSnow == 0) {
+                addAdvice(AdviceSnowStartingNow);
+            } else {
+                addAdvice(AdviceSnowExpectedShortly);
+            }
         }
 
         return _riskLevel;
