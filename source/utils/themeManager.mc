@@ -9,7 +9,7 @@ var hazardColor = AppState.getColor(ThemeManager.COLOR_HAZARD);
 */
 class AppState {
     // Reference Graphics.ColorType explicitly
-    public static var activePalette as Array<Graphics.ColorType> = ThemeManager.DARK_PALETTE;
+    private static var activePalette as Array<Graphics.ColorType> = ThemeManager.DARK_PALETTE;
 
     public static function updateTheme(isDark as Boolean) as Void {
         activePalette = isDark
@@ -166,20 +166,5 @@ class ThemeManager {
         RAW_SHADES_OF_AQUA,                // 28
         RAW_DEEP_PURPLE_DARK,              // 29
         RAW_SHADES_OF_OLIVE                // 30
-    ];
-
-    // public static function getThemeColor(key as ColorKey, isDarkTheme as Boolean) as Graphics.ColorType {
-    //     var idx = key as Number;
-
-    //     // Bounds check safeguard
-    //     if (idx < 0 || idx >= COLOR_COUNT) {
-    //         System.println("ThemeManager: Color index out of bounds: " + idx);
-    //         System.println("Key index requested: " + (key as Number));
-    //         System.println("Palette size: " + AppState.activePalette.size());
-    //         return Graphics.COLOR_WHITE; // Default fallback on error
-    //     }
-
-    //     var palette = isDarkTheme ? DARK_PALETTE : LIGHT_PALETTE;
-    //     return palette[idx];
-    // }
+    ];   
 }

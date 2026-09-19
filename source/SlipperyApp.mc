@@ -125,6 +125,18 @@ class SlipperyApp extends Application.AppBase {
             $.gHideUnitsWhenActive =
                 $.getStorageValue("hideUnitsWhenActive", true) as Boolean;  
 
+            // Backfill for app upgraders: storage predating the threshold keys
+            // has resetDefaults=false, skipping the seed block above. Writing
+            // missing keys makes menu display, numeric prefill, and the loader
+            // below all agree (values must match the seeded defaults above).
+            seedStorageDefault("threshIceAlert", 3.0f);
+            seedStorageDefault("threshHighCrosswind", 25.0f);
+            seedStorageDefault("threshCrossGust", 18.0f);
+            seedStorageDefault("threshHeavyWind", 35.0f);
+            seedStorageDefault("threshSustainedWind", 25.0f);
+            seedStorageDefault("threshHeadwind", 12.0f);
+            seedStorageDefault("threshHeatStress", 32.0f);
+
             // Fallback defaults mirror the seeded values above so behavior is
             // correct even when storage has no threshold keys (e.g. upgrades).
             AlertStateAnalyzer.setTreshIceAlert($.getStorageValue("threshIceAlert", 3.0f) as Float);              
@@ -137,6 +149,18 @@ class SlipperyApp extends Application.AppBase {
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();
+        }
+    }
+
+    //! Writes a storage default only when the key is missing (upgrade backfill).
+    //! Existing user values are never overwritten; full resets use the seed block.
+    private function seedStorageDefault(key as String, dflt as Float) as Void {
+        try {
+            if (Storage.getValue(key) == null) {
+                Storage.setValue(key, dflt);
+            }
+        } catch (ex) {
+            System.println("seedStorageDefault failed for " + key);
         }
     }
 

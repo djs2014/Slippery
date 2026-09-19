@@ -2,6 +2,9 @@
 - weather app also same track heading mechanism / edgefield
 
 - if showers > setting, then mark them under the bar! + warning icon and alert
+- readme update alertmode thresholds
+- setting incoming rain minimal mm/h alert
+
 
 Widefield
  Label icons - check using debug
@@ -12,8 +15,6 @@ Widefield
  ? zen mode -> na 20 sec label / unit weg wanneer niet trappen 3 sec dan tonen 
  no unit -> font bigger
 
-readme update alertmode thresholds
-setting incoming rain minimal mm/h alert
 
 auto mode / layout fonts
 1 wide field
@@ -144,102 +145,10 @@ showers,mm,"Convective precipitation (e.g., brief intense rain showers from unst
 snowfall,cm,Amount of snowfall measured in centimeters (note: differs from rain/precipitation unit).
 precipitation_probability,%,Probability of precipitation occurring during that forecast hour (0−100%).
 
-// Focus on wind related
-// - Aero pacing / cross gust / net wind 
-// Focus on temperature / humidity
 
 
-public static function drawAeroPacingOverlay(
-    dc as Graphics.Dc,
-    x as Number,
-    y as Number,
-    width as Number,
-    power3s as Number,
-    targetPowerBase as Number,
-    virtualGrade as Float,
-    crossGustKmh as Float,
-    isDark as Boolean
-) as Void {
-    var textColor = isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
-    var accentColor = isDark ? Graphics.COLOR_YELLOW : 0x666600;
 
-    // --- 1. VIRTUAL GRADE BADGE (Top Right) ---
-    var gradeText = Lang.format("vG: $1$%", [virtualGrade.format("%.1f")]);
-    dc.setColor(accentColor, Graphics.COLOR_TRANSPARENT);
-    dc.drawText(
-        x + width - 4, 
-        y + 2, 
-        Graphics.FONT_XTINY, 
-        gradeText, 
-        Graphics.TEXT_JUSTIFY_RIGHT
-    );
 
-    // --- 2. PACING DELTA ALERT (Target vs Actual 3s Power) ---
-    var deltaW = AeroPacingCalculator.calculatePacingDeltaWatts(targetPowerBase, virtualGrade);
-    if (deltaW != 0) {
-        var deltaText = (deltaW > 0) 
-            ? Lang.format("PUSH +$1$W", [deltaW]) 
-            : Lang.format("EASE $1$W", [deltaW]);
-            
-        var alertColor = (deltaW > 0) ? Graphics.COLOR_RED : Graphics.COLOR_BLUE;
-        dc.setColor(alertColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            x + (width / 2), 
-            y + 2, 
-            Graphics.FONT_XTINY, 
-            deltaText, 
-            Graphics.TEXT_JUSTIFY_CENTER
-        );
-    }
-
-    // --- 3. CROSS-GUST STABILITY WARNING BANNER ---
-    // High cross-gusts (>30 km/h) trigger a subtle stability cue at the bottom
-    if (crossGustKmh >= 30.0f) {
-        dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x, y + 36, width, 14);
-        
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        dc.drawText(
-            x + (width / 2), 
-            y + 36, 
-            Graphics.FONT_XTINY, 
-            Lang.format("GUST ALERT: $1$ km/h", [crossGustKmh.format("%d")]), 
-            Graphics.TEXT_JUSTIFY_CENTER
-        );
-    }
-}
-
-oneField is ok?
-
-wide/large/small field
-
-airTemp / feels like temp
-windGust / effect cross Gust
-wind / net wind
-
-forecast
-enum AlertState {
-    STATE_NORMAL = 0,
-        airTemp 
-    STATE_ICE_ALERT = 1,
-        surfaceTemp
-        dewpoint
-        humidity
-    STATE_HEAVY_RAIN = 2,
-        
-    STATE_HIGH_CROSSWIND = 3,
-        windGust -> effective crossgust
-        crossGust
-        crossWind
-        net Wind
-    STATE_RAIN_SOON = 4,
-
-    STATE_AERO_HEADWIND = 5,
-        windspeed
-        crossWind
-        net Wind
-    STATE_HEAT_STRESS = 6,
-}
 
 Display amount mm in coming hour
  rainIn30MinMmHr as Float, // Forecasted rain in next 15-30 mins
@@ -254,32 +163,10 @@ Display amount mm in coming hour
             return STATE_RAIN_SOON;
         }
 
-------------------------------------------------------
-Fields + configuration
 
-- air/feels like temp - relevant if <= 3 or => 20 
-- surface temp <= 3
-- dewpoint >= 20
-- humidity >= 80
-- wind speed > 20 km
-- wind gust >= 20 (or gust level)
-- net wind >= 15
-- effective cross gust >= 20
 
-Fields array 8|4|4
-[none, airTemp, .. , automatic]
-automatic -> not in list, then show most relevant
-
-redesign layout wide field -> bigger number? and 4 fields?
-
-aan eind C bar -> countdown to full hour
 check hardcode colors 
 
-Search for
-AppState.activePalette[<ThemeManager.COLOR_SNOW_PATTERN>]
-and replace it with
-AppState.getColor(<ThemeManager.COLOR_SNOW_PATTERN>)
-in this project *.mc files
 
 get skill for connect IQ
 nieuwe muis - met scrollen past text!

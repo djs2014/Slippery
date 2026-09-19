@@ -641,7 +641,7 @@ class SlipperyView extends WatchUi.DataField {
         AlertCategoryRenderer.drawCategoryIcon(
             dc,
             y + headerTextLength + iconSize,
-            centerHeaderY + iconSize / 2,
+            centerHeaderY - 2 + iconSize / 2,
             iconSize,
             mAlertCategory,
             riskTextColor
@@ -650,7 +650,7 @@ class SlipperyView extends WatchUi.DataField {
         RiskIconRenderer.drawRiskIcon(
             dc,
             w - riskLevelTextLength - iconSize,
-            centerHeaderY + iconSize / 2,
+            centerHeaderY - 2 + iconSize / 2,
             iconSize,
             mRiskAssessment.riskLevel,
             riskTextColor,
