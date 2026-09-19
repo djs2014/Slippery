@@ -142,6 +142,7 @@ class PredictiveSparkline {
         var surfaceTempForecast = metrics.surfaceTempForecast;
         var minutelyRainForecast = metrics.minutelyRainForecast;
         var minutelySnowForecast = metrics.minutelySnowForecast;
+        var precipProbForecast = metrics.precipProbForecast;
 
         // Layout-driven (not pixel-driven): matches the field classification
         // in field_utils, so small slots stay compact on high-res devices too.
@@ -184,6 +185,8 @@ class PredictiveSparkline {
         // Significant precip floor shared with AlertStateAnalyzer
         // (threshPrecipAhead setting): drives badges, outlines, segment floor.
         var precipHlThreshold = AlertStateAnalyzer.threshPrecipAhead;
+        // Confidence floor (%): hours below render hollow (uncertain) bars.
+        var probFloor = 30;
         // First hours with significant showers / steady rain; drive badges + outlines.
         var firstShowerIdx = -1;
         var firstRainIdx = -1;
@@ -196,18 +199,25 @@ class PredictiveSparkline {
                 maxPrecip = totalP;
             }
 
-            // 2. First significant shower / steady-rain hours
+            // 2. First significant shower / steady-rain hours.
+            // Uncertain hours (probability below floor) earn no badge/outline.
+            var probP =
+                i < precipProbForecast.size()
+                    ? precipProbForecast[i]
+                    : (totalP > 0.05f ? 100 : 0);
             if (
                 firstShowerIdx < 0 &&
                 i < showersForecast.size() &&
-                showersForecast[i] >= precipHlThreshold
+                showersForecast[i] >= precipHlThreshold &&
+                probP >= probFloor
             ) {
                 firstShowerIdx = i;
             }
             if (
                 firstRainIdx < 0 &&
                 i < rainForecast.size() &&
-                rainForecast[i] >= precipHlThreshold
+                rainForecast[i] >= precipHlThreshold &&
+                probP >= probFloor
             ) {
                 firstRainIdx = i;
             }
@@ -335,6 +345,14 @@ class PredictiveSparkline {
                     barH = 3;
                 }
 
+                // Confidence: below-floor hours render hollow (outline)
+                // segments in the same colors instead of solid fills.
+                var prob =
+                    i < precipProbForecast.size()
+                        ? precipProbForecast[i]
+                        : 100;
+                var solidBar = prob >= probFloor;
+
                 // Proportional split; snow cap never exceeds the column.
                 var snowH = 0;
                 if (snow > 0.0f) {
@@ -389,7 +407,11 @@ class PredictiveSparkline {
                                         ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
                                     );
                         dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
-                        dc.fillRectangle(colX, precipY - rainH, colW, rainH);
+                        if (solidBar) {
+                            dc.fillRectangle(colX, precipY - rainH, colW, rainH);
+                        } else {
+                            dc.drawRectangle(colX, precipY - rainH, colW, rainH);
+                        }
                         precipY -= rainH;
                     }
                     if (showerH > 0) {
@@ -398,12 +420,21 @@ class PredictiveSparkline {
                             AppState.getColor(ThemeManager.COLOR_SHOWERS),
                             Graphics.COLOR_TRANSPARENT
                         );
-                        dc.fillRectangle(
-                            colX,
-                            precipY - showerH,
-                            colW,
-                            showerH
-                        );
+                        if (solidBar) {
+                            dc.fillRectangle(
+                                colX,
+                                precipY - showerH,
+                                colW,
+                                showerH
+                            );
+                        } else {
+                            dc.drawRectangle(
+                                colX,
+                                precipY - showerH,
+                                colW,
+                                showerH
+                            );
+                        }
                         precipY -= showerH;
                     }
                 }
@@ -413,7 +444,11 @@ class PredictiveSparkline {
                         AppState.getColor(ThemeManager.COLOR_SNOW_PATTERN),
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.fillRectangle(colX, precipY - snowH, colW, snowH);
+                    if (solidBar) {
+                        dc.fillRectangle(colX, precipY - snowH, colW, snowH);
+                    } else {
+                        dc.drawRectangle(colX, precipY - snowH, colW, snowH);
+                    }
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
@@ -432,7 +467,7 @@ class PredictiveSparkline {
 
                 // First-shower highlight: purple outline so the eye jumps to
                 // when convective rain starts (mirrors the risk rising-edge
-                // emphasis). This column always has total >= 0.5 > 0.05.
+                // emphasis). Only confident hours qualify (see PASS 1 scan).
                 if (i == firstShowerIdx) {
                     dc.setColor(
                         AppState.getColor(ThemeManager.COLOR_SHOWERS),

@@ -99,6 +99,10 @@ class WeatherService {
             var windGusts = hourly.get("wind_gusts_10m") as Array<Float>?;
             var windDirections =
                 hourly.get("wind_direction_10m") as Array<Number>?;
+            // Optional: older cached responses may lack it; fallback below
+            // treats wet hours as certain so rendering matches legacy data.
+            var precipProbs =
+                hourly.get("precipitation_probability") as Array<Number>?;
             if (
                 airTemps == null ||
                 surfTemps == null ||
@@ -191,6 +195,8 @@ class WeatherService {
             var snowSize = snows.size();
             var surfTempSize = surfTemps.size();
             var dewPointSize = dewPoints.size();
+            var precipProbSize =
+                precipProbs != null ? precipProbs.size() : 0;
             if (
                 rainSize != maxForecastIdx ||
                 showersSize != maxForecastIdx ||
@@ -200,7 +206,8 @@ class WeatherService {
                 airTempSize != maxForecastIdx ||
                 snowSize != maxForecastIdx ||
                 surfTempSize != maxForecastIdx ||
-                dewPointSize != maxForecastIdx
+                dewPointSize != maxForecastIdx ||
+                precipProbSize != maxForecastIdx
             ) {
                 System.println(
                     "Warning: Forecast array sizes do not match the times array size."
@@ -229,7 +236,9 @@ class WeatherService {
                         ", airTemps=" +
                         airTemps.size() +
                         ", dewPoints=" +
-                        dewPoints.size()
+                        dewPoints.size() +
+                        ", precipProbs=" +
+                        precipProbSize
                 );
             }
 
@@ -264,6 +273,18 @@ class WeatherService {
                 );
                 metrics.dewpointForecast.add(
                     l < dewPoints.size() ? dewPoints[l] : 0.0f
+                );
+                // Probability 0-100%; when the field is missing, wet hours
+                // count as certain so legacy data renders solid as before.
+                var wetTotal =
+                    (l < rains.size() ? rains[l] : 0.0f) +
+                    (l < showers.size() ? showers[l] : 0.0f) +
+                    (l < snows.size() ? snows[l] : 0.0f);
+                var probFallback = wetTotal > 0.05f ? 100 : 0;
+                metrics.precipProbForecast.add(
+                    precipProbs != null && l < precipProbs.size()
+                        ? precipProbs[l]
+                        : probFallback
                 );
             }
 

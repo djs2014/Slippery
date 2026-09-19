@@ -324,6 +324,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [0.0f, 0.0f, 0.0f, 0.0f];
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+            wd.precipProbForecast = [
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ];
         } else if (counter <= 10) {
             wd.showersForecast = [
                 0.0f, 0.1f, 0.2f, 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -335,6 +338,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [0.0f, 0.0f, 0.0f, 0.0f];
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+            wd.precipProbForecast = [
+                0, 35, 60, 75, 55, 25, 5, 0, 0, 0, 0, 0,
+            ];
         } else if (counter <= 20) {
             wd.showersForecast = [
                 0.3f, 0.4f, 0.3f, 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -346,6 +352,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [1.5f, 1.8f, 2.0f, 2.2f];
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+            wd.precipProbForecast = [
+                90, 95, 95, 85, 60, 30, 10, 0, 0, 0, 0, 0,
+            ];
         } else if (counter <= 30) {
             wd.showersForecast = [
                 0.5f, 0.8f, 0.4f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -357,6 +366,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [3.5f, 3.0f, 2.2f, 1.5f];
             wd.minutelySnowForecast = [0.0f, 0.2f, 0.8f, 1.5f]; // snow from ~15 min
+            wd.precipProbForecast = [
+                95, 90, 85, 80, 50, 20, 5, 0, 0, 0, 0, 0,
+            ];
         } else if (counter <= 40) {
             wd.showersForecast = [
                 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -368,6 +380,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [0.2f, 0.1f, 0.0f, 0.0f];
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
+            wd.precipProbForecast = [
+                20, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ];
         } else if (counter <= 50) {
             wd.showersForecast = [
                 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -379,6 +394,9 @@ class DemoWeatherService {
             ];
             wd.minutelyRainForecast = [0.8f, 0.5f, 0.2f, 0.0f];
             wd.minutelySnowForecast = [1.5f, 2.0f, 2.5f, 2.8f];
+            wd.precipProbForecast = [
+                85, 90, 95, 85, 60, 30, 5, 0, 0, 0, 0, 0,
+            ];
         }
 
         if (wd.timeStampsForeCast.size() == 12) {

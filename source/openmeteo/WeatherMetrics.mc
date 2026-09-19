@@ -37,6 +37,7 @@ class WeatherMetrics {
     var windGustForecast as Array<Float> = []; // Float items (km/h)
     var airTempForecast as Array<Float> = []; // Float items (°C air)
     var snowForecast as Array<Float> = []; // Float items (cm/h)
+    var precipProbForecast as Array<Number> = []; // Number items (0-100% per hour)
     var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
     var dewpointForecast as Array<Float> = []; // Float items (°C)
 
@@ -99,6 +100,8 @@ class WeatherMetrics {
             airTempForecast +
             ", snowForecast=" +
             snowForecast +
+            ", precipProbForecast=" +
+            precipProbForecast +
             ", surfaceTempForecast=" +
             surfaceTempForecast +
             ", dewpointForecast=" +
