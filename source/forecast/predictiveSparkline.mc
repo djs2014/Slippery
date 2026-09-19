@@ -298,47 +298,80 @@ class PredictiveSparkline {
                 }
             }
 
-            // --- LAYER C: PRECIPITATION BARS ---
+            // --- LAYER C: PRECIPITATION BARS (stacked: liquid base, snow cap) ---
             var rain = rainForecast[i];
             var showers = showersForecast[i];
             var snow = snowForecast[i];
-            var total = rain + showers + snow;
+            // Snow is cm/h ~= mm water-equivalent numerically (10:1), so the
+            // shares below compare liquid mm against snow water directly.
+            var liquid = rain + showers;
+            var total = liquid + snow;
             if (total > 0.05f) {
                 var barH = ((total / maxPrecip) * chartHeight).toNumber();
                 if (barH < 3) {
                     barH = 3;
                 }
-                var by = baselineY - barH;
 
+                // Proportional split; snow cap never exceeds the column.
+                var snowH = 0;
                 if (snow > 0.0f) {
-                    // Snow gets top visual priority (cyan/white)
+                    snowH = Math.round((snow / total) * barH).toNumber();
+                    if (snowH < 0) {
+                        snowH = 0;
+                    }
+                    if (snowH > barH) {
+                        snowH = barH;
+                    }
+                }
+                var liquidH = barH - snowH;
+
+                var precipY = baselineY;
+                // Liquid base (existing color language, absolute thresholds)
+                if (liquidH > 0 && liquid > 0.0f) {
+                    if (showers > rain) {
+                        // Convective showers (purple)
+                        dc.setColor(
+                            AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                            Graphics.COLOR_TRANSPARENT
+                        );
+                    } else {
+                        // Steady stratiform rain (blue)
+                        var rainColor =
+                            rain >= 2.5f
+                                ? AppState.getColor(ThemeManager.COLOR_BLUE)
+                                : rain >= 0.5f
+                                  ? AppState.getColor(
+                                        ThemeManager.COLOR_DEEP_SKY_BLUE
+                                    )
+                                  : AppState.getColor(
+                                        ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
+                                    );
+                        dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
+                    }
+                    dc.fillRectangle(colX, precipY - liquidH, colW, liquidH);
+                    precipY -= liquidH;
+                }
+                // Snow cap
+                if (snowH > 0) {
                     dc.setColor(
                         AppState.getColor(ThemeManager.COLOR_SNOW_PATTERN),
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.fillRectangle(colX, by, colW, barH);
+                    dc.fillRectangle(colX, precipY - snowH, colW, snowH);
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.drawPoint(px, by + 1);
-                } else if (showers > rain) {
-                    // Convective showers column (purple)
+                    dc.drawPoint(px, precipY - snowH + 1);
+                } else if (snow > 0.0f) {
+                    // Trace snow rounded to 0px: keep the dot so its
+                    // presence is not lost inside a rain column.
+                    // (precipY already points at the column top here.)
                     dc.setColor(
-                        AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                        Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
                     );
-                    dc.fillRectangle(colX, by, colW, barH);
-                } else {
-                    // Steady stratiform rain column (blue)
-                    var rainColor =
-                        rain >= 2.5f
-                            ? AppState.getColor(ThemeManager.COLOR_BLUE)
-                            : rain >= 0.5f
-                              ? AppState.getColor(ThemeManager.COLOR_DEEP_SKY_BLUE)
-                              : AppState.getColor(ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE);
-                    dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
-                    dc.fillRectangle(colX, by, colW, barH);
+                    dc.drawPoint(px, precipY + 1);
                 }
             }
 
