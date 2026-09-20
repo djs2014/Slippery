@@ -1,4 +1,58 @@
 {
+    "layout": {
+        "type": "layout",
+        "pages": ["page-main", "page-extra", "page-display", "page-thresholds"],
+        "page-main": {
+            "type": "page",
+            "title": "Location 1",
+            "sections": ["section-loc1"]
+        },
+        "page-extra": {
+            "type": "page",
+            "title": "Locations 2-5",
+            "sections": ["section-loc-extra"]
+        },
+        "page-display": {
+            "type": "page",
+            "title": "Panel & popup",
+            "sections": ["section-fetch", "section-panel", "section-popup"]
+        },
+        "page-thresholds": {
+            "type": "page",
+            "title": "Thresholds",
+            "sections": ["section-thresh"]
+        },
+        "section-loc1": {
+            "type": "section",
+            "title": "Primary location (panel chip shows this point)",
+            "keys": ["location-1-name", "location-1-coords"]
+        },
+        "section-loc-extra": {
+            "type": "section",
+            "title": "Extra commute points (empty coordinates = disabled, max 5 total)",
+            "keys": ["location-2-name", "location-2-coords", "location-3-name", "location-3-coords", "location-4-name", "location-4-coords", "location-5-name", "location-5-coords"]
+        },
+        "section-fetch": {
+            "type": "section",
+            "title": "Fetching",
+            "keys": ["refresh-minutes", "startup-delay-sec", "forecast-hours"]
+        },
+        "section-panel": {
+            "type": "section",
+            "title": "Panel chip",
+            "keys": ["show-temperature", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
+        },
+        "section-popup": {
+            "type": "section",
+            "title": "Popup",
+            "keys": ["show-hazards", "show-advice"]
+        },
+        "section-thresh": {
+            "type": "section",
+            "title": "Alert thresholds (like the Connect IQ app)",
+            "keys": ["thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust", "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind", "thresh-heat-stress", "thresh-precip-ahead"]
+        }
+    },
     "location-1-name": {
         "type": "entry",
         "default": "Home",
@@ -8,19 +62,19 @@
     "location-1-coords": {
         "type": "entry",
         "default": "52.18895, 4.549666",
-        "description": "Location 1 coordinates",
+        "description": "Location 1 latitude,longitude",
         "tooltip": "Paste straight from Google Maps: 52.387520877358256, 4.7199631014777 — or type lat, lon with dot decimals."
     },
     "location-2-name": {
         "type": "entry",
         "default": "",
         "description": "Location 2 name",
-        "tooltip": "Empty coordinates = disabled. Max 5 points total (e.g. commute stops)."
+        "tooltip": "Empty coordinates = disabled. Extra commute stop."
     },
     "location-2-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 2 coordinates",
+        "description": "Location 2 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-3-name": {
@@ -32,7 +86,7 @@
     "location-3-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 3 coordinates",
+        "description": "Location 3 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-4-name": {
@@ -44,7 +98,7 @@
     "location-4-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 4 coordinates",
+        "description": "Location 4 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-5-name": {
@@ -56,7 +110,7 @@
     "location-5-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 5 coordinates",
+        "description": "Location 5 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "refresh-minutes": {
@@ -76,7 +130,7 @@
         "max": 300,
         "step": 5,
         "units": "sec",
-        "description": "Repeat fetch after startup",
+        "description": "Delay on startup",
         "tooltip": "The first fetch happens right away; this schedules one extra fetch N seconds after startup (covers login before the network is up). 0 = no extra fetch."
     },
     "forecast-hours": {
@@ -98,11 +152,24 @@
         "type": "combobox",
         "default": "bright",
         "description": "Panel chip colors",
-        "tooltip": "bright = vivid risk colors; modest = muted risk colors; follow-theme = no background, panel theme decides.",
+        "tooltip": "bright = vivid risk colors; modest = muted risk colors. Combine with the minimum-risk setting below (Never = theme decides).",
         "options": {
             "Bright colors": "bright",
-            "Modest colors": "modest",
-            "Follow theme (no background)": "follow-theme"
+            "Modest colors": "modest"
+        }
+    },
+    "color-min-level": {
+        "type": "combobox",
+        "default": "always",
+        "description": "Show colors only when risk is above",
+        "tooltip": "Chip stays uncolored (panel theme decides) below this risk level. Never = no background colors at all (replaces the old Follow theme option).",
+        "options": {
+            "Always (every risk level)": "always",
+            "SLIGHT and above": "slight",
+            "MODERATE and above": "moderate",
+            "HIGH and above": "high",
+            "CRITICAL only": "critical",
+            "Never (no background)": "never"
         }
     },
     "use-hsp-text": {
@@ -119,6 +186,16 @@
         "step": 1,
         "description": "HSP dark/light breakpoint",
         "tooltip": "HSP 0 = black, 255 = white. Backgrounds brighter than this get black text."
+    },
+    "show-hazards": {
+        "type": "switch",
+        "default": true,
+        "description": "Show hazards in popup"
+    },
+    "show-advice": {
+        "type": "switch",
+        "default": true,
+        "description": "Show advice in popup"
     },
     "thresh-ice-alert": {
         "type": "spinbutton",

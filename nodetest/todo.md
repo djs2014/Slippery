@@ -39,7 +39,6 @@ Goal is: have a few points on a commute track so i can see if it will be risky t
 - option to set the first lat,lon by current location using computer info
 - check usage of lat lon in examples, prefill etc. Use the lat lon of Amsterdam central
 
-
 Additional
 
 Configuration:
@@ -67,4 +66,9 @@ If possible, visualize the upcoming hours for
 a little bit like the layout.png file
     
      
+Remarks after the change:
 
+Combine Location 1 and Locations 2-5 tab to one Locations tab
+Probably the prefix Location on the settings is not needed, just a number is enough.
+Remove the showing hazards settings, it will confuse the user.
+Is it possible to show a picture on the popup?
