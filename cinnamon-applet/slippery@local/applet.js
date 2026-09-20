@@ -632,6 +632,8 @@ SlipperyApplet.prototype = {
     _init: function (metadata, orientation, panelHeight, instanceId) {
         Applet.TextApplet.prototype._init.call(this, orientation, panelHeight, instanceId);
 
+        // Install folder of this applet (for shipped pictures like warning.png).
+        this._appletPath = (metadata && metadata.path) ? metadata.path : "";
         this.s = {};
         this.settings = new Settings.AppletSettings(this.s, UUID, instanceId);
         const keys = ["location-1-name", "location-1-coords",
@@ -642,7 +644,7 @@ SlipperyApplet.prototype = {
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
-            "show-hazards", "show-advice",
+            "show-advice",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -832,6 +834,35 @@ SlipperyApplet.prototype = {
         this.menu.addMenuItem(item);
     },
 
+    // Picture row in the popup (yes, pictures are possible): a custom
+    // PopupBaseMenuItem holding an St.Icon plus bold text. Tries the shipped
+    // picture file first (this._appletPath + "/" + fileName, e.g. warning.png),
+    // then a stock theme icon, and returns false so the caller can fall back
+    // to a plain text row when neither works.
+    _addBannerWithIcon: function (text, fileName, stockIcon) {
+        if (!St || !PopupMenu.PopupBaseMenuItem) return false;
+        let icon = null;
+        if (this._appletPath && fileName) {
+            try {
+                const f = Gio.icon_new_for_string(this._appletPath + "/" + fileName);
+                icon = new St.Icon({ gicon: f, icon_size: 28 });
+            } catch (e) { icon = null; }
+        }
+        if (!icon) {
+            try {
+                icon = new St.Icon({ icon_name: stockIcon || "dialog-warning", icon_size: 24 });
+            } catch (e) { return false; }
+        }
+        if (!icon) return false;
+        const item = new PopupMenu.PopupBaseMenuItem({ reactive: false });
+        const box = new St.BoxLayout({ style: "spacing: 8px;" });
+        box.add_actor(icon);
+        box.add_actor(new St.Label({ text: text, style: "font-weight: bold;" }));
+        item.addActor(box, { span: -1, expand: true });
+        this.menu.addMenuItem(item);
+        return true;
+    },
+
     // Hour chart for location 1 (todo.md + layout.png): one column per hour.
     // Top cell = risk color block with hour label; below = wind arrow+speed,
     // gust, temp, precip; bottom lanes = one strip per active hazard showing
@@ -937,7 +968,7 @@ SlipperyApplet.prototype = {
         const colorMin = String(this.s["color-min-level"] || "always");
         const useHsp = !!this.s["use-hsp-text"];
         const hspT = this.s["hsp-threshold"];
-        const showHaz = this.s["show-hazards"] !== false;
+        // Hazards are always shown (the show-hazards setting was removed).
         const showAdv = this.s["show-advice"] !== false;
 
         // Enrich every location: forecast profile + ICE flags.
@@ -991,26 +1022,31 @@ SlipperyApplet.prototype = {
 
         // todo.md: "ICE or ICE coming hours is big warning" — top banner.
         if (iceAnywhere) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                "\u2744 ICE — freezing surface now or coming", { reactive: false }));
+            let bannerOk = false;
+            try {
+                bannerOk = this._addBannerWithIcon("ICE — freezing surface now or coming",
+                    "warning.png", "dialog-warning");
+            } catch (e) { bannerOk = false; }
+            if (!bannerOk) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                    "\u2744 ICE — freezing surface now or coming", { reactive: false }));
+            }
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
             primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString(), { reactive: false }));
 
-        if (showHaz) {
-            p.risk.hazards.forEach((hz) => {
-                const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(iceMark + hz, { reactive: false }));
-            });
-        }
+        p.risk.hazards.forEach((hz) => {
+            const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(iceMark + hz, { reactive: false }));
+        });
         if (showAdv) {
             p.risk.advice.forEach((ad) => {
                 this.menu.addMenuItem(new PopupMenu.PopupMenuItem("\u2192 " + ad, { reactive: false }));
             });
         }
-        if ((!showHaz || p.risk.hazards.length === 0) && (!showAdv || p.risk.advice.length === 0)) {
+        if (p.risk.hazards.length === 0 && (!showAdv || p.risk.advice.length === 0)) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem("No hazards — good ride", { reactive: false }));
         }
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());

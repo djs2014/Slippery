@@ -1,16 +1,11 @@
 {
     "layout": {
         "type": "layout",
-        "pages": ["page-main", "page-extra", "page-display", "page-thresholds"],
-        "page-main": {
+        "pages": ["page-locations", "page-display", "page-thresholds"],
+        "page-locations": {
             "type": "page",
-            "title": "Location 1",
-            "sections": ["section-loc1"]
-        },
-        "page-extra": {
-            "type": "page",
-            "title": "Locations 2-5",
-            "sections": ["section-loc-extra"]
+            "title": "Locations",
+            "sections": ["section-loc1", "section-loc-extra"]
         },
         "page-display": {
             "type": "page",
@@ -24,12 +19,12 @@
         },
         "section-loc1": {
             "type": "section",
-            "title": "Primary location (panel chip shows this point)",
+            "title": "1 (primary — panel chip shows this point)",
             "keys": ["location-1-name", "location-1-coords"]
         },
         "section-loc-extra": {
             "type": "section",
-            "title": "Extra commute points (empty coordinates = disabled, max 5 total)",
+            "title": "2-5 (extra commute points — empty coordinates = disabled)",
             "keys": ["location-2-name", "location-2-coords", "location-3-name", "location-3-coords", "location-4-name", "location-4-coords", "location-5-name", "location-5-coords"]
         },
         "section-fetch": {
@@ -45,7 +40,7 @@
         "section-popup": {
             "type": "section",
             "title": "Popup",
-            "keys": ["show-hazards", "show-advice"]
+            "keys": ["show-advice"]
         },
         "section-thresh": {
             "type": "section",
@@ -56,61 +51,61 @@
     "location-1-name": {
         "type": "entry",
         "default": "Home",
-        "description": "Location 1 name",
+        "description": "1 name",
         "tooltip": "Display name for the primary forecast point (panel chip shows this point)."
     },
     "location-1-coords": {
         "type": "entry",
         "default": "52.18895, 4.549666",
-        "description": "Location 1 latitude,longitude",
+        "description": "1 latitude,longitude",
         "tooltip": "Paste straight from Google Maps: 52.387520877358256, 4.7199631014777 — or type lat, lon with dot decimals."
     },
     "location-2-name": {
         "type": "entry",
         "default": "",
-        "description": "Location 2 name",
+        "description": "2 name",
         "tooltip": "Empty coordinates = disabled. Extra commute stop."
     },
     "location-2-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 2 latitude,longitude",
+        "description": "2 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-3-name": {
         "type": "entry",
         "default": "",
-        "description": "Location 3 name",
+        "description": "3 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-3-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 3 latitude,longitude",
+        "description": "3 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-4-name": {
         "type": "entry",
         "default": "",
-        "description": "Location 4 name",
+        "description": "4 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-4-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 4 latitude,longitude",
+        "description": "4 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-5-name": {
         "type": "entry",
         "default": "",
-        "description": "Location 5 name",
+        "description": "5 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-5-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 5 latitude,longitude",
+        "description": "5 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "refresh-minutes": {
@@ -186,11 +181,6 @@
         "step": 1,
         "description": "HSP dark/light breakpoint",
         "tooltip": "HSP 0 = black, 255 = white. Backgrounds brighter than this get black text."
-    },
-    "show-hazards": {
-        "type": "switch",
-        "default": true,
-        "description": "Show hazards in popup"
     },
     "show-advice": {
         "type": "switch",
