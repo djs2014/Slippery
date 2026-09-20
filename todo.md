@@ -4,8 +4,4 @@
 graphic examples
 get skill for connect IQ
 52.352547, 4.852022
-
-sunshine_duration? x min/hour
-layout smallfield
-
-dots hazard
+sunshine_duration? x sec/hour

@@ -5,20 +5,20 @@ var lat = 52.188950;
 var lon = 4.549666;
 
 // grossclockner 47.0833, 12.8422
-lat = 47.0833;
-lon = 12.8422;
+// lat = 47.0833;
+// lon = 12.8422;
 
 // Tromsø / High Arctic Norway
-lat = 69.6492;
-lon = 18.9553;
+// lat = 69.6492;
+// lon = 18.9553;
 
 // Highlands, Scotland: 56.8198, -5.1052
-lat = 56.8198;
-lon = -5.1052;
+// lat = 56.8198;
+// lon = -5.1052;
 
 // greenland 78.75564882472699, -55.04153596826567
-lat = 78.75564882472699;
-lon = -55.04153596826567;
+// lat = 78.75564882472699;
+// lon = -55.04153596826567;
 // Test the function
 
 slippery.checkRoadSlipperiness(lat, lon)
