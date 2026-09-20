@@ -101,6 +101,7 @@ function buildApiParams(lat, lon, pastHours = 12, forecastHours = 12) {
       'wind_speed_10m',
       'wind_gusts_10m',
       'wind_direction_10m',
+      'sunshine_duration',
     ].join(','),
     past_hours: String(pastHours),
     forecast_hours: String(forecastHours),

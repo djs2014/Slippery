@@ -500,6 +500,7 @@ function calculateProfile(parsed, maxHours) {
     const windS = pickHourly(hourly, ["wind_speed_10m"], n);
     const windG = pickHourly(hourly, ["wind_gusts_10m"], n);
     const windD = pickHourly(hourly, ["wind_direction_10m"], n);
+    const sun = pickHourly(hourly, ["sunshine_duration"], n);
     const start = parsed._targetIdx;
     const count = Math.min(n, start + 1 + Math.max(0, maxHours));
     for (let h = start; h < count; h++) {
@@ -556,6 +557,7 @@ function calculateProfile(parsed, maxHours) {
             windDir: wD,
             airTemp: airTemp,
             feelsLike: at(feelT, h),
+            sun: at(sun, h),
         });
     }
     return out;
@@ -629,6 +631,13 @@ function buildGraphSvg(o) {
     if (n === 0) return "";
     const W = 780, H = 404, padL = 46, padR = 14, padT = 90, padB = 70;
     const plotW = W - padL - padR, plotH = H - padT - padB;
+    // Only a slim bottom strip stays reserved for the blue rain bars; the
+    // risk columns and the wind/gust markers span the rest and are anchored
+    // to the bottom of that strip, so the bars no longer float in empty space
+    // with stray risk-level lines dangling underneath.
+    const rainH = Math.round(plotH * 0.18);
+    const riskH = plotH - rainH;
+    const base = padT + plotH - rainH;
     const slot = plotW / n, barW = Math.min(44, slot * 0.62);
     let maxRain = 2.0, maxGust = 10;
     for (let i = 0; i < n; i++) {
@@ -636,8 +645,7 @@ function buildGraphSvg(o) {
         const g = Math.max(hours[i].gust || 0, hours[i].wind || 0);
         if (g > maxGust) maxGust = g;
     }
-    const riskY = (name) => padT + plotH - (((GRAPH_NUM[name] || 0) / 5) * (plotH * 0.55));
-    const base = padT + plotH - (plotH * 0.45);
+    const riskY = (name) => base - (((GRAPH_NUM[name] || 0) / 5) * riskH);
     let s = "";
     s += '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" font-family="sans-serif">\n';
     s += '<rect width="' + W + '" height="' + H + '" fill="#111"/>\n';
@@ -652,6 +660,15 @@ function buildGraphSvg(o) {
         s += '<text x="' + cx.toFixed(1) + '" y="' + windRowY + '" fill="#ccc" font-size="10" text-anchor="middle">' +
             arr + Math.round(hours[i].wind || 0) + '</text>\n';
     }
+    const sunRowY = padT - 30;
+    s += '<text x="' + (padL - 5) + '" y="' + (sunRowY + 4) + '" fill="#999" font-size="10" text-anchor="end">\u2600</text>\n';
+    for (let i = 0; i < n; i++) {
+        const cx = padL + slot * i + slot / 2;
+        const sunMin = Math.round((hours[i].sun || 0) / 60);
+        if (sunMin > 0) {
+            s += '<text x="' + cx.toFixed(1) + '" y="' + sunRowY + '" fill="#ffd24a" font-size="10" text-anchor="middle">' + sunMin + 'm</text>\n';
+        }
+    }
     s += '<line x1="' + padL + '" y1="' + (padT - 4) + '" x2="' + (W - padR) + '" y2="' + (padT - 4) + '" stroke="#222"/>\n';
     const names = ["SAFE", "SLIGHT", "MODERATE", "HIGH", "CRITICAL"];
     for (let k = 0; k < names.length; k++) {
@@ -662,18 +679,18 @@ function buildGraphSvg(o) {
     for (let i = 0; i < n; i++) {
         const cx = padL + slot * i + slot / 2;
         const hh = hours[i];
-        const rh = (hh.rain / maxRain) * (plotH * 0.45);
+        const rh = (hh.rain / maxRain) * rainH;
         if (rh > 0.5) {
             s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + (padT + plotH - rh).toFixed(1) + '" width="' + barW.toFixed(1) +
                 '" height="' + rh.toFixed(1) + '" fill="#3377ff"/>\n';
         }
         const lvl = GRAPH_NUM[hh.name] || 0;
-        const bh = (lvl / 5) * (plotH * 0.55);
+        const bh = (lvl / 5) * riskH;
         const by = base - bh;
         s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' +
             Math.max(3, bh).toFixed(1) + '" fill="' + (GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA) + '" fill-opacity="' + (i === 0 ? 1 : 0.75) + '"/>\n';
-        const gy = base - ((hh.gust || 0) / maxGust) * (plotH * 0.55);
-        const wy = base - ((hh.wind || 0) / maxGust) * (plotH * 0.55);
+        const gy = base - ((hh.gust || 0) / maxGust) * riskH;
+        const wy = base - ((hh.wind || 0) / maxGust) * riskH;
         s += '<line x1="' + (cx - 8).toFixed(1) + '" y1="' + wy.toFixed(1) + '" x2="' + (cx + 8).toFixed(1) + '" y2="' + wy.toFixed(1) + '" stroke="#fff" stroke-width="2"/>\n';
         s += '<circle cx="' + cx.toFixed(1) + '" cy="' + gy.toFixed(1) + '" r="3.2" fill="#fff"/>\n';
         s += '<text x="' + cx.toFixed(1) + '" y="' + (padT + plotH + 14) + '" fill="#999" font-size="10" text-anchor="middle">' + escXml(hourLabel(hh.time, i === 0)) + '</text>\n';
@@ -683,7 +700,7 @@ function buildGraphSvg(o) {
     }
     const ly1 = padT + plotH + 30;
     s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">Risk color = level · <tspan fill="#3377ff">blue = rain mm/h</tspan> · ' +
-        '<tspan fill="#fff">— sustained, ● gust</tspan> · W = blow-to arrow + speed</text>\n';
+        '<tspan fill="#fff">— sustained, ● gust</tspan> · <tspan fill="#ffd24a">☀ sun min/h</tspan> · W = blow-to arrow + speed</text>\n';
     const advItems = (o.advice && o.advice.length) ? o.advice : ["—"];
     const advLines = wrapAdviceLines(advItems, 100);
     for (let k = 0; k < advLines.length; k++) {
@@ -704,7 +721,7 @@ function buildUrl(locs) {
     const q = [
         "latitude=" + encodeURIComponent(lats),
         "longitude=" + encodeURIComponent(lons),
-        "hourly=" + encodeURIComponent("temperature_2m,relativehumidity_2m,dewpoint_2m,apparent_temperature,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m"),
+        "hourly=" + encodeURIComponent("temperature_2m,relativehumidity_2m,dewpoint_2m,apparent_temperature,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m,sunshine_duration"),
         "past_hours=12",
         "forecast_hours=12",
         "timezone=auto",
@@ -945,6 +962,7 @@ SlipperyApplet.prototype = {
                 rain: h.rain || 0, snow: h.snow || 0,
                 wind: h.windSpeed || 0, gust: h.windGust || 0,
                 wdir: (h.windDir === undefined) ? null : h.windDir,
+                sun: h.sun || 0,
             }));
             const svg = buildGraphSvg({
                 title: entry.loc.name + ": " + parsed.risk.name + " — " +

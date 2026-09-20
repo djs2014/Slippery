@@ -126,12 +126,14 @@ async function main() {
   const winds = pickHourly(h, ['wind_speed_10m', 'windspeed_10m']);
   const hasDir = Array.isArray(h['wind_direction_10m']);
   const windDirs = pickHourly(h, ['wind_direction_10m'], null);
+  const suns = pickHourly(h, ['sunshine_duration']);
   const times = h.time || [];
 
   const rainSlice = [];
   const gustSlice = [];
   const windSlice = [];
   const wdirSlice = [];
+  const sunSlice = [];
   const labelSlice = [];
   for (let i = 0; i < N; i++) {
     const j = start + i;
@@ -139,12 +141,17 @@ async function main() {
     gustSlice.push(gusts[j] || 0);
     windSlice.push(winds[j] || 0);
     wdirSlice.push(windDirs ? windDirs[j] : null);
+    sunSlice.push(suns[j] || 0);
     const t = times[j];
     const d = typeof t === 'number' ? new Date(t * 1000) : new Date(t);
     labelSlice.push(`${String(d.getHours()).padStart(2, '0')}:00`);
   }
 
   // --- layout (wind row on top, legend in its own rows below the hours) ---
+  // Only a slim bottom strip stays reserved for the blue rain bars; the risk
+  // columns and the wind/gust markers span the rest and are anchored to the
+  // bottom of that strip, so the bars no longer float in empty space with
+  // stray risk-level lines dangling underneath.
   const W = 780;
   const H = 404;
   const padL = 46;
@@ -153,6 +160,9 @@ async function main() {
   const padB = 70;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
+  const rainH = Math.round(plotH * 0.18);
+  const riskH = plotH - rainH;
+  const base = padT + plotH - rainH;
   const n = N;
   const slot = plotW / n;
   const barW = Math.min(44, slot * 0.62);
@@ -160,7 +170,7 @@ async function main() {
   const maxRain = Math.max(2.0, ...rainSlice); // 2 mm/h floor, like SubSegmentedForecastBar
   const maxGust = Math.max(10, ...gustSlice, ...windSlice);
 
-  const riskY = (name) => padT + plotH - ((RISK_LEVEL_NUM[name] / 5) * (plotH * 0.55));
+  const riskY = (name) => base - ((RISK_LEVEL_NUM[name] / 5) * riskH);
   let s = '';
   s += `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="sans-serif">\n`;
   s += `<rect width="${W}" height="${H}" fill="#111"/>\n`;
@@ -175,6 +185,16 @@ async function main() {
     const arr = hasDir ? windArrow(wdirSlice[i]) : '';
     s += `<text x="${cx.toFixed(1)}" y="${windRowY}" fill="#ccc" font-size="10" text-anchor="middle">${arr}${Math.round(windSlice[i])}</text>\n`;
   }
+  // sun row (±): sunshine minutes per hour, hidden when 0 (e.g. at night)
+  const sunRowY = padT - 30;
+  s += `<text x="${padL - 5}" y="${sunRowY + 4}" fill="#999" font-size="10" text-anchor="end">☀</text>\n`;
+  for (let i = 0; i < n; i++) {
+    const cx = padL + slot * i + slot / 2;
+    const sunMin = Math.round(sunSlice[i] / 60);
+    if (sunMin > 0) {
+      s += `<text x="${cx.toFixed(1)}" y="${sunRowY}" fill="#ffd24a" font-size="10" text-anchor="middle">${sunMin}m</text>\n`;
+    }
+  }
   s += `<line x1="${padL}" y1="${padT - 4}" x2="${W - padR}" y2="${padT - 4}" stroke="#222"/>\n`;
 
   // gridlines + y labels (left: risk, right: mm/h)
@@ -188,19 +208,20 @@ async function main() {
   for (let i = 0; i < n; i++) {
     const cx = padL + slot * i + slot / 2;
     const name = parsed.hourlyRiskProfile[i];
-    // rain bar (blue, from bottom)
-    const rh = (rainSlice[i] / maxRain) * (plotH * 0.45);
+    // rain bar (blue, slim bottom strip)
+    const rh = (rainSlice[i] / maxRain) * rainH;
     if (rh > 0.5) {
       s += `<rect x="${(cx - barW / 2).toFixed(1)}" y="${(padT + plotH - rh).toFixed(1)}" width="${barW.toFixed(1)}" height="${rh.toFixed(1)}" fill="#3377ff"/>\n`;
     }
-    // risk bar (from risk baseline zone): block whose height encodes level
+    // risk bar (anchored to the bottom of the risk band): block whose height
+    // encodes level, spanning the full band so there is no empty mid-plot gap
     const lvl = RISK_LEVEL_NUM[name];
-    const bh = (lvl / 5) * (plotH * 0.55);
-    const by = padT + plotH - (plotH * 0.45) - bh;
+    const bh = (lvl / 5) * riskH;
+    const by = base - bh;
     s += `<rect x="${(cx - barW / 2).toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(3, bh).toFixed(1)}" fill="${RISK_FILL[name]}" fill-opacity="${i === 0 ? 1 : 0.75}"/>\n`;
-    // gust dot (white) + sustained tick
-    const gy = padT + plotH - (plotH * 0.45) - (gustSlice[i] / maxGust) * (plotH * 0.55);
-    const wy = padT + plotH - (plotH * 0.45) - (windSlice[i] / maxGust) * (plotH * 0.55);
+    // gust dot (white) + sustained tick (scaled over the same risk band)
+    const gy = base - (gustSlice[i] / maxGust) * riskH;
+    const wy = base - (windSlice[i] / maxGust) * riskH;
     s += `<line x1="${(cx - 8).toFixed(1)}" y1="${wy.toFixed(1)}" x2="${(cx + 8).toFixed(1)}" y2="${wy.toFixed(1)}" stroke="#fff" stroke-width="2"/>\n`;
     s += `<circle cx="${cx.toFixed(1)}" cy="${gy.toFixed(1)}" r="3.2" fill="#fff"/>\n`;
     // hour label + rain value
@@ -212,7 +233,7 @@ async function main() {
 
   // legend in its own rows below the hour numbers, so it never covers them
   const ly1 = padT + plotH + 30;
-  s += `<text x="${padL}" y="${ly1}" fill="#bbb" font-size="11">Risk color = level · <tspan fill="#3377ff">blue = rain mm/h</tspan> · <tspan fill="#fff">— sustained, ● gust</tspan> · W = blow-to arrow + speed</text>\n`;
+  s += `<text x="${padL}" y="${ly1}" fill="#bbb" font-size="11">Risk color = level · <tspan fill="#3377ff">blue = rain mm/h</tspan> · <tspan fill="#fff">— sustained, ● gust</tspan> · <tspan fill="#ffd24a">☀ sun min/h</tspan> · W = blow-to arrow + speed</text>\n`;
   const advItems = (parsed.advice && parsed.advice.length) ? parsed.advice : ['—'];
   wrapAdvice(advItems, 100).forEach((ln, k) => {
     s += `<text x="${padL}" y="${ly1 + 15 + k * 13}" fill="#888" font-size="10">${k === 0 ? 'advice: ' : ''}${esc(ln)}</text>\n`;
