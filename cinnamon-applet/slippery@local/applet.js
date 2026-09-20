@@ -997,6 +997,26 @@ SlipperyApplet.prototype = {
         return true;
     },
 
+    // Colored popup row: the risk background color (same settings as the
+    // panel chip: bright/modest palette, color-min-level, HSP text color)
+    // behind the location name + risk label. Returns false when St is not
+    // available so callers can fall back to a plain text row.
+    _addRiskRow: function (text, levelNum, riskName, opts) {
+        if (!St) return false;
+        const css = chipStyle(opts.colorMode, opts.minLevel, levelNum, riskName,
+            opts.useHsp, opts.hspT);
+        try {
+            const item = new PopupMenu.PopupBaseMenuItem({ reactive: false });
+            const box = new St.BoxLayout({ style: css || "" });
+            box.add_actor(new St.Label({ text: text }));
+            item.addActor(box, { span: -1, expand: true });
+            this.menu.addMenuItem(item);
+        } catch (e) {
+            return false;
+        }
+        return true;
+    },
+
     _showAll: function (results) {
         const primary = results[0];
         if (!primary || !primary.parsed) {
@@ -1076,8 +1096,12 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-            primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString(), { reactive: false }));
+        const primaryText = primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString();
+        const primaryRowOk = this._addRiskRow(primaryText, p.risk.level, p.risk.name,
+            { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
+        if (!primaryRowOk) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(primaryText, { reactive: false }));
+        }
 
         p.risk.hazards.forEach((hz) => {
             const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
@@ -1153,7 +1177,11 @@ SlipperyApplet.prototype = {
                 if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
                 if (r.iceNow) row = "\u2744 " + row + " ICE";
                 else if (r.iceAhead) row = row + " (\u2744>)";
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                const rowOk = this._addRiskRow(row, r.parsed.risk.level, r.parsed.risk.name,
+                    { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
+                if (!rowOk) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                }
                 const sum = comingSummary(r.profile);
                 if (sum) {
                     this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));

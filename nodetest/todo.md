@@ -79,7 +79,6 @@ Done — popup restructured around summaries and graphs:
 background color in popup possible?
 sun/cloud cover open meteo
 advice for cycling ..
-1 call for all lat,lon -> 
+
 sun cover ?
 
-for the slippery cinnamon-aplet there are max 5 lat,lon coordinates to get data from. Is it possible to build the url using those coordinates at the same time so only 1 call is needed, instead of 5 (if 5 coordinates are present)?

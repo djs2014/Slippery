@@ -147,7 +147,7 @@
         "type": "combobox",
         "default": "bright",
         "description": "Panel chip colors",
-        "tooltip": "bright = vivid risk colors; modest = muted risk colors. Combine with the minimum-risk setting below (Never = theme decides).",
+        "tooltip": "bright = vivid risk colors; modest = muted risk colors. Applies to the panel chip and the location name + risk rows in the popup. Combine with the minimum-risk setting below (Never = theme decides).",
         "options": {
             "Bright colors": "bright",
             "Modest colors": "modest"
@@ -157,7 +157,7 @@
         "type": "combobox",
         "default": "always",
         "description": "Show colors only when risk is above",
-        "tooltip": "Chip stays uncolored (panel theme decides) below this risk level. Never = no background colors at all (replaces the old Follow theme option).",
+        "tooltip": "Chip and popup location rows stay uncolored (panel theme decides) below this risk level. Never = no background colors at all (replaces the old Follow theme option).",
         "options": {
             "Always (every risk level)": "always",
             "SLIGHT and above": "slight",
@@ -171,7 +171,7 @@
         "type": "switch",
         "default": true,
         "description": "Auto text color via HSP luminance",
-        "tooltip": "When on, chip text is black/white chosen by HSP brightness of the background. When off, use fixed black-on-yellow/orange, white-on-red."
+        "tooltip": "When on, chip and popup risk-row text is black/white chosen by HSP brightness of the background. When off, use fixed black-on-yellow/orange, white-on-red."
     },
     "hsp-threshold": {
         "type": "scale",
