@@ -76,4 +76,6 @@ Done — popup restructured around summaries and graphs:
 - Hour rows for location 1 removed: both the block chart and the 3-per-row text fallback are out, along with the now-unused _addHourChart, lane colors and short-hazard helpers (~150 lines less).
 - Readme updated (it still described the removed hour rows), syntax + comingSummary unit checks pass, reinstalled via install.sh — restart Cinnamon (Alt+F2 → r) to see it.
 
+
+
 advice for cycling ..
