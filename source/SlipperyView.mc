@@ -229,22 +229,14 @@ class SlipperyView extends WatchUi.DataField {
         // RAIN_AHEAD / SHOWERS_AHEAD outlook states (same threshold as the
         // sparkline badges).
         var maxRainAhead = 0.0f;
-        for (
-            var rf = 0;
-            rf < mWeatherMetrics.rainForecast.size();
-            rf++
-        ) {
+        for (var rf = 0; rf < mWeatherMetrics.rainForecast.size(); rf++) {
             var rainValue = mWeatherMetrics.rainForecast[rf];
             if (rainValue != null && rainValue > maxRainAhead) {
                 maxRainAhead = rainValue;
             }
         }
         var maxShowersAhead = 0.0f;
-        for (
-            var sf = 0;
-            sf < mWeatherMetrics.showersForecast.size();
-            sf++
-        ) {
+        for (var sf = 0; sf < mWeatherMetrics.showersForecast.size(); sf++) {
             var showerValue = mWeatherMetrics.showersForecast[sf];
             if (showerValue != null && showerValue > maxShowersAhead) {
                 maxShowersAhead = showerValue;
@@ -264,7 +256,7 @@ class SlipperyView extends WatchUi.DataField {
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
-        }        
+        }
     }
 
     function initializeMinutesUntilCounters() as Void {
@@ -412,7 +404,7 @@ class SlipperyView extends WatchUi.DataField {
         isDark as Boolean
     ) as Void {
         // 1. Reserve bottom 10% of total height for the 12h Sparkline
-        var sparklineHeight = (height * 0.2).toNumber();
+        var sparklineHeight = (height * 0.6).toNumber();
         var topGridHeight = height - sparklineHeight;
 
         // Minimum height check: ensure sparkline gets at least 20px to render legibly
@@ -438,7 +430,7 @@ class SlipperyView extends WatchUi.DataField {
             paddingX,
             topGridHeight,
             width - paddingX * 2,
-            2,
+            4,
             mWeatherMetrics,
             isDark,
             mEdgeField
@@ -447,9 +439,9 @@ class SlipperyView extends WatchUi.DataField {
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 2,
+            topGridHeight + 4,
             width - paddingX * 2,
-            sparklineHeight - 4,
+            sparklineHeight - 8,
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
@@ -460,6 +452,21 @@ class SlipperyView extends WatchUi.DataField {
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
         drawEdgeSmallField(dc, 0, 0, width, topGridHeight, isDark);
+
+        CurrentWindWidget.draw(
+            dc,
+            width / 2, // Widget X center
+            (height * 0.6).toNumber(), // Widget Y center
+            0,
+            height,
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark,
+            false // Big field scaling
+        );
     }
     private function drawEdgeOneFieldWithSparkline(
         dc as Graphics.Dc,
@@ -1088,19 +1095,31 @@ class SlipperyView extends WatchUi.DataField {
             ? Graphics.COLOR_BLACK
             : Graphics.COLOR_WHITE;
 
-        // Left 30%: Solid risk badge
-        var badgeWidth = (w * 0.15).toNumber();
-        var badgeHeight = (h * 0.4).toNumber();
-        dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
-        dc.fillRectangle(x, y, badgeWidth, badgeHeight);
+        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
+        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
+        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
 
-        //var headerLineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
+        // Layout: Col1, badge, Col2
+
+        // Solid risk badge
+        var badgeWidth = (w * 0.15).toNumber();
+        var badgeHeight = h;
+        // Col dimensions
+        var colW = (w - badgeWidth) / 2;
+        var colHeight = badgeHeight;
+        var col1x = x;
+        var badgeX = col1x + colW;
+        var col2x = col1x + colW + badgeWidth;
+
+        // Draw the risk badge and icons in the middle
+        dc.setColor(riskColor, Graphics.COLOR_TRANSPARENT);
+        dc.fillRectangle(badgeX, y, badgeWidth, badgeHeight);
 
         var iconSize = (badgeHeight * 0.4).toNumber();
         var iconPosY = y + iconSize / 2 + 1;
         RiskIconRenderer.drawRiskIcon(
             dc,
-            x + badgeWidth / 2,
+            badgeX + badgeWidth / 2,
             iconPosY,
             iconSize,
             mRiskAssessment.riskLevel,
@@ -1110,33 +1129,33 @@ class SlipperyView extends WatchUi.DataField {
 
         AlertCategoryRenderer.drawCategoryIcon(
             dc,
-            x + badgeWidth / 2,
+            badgeX + badgeWidth / 2,
             iconPosY + iconSize + 2,
             iconSize,
             mAlertCategory,
             badgeTextColor
         );
 
-        // linePos = y + h / 2;
-
-        // Right 70%: Metrics Grid & Hazards
-        var textColor = AppState.getColor(ThemeManager.COLOR_TEXT);
-        var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
-        var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
-        //var lineHeight = dc.getFontHeight(Graphics.FONT_XTINY) + 1;
-
-        // --- ROW 1: Side-by-Side (1x1 Grid) ---
-
-        var rightX = badgeWidth;
-        var colW = (w - badgeWidth) / 2;
-        var colHeight = badgeHeight;
+        // Draw number of hazars as tiny circles
+        var localHazards = mHazardStrings;
+        var hazardY = y + badgeHeight - 5;
+        var hazardX = badgeX + 1;
+        for (var i = 0; i < localHazards.size(); i += 1) {
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_BG),
+                Graphics.COLOR_TRANSPARENT
+            );
+            dc.fillRoundedRectangle(hazardX, hazardY, 4, 4, 2);
+            //dc.fillCircle(hazardX, hazardY, 3);
+            hazardX += 5;
+        }
 
         if (mAlertCategory == CATEGORY_WIND) {
             // Col1: Cross Gust or Gust
             if ($.gUseEffectiveCrossGust) {
                 drawMetricColumn(
                     dc,
-                    x + rightX,
+                    col1x,
                     y,
                     colW,
                     colHeight,
@@ -1152,7 +1171,7 @@ class SlipperyView extends WatchUi.DataField {
             } else {
                 drawMetricColumn(
                     dc,
-                    x + rightX,
+                    col1x,
                     y,
                     colW,
                     colHeight,
@@ -1174,7 +1193,7 @@ class SlipperyView extends WatchUi.DataField {
 
             drawMetricColumn(
                 dc,
-                x + rightX + colW,
+                col2x,
                 y,
                 colW,
                 colHeight,
@@ -1190,7 +1209,7 @@ class SlipperyView extends WatchUi.DataField {
                 // Col 1: Feels Like Temp
                 drawMetricColumn(
                     dc,
-                    x + rightX,
+                    col1x,
                     y,
                     colW,
                     colHeight,
@@ -1205,7 +1224,7 @@ class SlipperyView extends WatchUi.DataField {
                 // Col 1: Air Temp
                 drawMetricColumn(
                     dc,
-                    x + rightX,
+                    col1x,
                     y,
                     colW,
                     colHeight,
@@ -1225,7 +1244,7 @@ class SlipperyView extends WatchUi.DataField {
                 // Col 2: Surface Temp
                 drawMetricColumn(
                     dc,
-                    x + rightX + colW,
+                    col2x,
                     y,
                     colW,
                     colHeight,
@@ -1244,7 +1263,7 @@ class SlipperyView extends WatchUi.DataField {
                 // Col 2: Dew Point
                 drawMetricColumn(
                     dc,
-                    x + rightX + colW,
+                    col2x,
                     y,
                     colW,
                     colHeight,
@@ -1261,86 +1280,9 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // Horizontal dividing line under columns
-        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
-        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x, colHeight, x + w, colHeight);
-
-        // --- ROW 3+: Shortened Hazard Strings (clipped at the rain strip) ---
-        var linePosMetrics = y + colHeight;
-        var localHazards = mHazardStringsShortened;
-        // The bottom-anchored rain strip overlaps the footer while imminent
-        // precipitation is in range; keep text above it.
-        var footerBottom = y + h;
-        if (
-            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
-            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
-        ) {
-            footerBottom -= Graphics.getFontHeight(Graphics.FONT_XTINY) + 4;
-        }
-        if (localHazards.size() > 0) {
-            linePosMetrics += StringListRenderer.drawWrappedStrings(
-                dc,
-                localHazards,
-                x + 4,
-                linePosMetrics,
-                w - 8,
-                localHazards.size(), // maxLines
-                Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD),
-                footerBottom
-            );
-        }
-
-        if (
-            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
-            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
-        ) {
-            var alertX = x;
-            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-            var alertH = alertLineHeight + 4;
-            var alertY = y + h - alertH;
-            var alertW = w;
-
-            dc.setColor(
-                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
-                Graphics.COLOR_TRANSPARENT
-            );
-            dc.fillRectangle(alertX, alertY, alertW, alertH);
-
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                alertX + alertW / 2,
-                alertY + alertH / 2,
-                Graphics.FONT_XTINY,
-                $.getPrecipitationAlertMessage(
-                    mMinutesUntilRain,
-                    mMinutesUntilSnow,
-                    false
-                ),
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-        }
-
-        // --- CURRENT WIND ARROW CENTERED ---
-        var windY = h / 2;
-        if (localHazards.size() == 0) {
-            // No hazards, so put arrow in the white space
-            windY += (h * 0.3).toNumber();
-        }
-        CurrentWindWidget.draw(
-            dc,
-            w / 2, // Widget X center
-            windY, // Widget Y center
-            0,
-            h,
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            isDark,
-            false // Big field scaling
-        );
+        // var dividerColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
+        // dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
+        // dc.drawLine(x, y + colHeight, x + w, y + colHeight);
     }
 
     function drawEdgeWideField(
