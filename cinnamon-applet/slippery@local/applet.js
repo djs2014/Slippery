@@ -8,9 +8,10 @@
  *  - evaluateRisk() is a direct port of source/weatherrisks/riskCalculator.mc
  *  - seasons mirror source/weatherrisks/helpers.mc
  *  - user thresholds mirror SlipperyApp.mc / AlertStateAnalyzer.mc
- *    (ice, winds, heat, precip-ahead) and drive the extra alert rows +
- *    the big ICE banner; the core risk engine itself stays stock so node
- *    tests (nodetest/slipperycheck.js) keep covering this logic.
+ *    (ice, winds, heat, precip-ahead); the ice threshold drives the big
+ *    ICE banner, the rest stay configurable without cluttering the popup.
+ *    The core risk engine itself stays stock so node tests
+ *    (nodetest/slipperycheck.js) keep covering this logic.
  *  - HSP text-color check mirrors source/utils/color_utils.mc
  *    (sqrt(0.299 R^2 + 0.587 G^2 + 0.114 B^2), configurable breakpoint).
  *
@@ -244,7 +245,7 @@ function hspOfHex(hex) {
 function textColorFor(bgHex, useHsp, threshold, riskName) {
     if (!useHsp) return RISK_TEXT_FIXED[riskName] || "#fff";
     let t = parseFloat(threshold);
-    if (isNaN(t) || t < 0 || t > 255) t = 180; // same default as color_utils.mc
+    if (isNaN(t) || t < 0 || t > 255) t = 127; // desktop default, not a Garmin screen
     return hspOfHex(bgHex) > t ? "#000" : "#fff";
 }
 
@@ -278,6 +279,44 @@ function hasIceHazard(hazards) {
 function parseNum(v) {
     if (v === null || v === undefined || v === "") return NaN;
     return parseFloat(String(v).replace(",", "."));
+}
+
+// Parses one "lat, lon" configuration field. Accepts a Google Maps paste
+// ("52.387520877358256, 4.7199631014777") as well as space/semicolon
+// separated pairs and Dutch decimal commas ("52,3875, 4,7199").
+// Returns { lat, lon } or null (empty/invalid = location disabled).
+function parseCoordField(str) {
+    if (str === null || str === undefined) return null;
+    const s = String(str).trim();
+    if (!s) return null;
+    let parts;
+    if (s.indexOf(";") !== -1) {
+        parts = s.split(";");
+    } else {
+        const ws = s.split(/\s+/).filter((x) => x.length > 0);
+        if (ws.length === 2) parts = ws;
+        else if (s.indexOf(",") !== -1) parts = s.split(",");
+        else parts = ws;
+    }
+    parts = parts.map((x) => x.trim()).filter((x) => x.length > 0);
+    const num = (t) => {
+        const v = parseFloat(String(t).replace(",", "."));
+        return isNaN(v) ? NaN : v;
+    };
+    let lat = NaN, lon = NaN;
+    if (parts.length === 2) {
+        lat = num(parts[0]);
+        lon = num(parts[1]);
+    } else if (parts.length === 4) {
+        // decimal-comma pair without whitespace: "52,3875,4,7199"
+        lat = num(parts[0] + "." + parts[1]);
+        lon = num(parts[2] + "." + parts[3]);
+    } else {
+        return null;
+    }
+    if (isNaN(lat) || isNaN(lon)) return null;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    return { lat: lat, lon: lon };
 }
 
 // Mirrors weatherService.mc parseOpenMeteoResponse().
@@ -468,49 +507,6 @@ function buildUrl(lat, lon) {
     return "https://api.open-meteo.com/v1/forecast?" + q;
 }
 
-// Threshold alerts mirroring AlertStateAnalyzer (SlipperyApp.mc defaults).
-// Only triggered rows are shown ("display when relevant"); the applet has no
-// heading sensor, so cross/headwind components fall back to gust/sustained
-// wind with a "~" marker. Returns { rows: [...], ice: bool }.
-function thresholdAlerts(parsed, profile, th) {
-    const rows = [];
-    let ice = false;
-    if (!parsed) return { rows: rows, ice: ice };
-    if (parsed.surfaceTemp <= th.ice) {
-        ice = true;
-        rows.push("ICE ALERT: surface " + parsed.surfaceTemp.toFixed(1) +
-                  "°C ≤ " + th.ice.toFixed(1) + "°C");
-    }
-    if (parsed.windGust >= th.highCross) {
-        rows.push("High wind gust ~" + Math.round(parsed.windGust) +
-                  " km/h ≥ " + Math.round(th.highCross) + " km/h");
-    } else if (parsed.windGust >= th.crossGust) {
-        rows.push("Cross gust ~" + Math.round(parsed.windGust) +
-                  " km/h ≥ " + Math.round(th.crossGust) + " km/h");
-    }
-    if (parsed.windSpeed >= th.heavy) {
-        rows.push("Heavy wind " + Math.round(parsed.windSpeed) +
-                  " km/h ≥ " + Math.round(th.heavy) + " km/h");
-    } else if (parsed.windSpeed >= th.sustained) {
-        rows.push("Sustained wind " + Math.round(parsed.windSpeed) +
-                  " km/h ≥ " + Math.round(th.sustained) + " km/h");
-    }
-    const feels = parsed.hasFeelsLike ? parsed.feelsLike : parsed.airTemp;
-    if (feels >= th.heat) {
-        rows.push("Heat stress (feels " + feels.toFixed(1) +
-                  "°C ≥ " + th.heat.toFixed(1) + "°C)");
-    }
-    let maxRain = parsed.rainCurrent, maxShow = 0;
-    for (let i = 0; i < profile.length; i++) {
-        if (profile[i].rain > maxRain) maxRain = profile[i].rain;
-    }
-    if (maxRain >= th.precip) {
-        rows.push("Rain ahead: max " + maxRain.toFixed(1) +
-                  " mm/h ≥ " + th.precip.toFixed(1) + " mm/h");
-    }
-    return { rows: rows, ice: ice };
-}
-
 // ---------------------------------------------------------------------------
 // Applet shell (Cinnamon-specific, thin wrapper around the engine above).
 // ---------------------------------------------------------------------------
@@ -527,12 +523,11 @@ SlipperyApplet.prototype = {
 
         this.s = {};
         this.settings = new Settings.AppletSettings(this.s, UUID, instanceId);
-        const keys = ["latitude", "longitude",
-            "location-1-name",
-            "location-2-name", "location-2-lat", "location-2-lon",
-            "location-3-name", "location-3-lat", "location-3-lon",
-            "location-4-name", "location-4-lat", "location-4-lon",
-            "location-5-name", "location-5-lat", "location-5-lon",
+        const keys = ["location-1-name", "location-1-coords",
+            "location-2-name", "location-2-coords",
+            "location-3-name", "location-3-coords",
+            "location-4-name", "location-4-coords",
+            "location-5-name", "location-5-coords",
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
             "show-temperature", "color-mode", "use-hsp-text", "hsp-threshold",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
@@ -553,19 +548,18 @@ SlipperyApplet.prototype = {
         this._startupId = 0;
         this._lastResults = null;
         this.set_applet_label("…");
-        this.set_applet_tooltip("Slippery: starting…");
+        this.set_applet_tooltip("Slippery: fetching Open-Meteo…");
         this._schedule();
-        // todo.md: "? delayed at startup" — wait for the network on login.
+        // Fetch right away on (re)load. The extra delayed fetch below only
+        // covers login before the network is up (see startup-delay-sec).
+        this.refresh();
         const delay = this._startupDelaySec();
         if (delay > 0) {
-            this.set_applet_tooltip("Slippery: first fetch in " + delay + "s…");
             this._startupId = Mainloop.timeout_add_seconds(delay, () => {
                 this._startupId = 0;
                 this.refresh();
                 return false;
             });
-        } else {
-            this.refresh();
         }
     },
 
@@ -606,6 +600,9 @@ SlipperyApplet.prototype = {
     },
 
     _thresholds: function () {
+        // Mirror SlipperyApp.mc / AlertStateAnalyzer.mc defaults. Only the
+        // ice threshold drives the popup (big ICE banner); the rest stay
+        // configurable like the Connect IQ app without cluttering the popup.
         const f = (key, dflt) => {
             const v = parseNum(this.s[key]);
             return isNaN(v) ? dflt : v;
@@ -622,22 +619,17 @@ SlipperyApplet.prototype = {
         };
     },
 
-    // todo.md: "option to add a list of lat/lon - with description (max 5)".
-    // Slot 1 is the legacy latitude/longitude pair; slots 2-5 are extra.
-    // A slot with empty/unparseable coordinates is disabled.
+    // todo.md: one paste-friendly "lat, lon" field per point (max 5).
+    // Empty/invalid coordinates = slot disabled.
     _locations: function () {
         const locs = [];
-        const name1 = String(this.s["location-1-name"] || "Home").trim() || "Home";
-        const lat1 = parseNum(this.s.latitude);
-        const lon1 = parseNum(this.s.longitude);
-        if (!isNaN(lat1) && !isNaN(lon1)) locs.push({ name: name1, lat: lat1, lon: lon1 });
-        for (let n = 2; n <= 5; n++) {
-            const nm = String(this.s["location-" + n + "-name"] || "").trim() || ("Point " + n);
-            const la = parseNum(this.s["location-" + n + "-lat"]);
-            const lo = parseNum(this.s["location-" + n + "-lon"]);
-            if (!isNaN(la) && !isNaN(lo)) locs.push({ name: nm, lat: la, lon: lo });
+        for (let n = 1; n <= 5; n++) {
+            let nm = String(this.s["location-" + n + "-name"] || "").trim();
+            if (!nm) nm = (n === 1) ? "Home" : ("Point " + n);
+            const c = parseCoordField(this.s["location-" + n + "-coords"]);
+            if (c) locs.push({ name: nm, lat: c.lat, lon: c.lon });
         }
-        return locs.slice(0, 5);
+        return locs;
     },
 
     on_applet_clicked: function () {
@@ -660,7 +652,7 @@ SlipperyApplet.prototype = {
         if (this._busy) return;
         const locs = this._locations();
         if (locs.length === 0) {
-            this._showError("No valid location: check latitude/longitude in settings.");
+            this._showError("No valid location: paste lat, lon in settings (e.g. 52.3875, 4.7199).");
             return;
         }
         this._busy = true;
@@ -733,13 +725,13 @@ SlipperyApplet.prototype = {
             this._showError(primary && primary.error ? primary.loc.name + ": " + primary.error : "Empty response.");
             return;
         }
-        const th = this._thresholds();
+        const iceT = this._thresholds().ice;
         const hours = this._forecastHours();
         const colorMode = String(this.s["color-mode"] || "bright");
         const useHsp = !!this.s["use-hsp-text"];
         const hspT = this.s["hsp-threshold"];
 
-        // Enrich every location: forecast profile, ICE flags, threshold rows.
+        // Enrich every location: forecast profile + ICE flags.
         let iceAnywhere = false;
         let worstLevel = primary.parsed.risk.level;
         let worstName = primary.parsed.risk.name;
@@ -747,23 +739,19 @@ SlipperyApplet.prototype = {
             const r = results[i];
             if (!r.parsed) continue;
             r.profile = calculateProfile(r.parsed, hours);
-            r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= th.ice;
-            r.iceAhead = r.iceNow;
-            for (let h = 0; h < r.profile.length; h++) {
-                if (r.profile[h].ice || h === 0) continue;
-                r.iceAhead = true;
-                break;
+            r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= iceT;
+            r.iceAhead = false;
+            for (let h = 1; h < r.profile.length; h++) {
+                if (r.profile[h].ice) { r.iceAhead = true; break; }
             }
             // Surface-threshold ice in any coming hour also counts as ICE ahead.
             if (!r.iceAhead && r.parsed._data && r.parsed._data.hourly) {
                 const st = pickHourly(r.parsed._data.hourly, ["surface_temperature"], 0);
                 for (let h = r.parsed._targetIdx + 1;
                      h < Math.min(st.length, r.parsed._targetIdx + 1 + hours); h++) {
-                    if (st[h] != null && st[h] <= th.ice) { r.iceAhead = true; break; }
+                    if (st[h] != null && st[h] <= iceT) { r.iceAhead = true; break; }
                 }
             }
-            r.alerts = thresholdAlerts(r.parsed, r.profile, th);
-            if (r.alerts.ice) r.iceNow = true;
             if (r.iceNow || r.iceAhead) iceAnywhere = true;
             if (r.parsed.risk.level > worstLevel) {
                 worstLevel = r.parsed.risk.level;
@@ -788,21 +776,18 @@ SlipperyApplet.prototype = {
         if (iceAnywhere) tip += "\n\u2744 ICE WARNING — check popup";
         this.set_applet_tooltip(tip);
 
-        // --- Popup menu ---
+        // --- Compact popup menu ---
         this.menu.removeAll();
 
         // todo.md: "ICE or ICE coming hours is big warning" — top banner.
         if (iceAnywhere) {
-            const banner = new PopupMenu.PopupMenuItem(
-                "\u2744 ICE WARNING — freezing surface now or in the coming hours", { reactive: false });
-            this.menu.addMenuItem(banner);
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                "\u2744 ICE — freezing surface now or coming", { reactive: false }));
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        const head = new PopupMenu.PopupMenuItem(
-            primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString(), { reactive: false });
-        this.menu.addMenuItem(head);
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+            primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString(), { reactive: false }));
 
         p.risk.hazards.forEach((hz) => {
             const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
@@ -816,65 +801,52 @@ SlipperyApplet.prototype = {
         }
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // todo.md on-click details (shown when relevant):
-        // windspeed / direction / gust.
+        // todo.md details in two rows: wind / temps (shown when relevant:
+        // feels-like only if the API returned it, precip only when wet).
         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-            "Wind " + p.windSpeed.toFixed(0) + " km/h " + compass16(p.windDir) +
-            " (" + Math.round(p.windDir) + "°) · gust " + p.windGust.toFixed(0) + " km/h",
+            "Wind " + p.windSpeed.toFixed(0) + " " + compass16(p.windDir) +
+            " (" + Math.round(p.windDir) + "°) · gust " + p.windGust.toFixed(0),
             { reactive: false }));
-        // temp / feels like / dewpoint / humidity / surface temp.
-        let tempRow = "Air " + p.airTemp.toFixed(1) + "°C";
-        if (p.hasFeelsLike) tempRow += " · feels " + p.feelsLike.toFixed(1) + "°C";
-        tempRow += " · surface " + p.surfaceTemp.toFixed(1) + "°C";
+        let tempRow = "Air " + p.airTemp.toFixed(1) + "°";
+        if (p.hasFeelsLike) tempRow += " (feels " + p.feelsLike.toFixed(1) + "°)";
+        tempRow += " · sfc " + p.surfaceTemp.toFixed(1) + "° · dew " + p.dewPoint.toFixed(1) +
+            "° · hum " + Math.round(p.humidity) + "%";
         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(tempRow, { reactive: false }));
-        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-            "Dew " + p.dewPoint.toFixed(1) + "°C · humidity " + Math.round(p.humidity) +
-            "% · spread " + (p.surfaceTemp - p.dewPoint).toFixed(1) + "°C",
-            { reactive: false }));
-        // Precipitation row only when relevant (else it is noise).
         if (p.rainCurrent >= RAIN_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD ||
             p.rain12 >= RAIN_THRESHOLD || p.snow12 >= SNOW_THRESHOLD ||
             p.immRain >= 0 || p.immSnow >= 0) {
-            let prows = "Now: rain " + p.rainCurrent.toFixed(1) + " mm/h";
+            let prow = "Rain " + p.rainCurrent.toFixed(1) + " · 12h " + p.rain12.toFixed(1) + "mm";
             if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
-                prows += " · snow " + p.snowCurrent.toFixed(1) + " cm/h";
+                prow += " · snow " + p.snowCurrent.toFixed(1) + "/" + p.snow12.toFixed(1) + "cm";
             }
-            prows += " · 12h " + p.rain12.toFixed(1) + " mm";
-            if (p.snow12 >= SNOW_THRESHOLD) prows += " / " + p.snow12.toFixed(1) + " cm";
-            if (p.immRain === 0) prows += " · rain NOW";
-            else if (p.immRain > 0) prows += " · rain in " + p.immRain + " min";
-            if (p.immSnow === 0) prows += " · snow NOW";
-            else if (p.immSnow > 0) prows += " · snow in " + p.immSnow + " min";
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prows, { reactive: false }));
+            if (p.immRain === 0) prow += " · rain NOW";
+            else if (p.immRain > 0) prow += " · rain " + p.immRain + "min";
+            if (p.immSnow === 0) prow += " · snow NOW";
+            else if (p.immSnow > 0) prow += " · snow " + p.immSnow + "min";
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prow, { reactive: false }));
         }
 
-        // Threshold alerts (mirrors the Connect IQ thresholds): only when firing.
-        const pal = primary.alerts;
-        if (pal.rows.length > 0) {
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem("Threshold alerts:", { reactive: false }));
-            pal.rows.forEach((row) => {
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                    (row.indexOf("ICE") === 0 ? "\u2744 " : "\u26A0 ") + row, { reactive: false }));
-            });
-        }
-
-        // todo.md: "display coming x hours — risklevel + precipitation amount".
+        // todo.md: "display coming x hours — risklevel + precipitation amount",
+        // packed three hours per row to keep the popup compact.
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-            "Coming " + hours + "h @ " + primary.loc.name + ":", { reactive: false }));
-        primary.profile.forEach((h, idx) => {
-            let row = hourLabel(h.time, idx === 0) + "  " + h.name +
-                "  " + h.rain.toFixed(1) + "mm";
-            if (h.snow >= 0.05) row += " + " + h.snow.toFixed(1) + "cm";
-            if (h.ice) row = "\u2744 " + row;
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+            "Next " + hours + "h @ " + primary.loc.name + " (risk mm):", { reactive: false }));
+        const blocks = primary.profile.map((h, idx) => {
+            let b = hourLabel(h.time, idx === 0) + " " + (SHORT_LABEL[h.name] || "?") +
+                " " + h.rain.toFixed(1);
+            if (h.snow >= 0.05) b += "+" + h.snow.toFixed(1) + "s";
+            if (h.ice) b = "\u2744" + b;
+            return b;
         });
+        for (let i = 0; i < blocks.length; i += 3) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                blocks.slice(i, i + 3).join(" · "), { reactive: false }));
+        }
 
         // todo.md: "display current risklevels + precipitation from list of lat/lon".
         if (results.length > 1) {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem("Commute points now:", { reactive: false }));
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem("Points now:", { reactive: false }));
             for (let i = 0; i < results.length; i++) {
                 const r = results[i];
                 if (!r.parsed) {
@@ -882,28 +854,14 @@ SlipperyApplet.prototype = {
                         r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
                     continue;
                 }
-                let row = r.loc.name + ": " + r.parsed.risk.name +
-                    " " + Math.round(r.parsed.airTemp) + "° · rain " +
+                let row = r.loc.name + ": " + (SHORT_LABEL[r.parsed.risk.name] || "?") +
+                    " " + Math.round(r.parsed.airTemp) + "° " +
                     r.parsed.rainCurrent.toFixed(1) + "mm";
-                if (r.parsed.snowCurrent >= 0.05) row += " + snow " + r.parsed.snowCurrent.toFixed(1) + "cm";
-                if (r.iceNow) row = "\u2744 " + row + " — ICE NOW";
-                else if (r.iceAhead) row = row + " (\u2744 ahead)";
+                if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
+                if (r.iceNow) row = "\u2744 " + row + " ICE";
+                else if (r.iceAhead) row = row + " (\u2744>)";
                 this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
             }
-        }
-
-        // todo.md: "config HSP threshold value (with live sample)".
-        if (colorMode !== "follow-theme") {
-            const palBg = RISK_BG[colorMode] || RISK_BG.bright;
-            const curBg = palBg[p.risk.name] || "";
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            let t = parseFloat(hspT);
-            if (isNaN(t) || t < 0 || t > 255) t = 180;
-            const fg = textColorFor(curBg, useHsp, hspT, p.risk.name);
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                "Chip " + curBg + " HSP " + Math.round(hspOfHex(curBg)) +
-                " → " + (fg === "#000" ? "black" : "white") + " text (threshold " + Math.round(t) + ")",
-                { reactive: false }));
         }
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());

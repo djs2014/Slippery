@@ -5,35 +5,23 @@
         "description": "Location 1 name",
         "tooltip": "Display name for the primary forecast point (panel chip shows this point)."
     },
-    "latitude": {
+    "location-1-coords": {
         "type": "entry",
-        "default": "52.18895",
-        "description": "Location 1 latitude",
-        "tooltip": "Latitude of forecast point 1, e.g. 52.18895"
-    },
-    "longitude": {
-        "type": "entry",
-        "default": "4.549666",
-        "description": "Location 1 longitude",
-        "tooltip": "Longitude of forecast point 1, e.g. 4.549666"
+        "default": "52.18895, 4.549666",
+        "description": "Location 1 coordinates",
+        "tooltip": "Paste straight from Google Maps: 52.387520877358256, 4.7199631014777 — or type lat, lon with dot decimals."
     },
     "location-2-name": {
         "type": "entry",
         "default": "",
         "description": "Location 2 name",
-        "tooltip": "Empty name + empty coordinates = disabled. Max 5 points total (e.g. commute stops)."
+        "tooltip": "Empty coordinates = disabled. Max 5 points total (e.g. commute stops)."
     },
-    "location-2-lat": {
+    "location-2-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 2 latitude",
-        "tooltip": "Latitude of forecast point 2. Leave empty to disable."
-    },
-    "location-2-lon": {
-        "type": "entry",
-        "default": "",
-        "description": "Location 2 longitude",
-        "tooltip": "Longitude of forecast point 2. Leave empty to disable."
+        "description": "Location 2 coordinates",
+        "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-3-name": {
         "type": "entry",
@@ -41,17 +29,11 @@
         "description": "Location 3 name",
         "tooltip": "Empty coordinates = disabled."
     },
-    "location-3-lat": {
+    "location-3-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 3 latitude",
-        "tooltip": "Latitude of forecast point 3. Leave empty to disable."
-    },
-    "location-3-lon": {
-        "type": "entry",
-        "default": "",
-        "description": "Location 3 longitude",
-        "tooltip": "Longitude of forecast point 3. Leave empty to disable."
+        "description": "Location 3 coordinates",
+        "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-4-name": {
         "type": "entry",
@@ -59,17 +41,11 @@
         "description": "Location 4 name",
         "tooltip": "Empty coordinates = disabled."
     },
-    "location-4-lat": {
+    "location-4-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 4 latitude",
-        "tooltip": "Latitude of forecast point 4. Leave empty to disable."
-    },
-    "location-4-lon": {
-        "type": "entry",
-        "default": "",
-        "description": "Location 4 longitude",
-        "tooltip": "Longitude of forecast point 4. Leave empty to disable."
+        "description": "Location 4 coordinates",
+        "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-5-name": {
         "type": "entry",
@@ -77,17 +53,11 @@
         "description": "Location 5 name",
         "tooltip": "Empty coordinates = disabled."
     },
-    "location-5-lat": {
+    "location-5-coords": {
         "type": "entry",
         "default": "",
-        "description": "Location 5 latitude",
-        "tooltip": "Latitude of forecast point 5. Leave empty to disable."
-    },
-    "location-5-lon": {
-        "type": "entry",
-        "default": "",
-        "description": "Location 5 longitude",
-        "tooltip": "Longitude of forecast point 5. Leave empty to disable."
+        "description": "Location 5 coordinates",
+        "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "refresh-minutes": {
         "type": "spinbutton",
@@ -106,8 +76,8 @@
         "max": 300,
         "step": 5,
         "units": "sec",
-        "description": "Delay first fetch at startup",
-        "tooltip": "Wait N seconds after login before the first network fetch (lets NetworkManager come up). 0 = fetch immediately."
+        "description": "Repeat fetch after startup",
+        "tooltip": "The first fetch happens right away; this schedules one extra fetch N seconds after startup (covers login before the network is up). 0 = no extra fetch."
     },
     "forecast-hours": {
         "type": "spinbutton",
@@ -143,12 +113,12 @@
     },
     "hsp-threshold": {
         "type": "scale",
-        "default": 180,
+        "default": 127,
         "min": 0,
         "max": 255,
         "step": 1,
         "description": "HSP dark/light breakpoint",
-        "tooltip": "HSP 0 = black, 255 = white (same default 180 as the Connect IQ app). Backgrounds brighter than this get black text. Popup shows a live sample per chip color."
+        "tooltip": "HSP 0 = black, 255 = white. Backgrounds brighter than this get black text."
     },
     "thresh-ice-alert": {
         "type": "spinbutton",
