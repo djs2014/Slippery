@@ -695,11 +695,15 @@ function buildGraphSvg(o) {
 }
 
 // Mirrors BackgroundService.mc fetchOpenMeteoData(), plus
-// apparent_temperature for the feels-like row.
-function buildUrl(lat, lon) {
+// apparent_temperature for the feels-like row. Multiple locations are sent
+// as comma-separated latitude/longitude lists so Open-Meteo returns all
+// forecasts in one response (a JSON array, one object per coordinate).
+function buildUrl(locs) {
+    const lats = locs.map((l) => l.lat).join(",");
+    const lons = locs.map((l) => l.lon).join(",");
     const q = [
-        "latitude=" + encodeURIComponent(lat),
-        "longitude=" + encodeURIComponent(lon),
+        "latitude=" + encodeURIComponent(lats),
+        "longitude=" + encodeURIComponent(lons),
         "hourly=" + encodeURIComponent("temperature_2m,relativehumidity_2m,dewpoint_2m,apparent_temperature,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m"),
         "past_hours=12",
         "forecast_hours=12",
@@ -864,33 +868,35 @@ SlipperyApplet.prototype = {
             return;
         }
         this._busy = true;
-        this._fetchAll(locs, 0, [], (results) => {
+        this._fetchAll(locs, (results) => {
             this._busy = false;
             this._lastResults = results;
             this._showAll(results);
         });
     },
 
-    _fetchAll: function (locs, idx, acc, done) {
-        if (idx >= locs.length) {
-            done(acc);
-            return;
-        }
-        const url = buildUrl(locs[idx].lat, locs[idx].lon);
+    // One request for all points: Open-Meteo answers with a JSON array, one
+    // forecast object per coordinate (a single location stays a flat object).
+    _fetchAll: function (locs, done) {
+        const url = buildUrl(locs);
         this._fetchJson(url, (err, data) => {
             if (err) {
-                acc.push({ loc: locs[idx], parsed: null, error: err });
-            } else {
+                done(locs.map((loc) => ({ loc: loc, parsed: null, error: err })));
+                return;
+            }
+            const parts = Array.isArray(data) ? data : [data];
+            const acc = [];
+            for (let i = 0; i < locs.length; i++) {
                 let parsed = null;
                 try {
-                    parsed = parseResponse(locs[idx].lat, data, Math.floor(Date.now() / 1000));
+                    parsed = parseResponse(locs[i].lat, parts[i], Math.floor(Date.now() / 1000));
                 } catch (e) {
                     parsed = null;
                 }
-                acc.push({ loc: locs[idx], parsed: parsed,
+                acc.push({ loc: locs[i], parsed: parsed,
                            error: parsed ? null : "Empty response from Open-Meteo." });
             }
-            this._fetchAll(locs, idx + 1, acc, done);
+            done(acc);
         });
     },
 
