@@ -1,7 +1,7 @@
 import Toybox.Graphics;
 import Toybox.System;
 import Toybox.Lang;
-
+(:extendedCode) 
 public class RiskIconRenderer {
 
     // (cx, cy) is the absolute center of the icon

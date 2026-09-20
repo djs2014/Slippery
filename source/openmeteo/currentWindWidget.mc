@@ -3,6 +3,7 @@ import Toybox.Lang;
 import Toybox.Math;
 import Toybox.System;
 
+(:extendedCode) 
 class CurrentWindWidget {
     public static function draw(
         dc as Graphics.Dc,

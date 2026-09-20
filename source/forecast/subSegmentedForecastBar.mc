@@ -3,6 +3,7 @@ import Toybox.Math;
 import Toybox.Lang;
 import Toybox.System;
 
+(:extendedCode) 
 class SubSegmentedForecastBar {
     /**
      * Helper to compute the global max precipitation rate across forecast hour.

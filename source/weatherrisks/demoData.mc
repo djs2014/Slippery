@@ -2,6 +2,7 @@ import Toybox.System;
 import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
+(:extendedCode) 
 class DemoWeatherService {
     public static function getDemoWeatherMetrics(
         counter as Number
