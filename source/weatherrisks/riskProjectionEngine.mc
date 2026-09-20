@@ -2,7 +2,7 @@ import Toybox.System;
 import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
-
+(:extendedCode) 
 class RiskProjectionEngine {
     // Reconstructs per-hour derived metrics and evaluates risk for the current
     // hour plus the next 12 forecast hours (max 13 entries).

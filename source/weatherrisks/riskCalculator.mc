@@ -2,7 +2,7 @@ import Toybox.System;
 import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
-
+(:extendedCode) 
 public class RiskCalculator {
     static var _riskOnly as Boolean = false;
     static var _riskLevel as RiskLevel = RiskLevelNoData;

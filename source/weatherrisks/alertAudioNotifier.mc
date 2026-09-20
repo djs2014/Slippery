@@ -1,6 +1,7 @@
 import Toybox.Attention;
 import Toybox.System;
 
+(:extendedCode) 
 public class AlertAudioNotifier {
     private static var previousState as AlertState = STATE_NORMAL;
 
