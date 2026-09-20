@@ -66,9 +66,18 @@ If possible, visualize the upcoming hours for
 a little bit like the layout.png file
     
      
-Remarks after the change:
+On popup short summary ( total amount of rain/snow/ice/ect in coming hours) + button to create the graph
+Do this also for the other locations 
+The hours for location 1 can be removed
 
-Combine Location 1 and Locations 2-5 tab to one Locations tab
-Probably the prefix Location on the settings is not needed, just a number is enough.
-Remove the showing hazards settings, it will confuse the user.
-Is it possible to show a picture on the popup?
+Done — popup restructured around summaries and graphs:
+- Coming-hours totals row (new pure comingSummary() helper): e.g. Next 8h: rain 3.2mm | snow 0.0cm | ice 2h | max HIGH | gust 55 — rain/snow summed over the coming hours, ICE-hour count, highest risk, top gust.
+- Per location: location 1 keeps its header, hazards, advice and relevance-filtered details, followed by its totals row and an Hourly graph: <name> button. Locations 2–5 each get their current-status row (risk, temp, precip, ICE flags) plus their own totals row and graph button — the old Points now: one-liners are gone.
+- Hour rows for location 1 removed: both the block chart and the 3-per-row text fallback are out, along with the now-unused _addHourChart, lane colors and short-hazard helpers (~150 lines less).
+- Readme updated (it still described the removed hour rows), syntax + comingSummary unit checks pass, reinstalled via install.sh — restart Cinnamon (Alt+F2 → r) to see it.
+
+background color in popup possible?
+sun/cloud cover open meteo
+advice for cycling ..
+1 call for all lat,lon -> 
+sun cover ?

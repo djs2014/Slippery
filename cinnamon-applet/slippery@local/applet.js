@@ -30,6 +30,10 @@ let St = null;
 try {
     St = imports.gi.St;
 } catch (e) { St = null; }
+let ByteArray = null;
+try {
+    ByteArray = imports.byteArray;
+} catch (e) { ByteArray = null; }
 
 const UUID = "slippery@local";
 
@@ -272,43 +276,6 @@ function colorPassesMinLevel(minLevel, levelNum) {
     const need = { slight: 2, moderate: 3, high: 4, critical: 5 }[m];
     if (need === undefined) return true;
     return (levelNum || 0) >= need;
-}
-
-// Distinct lane colors for the per-hazard hour strips under the risk blocks.
-const HAZARD_COLORS = {
-    "Black Ice / Freezing Wet Road": "#ff0000",
-    "Road Surface Frost": "#00bfff",
-    "Ice On Bridges": "#7f00ff",
-    "Snow Or Slush Accumulation": "#1e90ff",
-    "Wet Leaf Coverage": "#8b5a00",
-    "First Rain Releasing Dirt / Oils": "#b58900",
-    "Wet Asphalt Surface": "#2e9e97",
-    "Heavy Rain / Hydroplaning": "#0044ff",
-    "Strong Crosswinds": "#ff8c00",
-    "Gale Force Winds": "#ff00ff",
-    "Immin Snow": "#5dade2",
-    "Immin Rain": "#3498db",
-};
-function hazardColor(h) {
-    return HAZARD_COLORS[h] || "#888888";
-}
-
-function shortHazard(h) {
-    const map = {
-        "Black Ice / Freezing Wet Road": "Ice",
-        "Road Surface Frost": "Frost",
-        "Ice On Bridges": "Bridge",
-        "Snow Or Slush Accumulation": "Snow",
-        "Wet Leaf Coverage": "Leaves",
-        "First Rain Releasing Dirt / Oils": "Slick",
-        "Wet Asphalt Surface": "Wet",
-        "Heavy Rain / Hydroplaning": "Pour",
-        "Strong Crosswinds": "Wind",
-        "Gale Force Winds": "Gale",
-        "Immin Snow": "Snow>",
-        "Immin Rain": "Rain>",
-    };
-    return map[h] || h.slice(0, 6);
 }
 
 // Wind direction as a unicode arrow (meteorological: where the wind goes to).
@@ -601,6 +568,132 @@ function hourLabel(d, isNow) {
     return (h < 10 ? "0" + h : "" + h) + ":00";
 }
 
+// Short coming-hours summary for the popup: totals over the forecast hours
+// after the current one (rain/snow sums, ICE hours, highest risk, top gust).
+// Returns "" when there are no coming hours.
+function comingSummary(profile) {
+    if (!profile || profile.length < 2) return "";
+    let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE";
+    for (let i = 1; i < profile.length; i++) {
+        const hh = profile[i];
+        rain += hh.rain || 0;
+        snow += hh.snow || 0;
+        if (hh.ice) ice++;
+        if ((hh.windGust || 0) > gust) gust = hh.windGust;
+        if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; }
+    }
+    return "Next " + (profile.length - 1) + "h: rain " + rain.toFixed(1) + "mm | snow " +
+        snow.toFixed(1) + "cm | ice " + ice + "h | max " + maxName + " | gust " + Math.round(gust);
+}
+
+// SVG graph (port of nodetest/graph.js — same layout: risk columns, rain bars,
+// gust dots, top W row with blow-to arrow + speed, legend below the hours).
+// Pure string building, no Cinnamon dependencies, so node tests cover it.
+const GRAPH_FILL = {
+    NO_DATA: "#9e9e9e",
+    SAFE: "#4caf50",
+    SLIGHT: "#ffeb3b",
+    MODERATE: "#ffa500",
+    HIGH: "#ff4500",
+    CRITICAL: "#ff0000",
+};
+const GRAPH_NUM = { NO_DATA: 0, SAFE: 1, SLIGHT: 2, MODERATE: 3, HIGH: 4, CRITICAL: 5 };
+
+function escXml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Greedy wrap of advice items into at most 2 lines of max chars.
+function wrapAdviceLines(items, max) {
+    const lines = [];
+    let cur = "";
+    for (let k = 0; k < items.length; k++) {
+        const add = cur ? "; " + items[k] : items[k];
+        if (cur && (cur + add).length > max) {
+            lines.push(cur);
+            cur = items[k];
+        } else {
+            cur = cur + add;
+        }
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > 2) return [lines[0], lines[1] + " …"];
+    return lines;
+}
+
+// o: { title, subtitle, hours: [{time, name, rain, snow, wind, gust, wdir}],
+//      advice: [...] }. Returns the SVG string, or "" when there is no data.
+function buildGraphSvg(o) {
+    const hours = (o && o.hours) || [];
+    const n = hours.length;
+    if (n === 0) return "";
+    const W = 780, H = 404, padL = 46, padR = 14, padT = 90, padB = 70;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+    const slot = plotW / n, barW = Math.min(44, slot * 0.62);
+    let maxRain = 2.0, maxGust = 10;
+    for (let i = 0; i < n; i++) {
+        if (hours[i].rain > maxRain) maxRain = hours[i].rain;
+        const g = Math.max(hours[i].gust || 0, hours[i].wind || 0);
+        if (g > maxGust) maxGust = g;
+    }
+    const riskY = (name) => padT + plotH - (((GRAPH_NUM[name] || 0) / 5) * (plotH * 0.55));
+    const base = padT + plotH - (plotH * 0.45);
+    let s = "";
+    s += '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" font-family="sans-serif">\n';
+    s += '<rect width="' + W + '" height="' + H + '" fill="#111"/>\n';
+    s += '<text x="' + padL + '" y="24" fill="#fff" font-size="17" font-weight="bold">' + escXml(o.title || "") + '</text>\n';
+    s += '<text x="' + padL + '" y="44" fill="#bbb" font-size="12">' + escXml(o.subtitle || "") + '</text>\n';
+    const windRowY = padT - 14;
+    s += '<text x="' + (padL - 5) + '" y="' + (windRowY + 4) + '" fill="#999" font-size="10" text-anchor="end">W</text>\n';
+    for (let i = 0; i < n; i++) {
+        const cx = padL + slot * i + slot / 2;
+        const wd = hours[i].wdir;
+        const arr = (wd === null || wd === undefined) ? "" : windArrow(wd);
+        s += '<text x="' + cx.toFixed(1) + '" y="' + windRowY + '" fill="#ccc" font-size="10" text-anchor="middle">' +
+            arr + Math.round(hours[i].wind || 0) + '</text>\n';
+    }
+    s += '<line x1="' + padL + '" y1="' + (padT - 4) + '" x2="' + (W - padR) + '" y2="' + (padT - 4) + '" stroke="#222"/>\n';
+    const names = ["SAFE", "SLIGHT", "MODERATE", "HIGH", "CRITICAL"];
+    for (let k = 0; k < names.length; k++) {
+        const y = riskY(names[k]);
+        s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#333"/>\n';
+        s += '<text x="' + (padL - 5) + '" y="' + (y + 4) + '" fill="' + GRAPH_FILL[names[k]] + '" font-size="10" text-anchor="end">' + names[k] + '</text>\n';
+    }
+    for (let i = 0; i < n; i++) {
+        const cx = padL + slot * i + slot / 2;
+        const hh = hours[i];
+        const rh = (hh.rain / maxRain) * (plotH * 0.45);
+        if (rh > 0.5) {
+            s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + (padT + plotH - rh).toFixed(1) + '" width="' + barW.toFixed(1) +
+                '" height="' + rh.toFixed(1) + '" fill="#3377ff"/>\n';
+        }
+        const lvl = GRAPH_NUM[hh.name] || 0;
+        const bh = (lvl / 5) * (plotH * 0.55);
+        const by = base - bh;
+        s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' +
+            Math.max(3, bh).toFixed(1) + '" fill="' + (GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA) + '" fill-opacity="' + (i === 0 ? 1 : 0.75) + '"/>\n';
+        const gy = base - ((hh.gust || 0) / maxGust) * (plotH * 0.55);
+        const wy = base - ((hh.wind || 0) / maxGust) * (plotH * 0.55);
+        s += '<line x1="' + (cx - 8).toFixed(1) + '" y1="' + wy.toFixed(1) + '" x2="' + (cx + 8).toFixed(1) + '" y2="' + wy.toFixed(1) + '" stroke="#fff" stroke-width="2"/>\n';
+        s += '<circle cx="' + cx.toFixed(1) + '" cy="' + gy.toFixed(1) + '" r="3.2" fill="#fff"/>\n';
+        s += '<text x="' + cx.toFixed(1) + '" y="' + (padT + plotH + 14) + '" fill="#999" font-size="10" text-anchor="middle">' + escXml(hourLabel(hh.time, i === 0)) + '</text>\n';
+        if (hh.rain >= 0.1) {
+            s += '<text x="' + cx.toFixed(1) + '" y="' + (padT + plotH - rh - 4).toFixed(1) + '" fill="#9ec1ff" font-size="9" text-anchor="middle">' + hh.rain.toFixed(1) + '</text>\n';
+        }
+    }
+    const ly1 = padT + plotH + 30;
+    s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">Risk color = level · <tspan fill="#3377ff">blue = rain mm/h</tspan> · ' +
+        '<tspan fill="#fff">— sustained, ● gust</tspan> · W = blow-to arrow + speed</text>\n';
+    const advItems = (o.advice && o.advice.length) ? o.advice : ["—"];
+    const advLines = wrapAdviceLines(advItems, 100);
+    for (let k = 0; k < advLines.length; k++) {
+        s += '<text x="' + padL + '" y="' + (ly1 + 15 + k * 13) + '" fill="#888" font-size="10">' +
+            (k === 0 ? "advice: " : "") + escXml(advLines[k]) + '</text>\n';
+    }
+    s += "</svg>\n";
+    return s;
+}
+
 // Mirrors BackgroundService.mc fetchOpenMeteoData(), plus
 // apparent_temperature for the feels-like row.
 function buildUrl(lat, lon) {
@@ -834,6 +927,41 @@ SlipperyApplet.prototype = {
         this.menu.addMenuItem(item);
     },
 
+    // Renders the full-size SVG graph (same layout as nodetest/graph.js) from
+    // the already-fetched forecast, writes it to the temp dir and opens it
+    // in the default image viewer. No network, no npm, no extra packages.
+    _openGraph: function (entry) {
+        try {
+            if (!entry || !entry.parsed || !entry.profile) return;
+            const parsed = entry.parsed;
+            const hours = entry.profile.map((h) => ({
+                time: h.time, name: h.name,
+                rain: h.rain || 0, snow: h.snow || 0,
+                wind: h.windSpeed || 0, gust: h.windGust || 0,
+                wdir: (h.windDir === undefined) ? null : h.windDir,
+            }));
+            const svg = buildGraphSvg({
+                title: entry.loc.name + ": " + parsed.risk.name + " — " +
+                    (parsed.risk.hazards.join(" + ") || "No hazards"),
+                subtitle: parsed.time.toLocaleString() + " · lat " + entry.loc.lat + ", lon " + entry.loc.lon +
+                    " · season " + parsed.season +
+                    " · wind " + Math.round(parsed.windSpeed) + " km/h, gust " + Math.round(parsed.windGust) + " km/h",
+                hours: hours,
+                advice: parsed.risk.advice,
+            });
+            if (!svg || !ByteArray) return;
+            const path = GLib.build_filenamev([GLib.get_tmp_dir(), "slippery-graph.svg"]);
+            Gio.File.new_for_path(path).replace_contents(
+                ByteArray.fromString(svg), null, false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION, null);
+            Gio.AppInfo.launch_default_for_uri("file://" + path, null);
+        } catch (e) {
+            try {
+                this.set_applet_tooltip("Slippery: cannot open graph: " + e.message);
+            } catch (e2) { /* ignore */ }
+        }
+    },
+
     // Picture row in the popup (yes, pictures are possible): a custom
     // PopupBaseMenuItem holding an St.Icon plus bold text. Tries the shipped
     // picture file first (this._appletPath + "/" + fileName, e.g. warning.png),
@@ -859,98 +987,6 @@ SlipperyApplet.prototype = {
         box.add_actor(icon);
         box.add_actor(new St.Label({ text: text, style: "font-weight: bold;" }));
         item.addActor(box, { span: -1, expand: true });
-        this.menu.addMenuItem(item);
-        return true;
-    },
-
-    // Hour chart for location 1 (todo.md + layout.png): one column per hour.
-    // Top cell = risk color block with hour label; below = wind arrow+speed,
-    // gust, temp, precip; bottom lanes = one strip per active hazard showing
-    // in which hour blocks it starts/stops (lane color per hazard).
-    // Returns true when the chart was added, false to use the text fallback.
-    _addHourChart: function (profile, colorMode, colorMin, useHsp, hspT) {
-        if (!St || !profile || profile.length === 0) return false;
-        if (!PopupMenu.PopupBaseMenuItem) return false;
-        const item = new PopupMenu.PopupBaseMenuItem({ reactive: false });
-        const root = new St.BoxLayout({ vertical: true, style: "spacing: 2px;" });
-        const COL = 40;
-        const row = new St.BoxLayout({ style: "spacing: 2px;" });
-        row.add_actor(new St.Label({ text: "", style: "font-size: 9px; width: " + COL + "px;" }));
-        for (let i = 0; i < profile.length; i++) {
-            const h = profile[i];
-            const col = new St.BoxLayout({ vertical: true, width: COL, style: "spacing: 0px;" });
-            const pal = RISK_BG[colorMode] || RISK_BG.bright;
-            const bg = (colorMode !== "follow-theme" && colorPassesMinLevel(colorMin, h.level))
-                ? (pal[h.name] || "transparent") : "transparent";
-            const fg = (bg === "transparent") ? "" : ("color: " + textColorFor(bg, useHsp, hspT, h.name) + ";");
-            const head = new St.Label({
-                text: hourLabel(h.time, i === 0),
-                style: "background-color: " + bg + ";" + fg + " font-size: 10px; font-weight: bold; padding: 1px 0px; text-align: center;",
-                x_align: 1,
-            });
-            let sub = "" + Math.round(h.airTemp) + "C";
-            if ((h.rain || 0) >= RAIN_THRESHOLD) sub += " " + h.rain.toFixed(1);
-            else if ((h.snow || 0) >= 0.05) sub += " +" + h.snow.toFixed(1) + "s";
-            const mid1 = new St.Label({
-                text: windArrow(h.windDir) + Math.round(h.windSpeed || 0),
-                style: "font-size: 10px; padding: 0px; text-align: center;",
-                x_align: 1,
-            });
-            mid1.set_tooltip_text("Wind " + Math.round(h.windSpeed || 0) + " " +
-                compass16(h.windDir) + " (" + Math.round(h.windDir || 0) + "), gust " +
-                Math.round(h.windGust || 0) + ", " + Math.round(h.airTemp) + "C" +
-                ", rain " + (h.rain || 0).toFixed(1) + "mm" +
-                (h.hazards && h.hazards.length > 0 ? ", " + h.hazards.join("; ") : ""));
-            const mid2 = new St.Label({
-                text: "g" + Math.round(h.windGust || 0) + " " + sub,
-                style: "font-size: 9px; padding: 0px 0px 2px 0px; text-align: center;",
-                x_align: 1,
-            });
-            col.add_actor(head);
-            col.add_actor(mid1);
-            col.add_actor(mid2);
-            row.add_actor(col);
-        }
-        root.add_actor(row);
-        // Hazard lanes: distinct hazards across the shown hours.
-        const seen = [];
-        for (let i = 0; i < profile.length; i++) {
-            const hs = profile[i].hazards || [];
-            for (let k = 0; k < hs.length; k++) {
-                if (seen.indexOf(hs[k]) === -1) seen.push(hs[k]);
-            }
-        }
-        const lanes = seen.slice(0, 6);
-        for (let l = 0; l < lanes.length; l++) {
-            const hz = lanes[l];
-            const lane = new St.BoxLayout({ style: "spacing: 2px;" });
-            const lab = new St.Label({
-                text: shortHazard(hz),
-                style: "font-size: 9px; width: " + COL + "px;",
-            });
-            lab.set_tooltip_text(hz);
-            lane.add_actor(lab);
-            for (let i = 0; i < profile.length; i++) {
-                const on = (profile[i].hazards || []).indexOf(hz) !== -1;
-                const cell = new St.Bin({
-                    width: COL,
-                    height: 6,
-                    style: on ? ("background-color: " + hazardColor(hz) + "; border-radius: 2px;")
-                              : "background-color: rgba(128,128,128,0.18); border-radius: 2px;",
-                });
-                if (on) cell.set_tooltip_text(hz + " @ " + hourLabel(profile[i].time, i === 0));
-                lane.add_actor(cell);
-            }
-            root.add_actor(lane);
-        }
-        if (lanes.length > 0) {
-            const legend = new St.Label({
-                text: lanes.map((hz) => shortHazard(hz) + "=" + hz).join("  "),
-                style: "font-size: 8px;",
-            });
-            root.add_actor(legend);
-        }
-        item.addActor(root, { span: -1, expand: true });
         this.menu.addMenuItem(item);
         return true;
     },
@@ -1083,35 +1119,22 @@ SlipperyApplet.prototype = {
                 "Details calm \u2014 nothing near thresholds", { reactive: false }));
         }
 
-        // todo.md: visualize the upcoming hours (risk blocks + wind/temp/precip
-        // + per-hazard lanes, like layout.png). Custom St actors; on any error
-        // fall back to the compact 3-per-row text rows.
+        // Coming-hours totals + graph button for the primary location.
+        // (The per-hour rows were removed; the full graph covers them.)
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-            "Next " + hours + "h @ " + primary.loc.name + ":", { reactive: false }));
-        let chartOk = false;
-        try {
-            chartOk = this._addHourChart(primary.profile, colorMode, colorMin, useHsp, hspT);
-        } catch (e) { chartOk = false; }
-        if (!chartOk) {
-            const blocks = primary.profile.map((h, idx) => {
-                let b = hourLabel(h.time, idx === 0) + " " + (SHORT_LABEL[h.name] || "?") +
-                    " " + h.rain.toFixed(1);
-                if (h.snow >= 0.05) b += "+" + h.snow.toFixed(1) + "s";
-                if (h.ice) b = "\u2744" + b;
-                return b;
-            });
-            for (let i = 0; i < blocks.length; i += 3) {
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                    blocks.slice(i, i + 3).join(" \u00b7 "), { reactive: false }));
-            }
+        const sum1 = comingSummary(primary.profile);
+        if (sum1) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum1, { reactive: false }));
         }
+        const graphItem1 = new PopupMenu.PopupMenuItem("Hourly graph: " + primary.loc.name);
+        graphItem1.connect("activate", () => this._openGraph(primary));
+        this.menu.addMenuItem(graphItem1);
 
-        // todo.md: "display current risklevels + precipitation from list of lat/lon".
+        // todo.md: per-point current status + coming-hours totals + graph button.
+        // (results[0] is the primary location shown above, so start at 1.)
         if (results.length > 1) {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem("Points now:", { reactive: false }));
-            for (let i = 0; i < results.length; i++) {
+            for (let i = 1; i < results.length; i++) {
                 const r = results[i];
                 if (!r.parsed) {
                     this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
@@ -1125,6 +1148,13 @@ SlipperyApplet.prototype = {
                 if (r.iceNow) row = "\u2744 " + row + " ICE";
                 else if (r.iceAhead) row = row + " (\u2744>)";
                 this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                const sum = comingSummary(r.profile);
+                if (sum) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));
+                }
+                const gi = new PopupMenu.PopupMenuItem("Hourly graph: " + r.loc.name);
+                gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
+                this.menu.addMenuItem(gi);
             }
         }
 
