@@ -2,6 +2,7 @@ import Toybox.Graphics;
 import Toybox.Time;
 import Toybox.Lang;
 
+(:extendedCode) 
 class ForecastAligner {
     /**
      * Calculates the remaining fraction (0.25, 0.50, 0.75, 1.0) for hourlyTimes[0]
