@@ -1139,6 +1139,42 @@ class PredictiveSparkline {
         dc.fillPolygon(trianglePts);
 
         // --- STEP C: STACKED GUST BARS BEHIND BASE ---
+        // Own frame (drawGustChevrons); geometry travels as one Dictionary.
+        drawGustChevrons(dc, {
+            :baseX => baseX,
+            :baseY => baseY,
+            :uX => uX,
+            :uY => uY,
+            :pX => pX,
+            :pY => pY,
+            :baseHalfWidth => baseHalfWidth,
+            :mainColor => mainColor,
+            :haloColor => haloColor,
+            :windSpeed => windSpeed,
+            :gust => gust,
+        });
+    }
+
+    // STEP C of drawWindArrow(): stacked gust chevrons behind the arrow base.
+    // Own frame (see draw() note): the chevron loop holds ~15 locals that
+    // used to sit in drawWindArrow's frame on top of the draw() chain.
+    // Geometry travels in one small Dictionary (heap) to stay clear of the
+    // per-function parameter limit.
+    private static function drawGustChevrons(
+        dc as Graphics.Dc,
+        geom as Dictionary
+    ) as Void {
+        var baseX = geom[:baseX] as Number;
+        var baseY = geom[:baseY] as Number;
+        var uX = geom[:uX] as Float;
+        var uY = geom[:uY] as Float;
+        var pX = geom[:pX] as Float;
+        var pY = geom[:pY] as Float;
+        var baseHalfWidth = geom[:baseHalfWidth] as Number;
+        var mainColor = geom[:mainColor] as Graphics.ColorType;
+        var haloColor = geom[:haloColor] as Graphics.ColorType;
+        var windSpeed = geom[:windSpeed] as Float;
+        var gust = geom[:gust] as Float;
         var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
         var numGustBars = 0;
 
