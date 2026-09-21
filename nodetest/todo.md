@@ -79,7 +79,4 @@ Done — popup restructured around summaries and graphs:
 
 
 advice for cycling ..
-graphics in popup
-instead of next 10h details, show lines with 
-mm rain/snow, sun per hour, wind, risklevel, ice warning, gust 
-try to be compact with this graphical display
+

@@ -289,14 +289,12 @@ function windArrow(deg) {
 
 // todo.md popup: only mention a detail group when it is relevant, i.e. at or
 // near (10% below / small margin above) its threshold. Returns
-// { cold, heat, moisture, wind, tempRow, moistureRow, windRow } with prebuilt
+// { cold, heat, wind, precip, tempRow, windRow } with prebuilt
 // compact row strings (null when nothing in that group is relevant).
 function relevantDetails(p, t) {
-    const spread = p.surfaceTemp - p.dewPoint;
     const feels = p.hasFeelsLike ? p.feelsLike : p.airTemp;
     const cold = (p.airTemp <= t.ice + 2.0) || (p.surfaceTemp <= t.ice + 2.0);
     const heat = feels >= t.heat - 3.0;
-    const moisture = spread <= 3.0 || p.humidity >= 80;
     const windGate = Math.min(
         Math.max(t.crossGust, 1), Math.max(t.highCross, 1),
         Math.max(t.heavy, 1), Math.max(t.sustained, 1)) * 0.9;
@@ -314,19 +312,13 @@ function relevantDetails(p, t) {
         if (p.hasFeelsLike) tempRow += " (feels " + p.feelsLike.toFixed(1) + "°)";
         tempRow += " · sfc " + p.surfaceTemp.toFixed(1) + "°";
     }
-    let moistureRow = null;
-    if (moisture) {
-        moistureRow = "Dew " + p.dewPoint.toFixed(1) + "° (Δ" + spread.toFixed(1) +
-            ") · hum " + Math.round(p.humidity) + "%";
-    }
     let windRow = null;
     if (wind) {
         windRow = "Wind " + p.windSpeed.toFixed(0) + " " + compass16(p.windDir) +
             " (" + Math.round(p.windDir) + "°) · gust " + p.windGust.toFixed(0);
     }
-    return { cold: cold, heat: heat, moisture: moisture, wind: wind,
-             precip: precip, tempRow: tempRow,
-             moistureRow: moistureRow, windRow: windRow };
+    return { cold: cold, heat: heat, wind: wind,
+             precip: precip, tempRow: tempRow, windRow: windRow };
 }
 
 function compass16(deg) {
@@ -570,12 +562,16 @@ function hourLabel(d, isNow) {
     return (h < 10 ? "0" + h : "" + h) + ":00";
 }
 
-// Short coming-hours summary for the popup: totals over the forecast hours
-// after the current one (rain/snow sums, ICE hours, highest risk, top gust).
-// Returns "" when there are no coming hours.
-function comingSummary(profile) {
+// Coming-hours summary for the popup: totals over the forecast hours after
+// the current one. Each segment is only shown when relevant, i.e. above 80%
+// of its threshold (rain vs precip-ahead, snow vs snow threshold, gust vs the
+// lowest wind threshold, max risk vs SLIGHT, ice whenever an ICE hour lands
+// in the window). Returns "" when there are no coming hours or nothing is
+// relevant.
+function comingSummary(profile, t) {
     if (!profile || profile.length < 2) return "";
     let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE";
+    let maxRainHour = 0, maxSnowHour = 0;
     for (let i = 1; i < profile.length; i++) {
         const hh = profile[i];
         rain += hh.rain || 0;
@@ -583,9 +579,28 @@ function comingSummary(profile) {
         if (hh.ice) ice++;
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
         if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; }
+        if ((hh.rain || 0) > maxRainHour) maxRainHour = hh.rain;
+        if ((hh.snow || 0) > maxSnowHour) maxSnowHour = hh.snow;
     }
-    return "Next " + (profile.length - 1) + "h: rain " + rain.toFixed(1) + "mm | snow " +
-        snow.toFixed(1) + "cm | ice " + ice + "h | max " + maxName + " | gust " + Math.round(gust);
+    const n = profile.length - 1;
+    const segs = [];
+    // Thresholds come from _thresholds(); fall back to its defaults when t
+    // is missing so the helper stays safe to call standalone.
+    const numOr = (v, dflt) => {
+        const x = parseNum(v);
+        return isNaN(x) ? dflt : x;
+    };
+    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
+    if (maxRainHour >= precipGate) segs.push("rain " + rain.toFixed(1) + "mm");
+    if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push("snow " + snow.toFixed(1) + "cm");
+    if (ice > 0) segs.push("ice " + ice + "h");
+    if (maxLvl >= RiskLevel.SLIGHT) segs.push("max " + maxName);
+    const windGate = Math.min(
+        Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
+        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
+    if (gust >= windGate) segs.push("gust " + Math.round(gust));
+    if (segs.length === 0) return "";
+    return "Next " + n + "h: " + segs.join(" | ");
 }
 
 // Highest risk level over the coming forecast hours (profile[1..], i.e.
@@ -1178,10 +1193,6 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.tempRow, { reactive: false }));
             shownDetail = true;
         }
-        if (det.moistureRow) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.moistureRow, { reactive: false }));
-            shownDetail = true;
-        }
         if (det.precip) {
             let prow = "Rain " + p.rainCurrent.toFixed(1) + " \u00b7 12h " + p.rain12.toFixed(1) + "mm";
             if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
@@ -1202,7 +1213,7 @@ SlipperyApplet.prototype = {
         // Coming-hours totals + graph button for the primary location.
         // (The per-hour rows were removed; the full graph covers them.)
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        const sum1 = comingSummary(primary.profile);
+        const sum1 = comingSummary(primary.profile, th);
         if (sum1) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum1, { reactive: false }));
         }
@@ -1232,7 +1243,7 @@ SlipperyApplet.prototype = {
                 if (!rowOk) {
                     this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
                 }
-                const sum = comingSummary(r.profile);
+                const sum = comingSummary(r.profile, th);
                 if (sum) {
                     this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));
                 }
