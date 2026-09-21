@@ -203,6 +203,55 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       return;
     }
 
+    if (id instanceof String && id.equals("forecast")) {
+      var fcMenu = new WatchUi.Menu2({ :title => "Forecast" });
+
+      var simplify;
+      simplify = Storage.getValue("simplifyWindOne") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Simplify wind One",
+          null,
+          "simplifyWindOne",
+          simplify,
+          null
+        )
+      );
+      simplify = Storage.getValue("simplifyWindLarge") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Simplify wind Large",
+          null,
+          "simplifyWindLarge",
+          simplify,
+          null
+        )
+      );
+      simplify = Storage.getValue("simplifyWindWide") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Simplify wind Wide",
+          null,
+          "simplifyWindWide",
+          simplify,
+          null
+        )
+      );
+      simplify = Storage.getValue("simplifyWindSmall") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Simplify wind Small",
+          null,
+          "simplifyWindSmall",
+          simplify,
+          null
+        )
+      );
+
+      WatchUi.pushView(fcMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
+      return;
+    }
+
     if (id instanceof String && id.equals("advanced")) {
       var advMenu = new WatchUi.Menu2({ :title => "Advanced" });
 

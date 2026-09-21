@@ -59,3 +59,19 @@ function getEdgeFieldText(ef as EdgeField) as String {
   }
   return "?";
 }
+
+// Per-layout forecast simplification: when true for the active field, the
+// sparkline skips the wind connecting line and direction arrows (gust dots
+// keep their existing rules), leaving a cleaner chart.
+function simplifyWindFor(ef as EdgeField) as Boolean {
+  if (ef == EfOne) {
+    return $.gSimplifyWindOne;
+  }
+  if (ef == EfLarge) {
+    return $.gSimplifyWindLarge;
+  }
+  if (ef == EfWide) {
+    return $.gSimplifyWindWide;
+  }
+  return $.gSimplifyWindSmall;
+}

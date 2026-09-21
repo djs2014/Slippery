@@ -182,6 +182,7 @@ class PredictiveSparkline {
             :haloColor => isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE,
             :sunColor => AppState.getColor(ThemeManager.COLOR_SUN),
             :enableBadges => x >= 12,
+            :edgeField => edgeField,
             :maxPrecip => ranges[:maxPrecip],
             :minSt => ranges[:minSt],
             :maxSt => ranges[:maxSt],
@@ -744,6 +745,8 @@ class PredictiveSparkline {
     // PASS 2 layer E of draw(): wind/gust sparkline with direction arrows.
     // Returns the first point Y for the "W" badge. Own frame (see draw()
     // note); drawWindArrow nests one level under this small frame now.
+    // Per-layout simplification (Forecast menu): simplified fields skip the
+    // connecting line and the direction arrows; gust dots keep existing rules.
     private static function drawWindLayer(
         dc as Graphics.Dc,
         metrics as WeatherMetrics,
@@ -764,6 +767,7 @@ class PredictiveSparkline {
         var haloColor = ctx[:haloColor] as Graphics.ColorType;
         var smallWidth = ctx[:smallWidth] as Boolean;
         var isDark = ctx[:isDark] as Boolean;
+        var simplified = $.simplifyWindFor(ctx[:edgeField] as EdgeField);
         var maxWind = 60.0f;
         var prevWindX = -1;
         var prevWindY = -1;
@@ -801,7 +805,7 @@ class PredictiveSparkline {
                       ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE)
                       : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED);
 
-            if (prevWindX != -1 && i % 2 == 0) {
+            if (!simplified && prevWindX != -1 && i % 2 == 0) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawLine(prevWindX, prevWindY - 1, px, windPy - 1);
                 dc.drawLine(prevWindX, prevWindY + 1, px, windPy + 1);
@@ -822,6 +826,7 @@ class PredictiveSparkline {
 
             var relGustRatio = windSpd > 1.0f ? gust / windSpd : 1.0f;
             if (
+                !simplified &&
                 (windSpd >= 20.0f || gust >= 25.0f || relGustRatio >= 1.3f) &&
                 windDirForecast.size() > i
             ) {

@@ -69,6 +69,10 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("shortHazard", false);            
                 Storage.setValue("hideRiskAdvice", false);            
                 Storage.setValue("hideUnitsWhenActive", true);
+                Storage.setValue("simplifyWindOne", false);
+                Storage.setValue("simplifyWindLarge", false);
+                Storage.setValue("simplifyWindWide", false);
+                Storage.setValue("simplifyWindSmall", false);
 
                 Storage.setValue("threshIceAlert", 3.0f);
                 Storage.setValue("threshHighCrosswind", 25.0f);
@@ -125,6 +129,14 @@ class SlipperyApp extends Application.AppBase {
                 $.getStorageValue("shortHazard", false) as Boolean;  
             $.gHideUnitsWhenActive =
                 $.getStorageValue("hideUnitsWhenActive", true) as Boolean;  
+            $.gSimplifyWindOne =
+                $.getStorageValue("simplifyWindOne", false) as Boolean;
+            $.gSimplifyWindLarge =
+                $.getStorageValue("simplifyWindLarge", false) as Boolean;
+            $.gSimplifyWindWide =
+                $.getStorageValue("simplifyWindWide", false) as Boolean;
+            $.gSimplifyWindSmall =
+                $.getStorageValue("simplifyWindSmall", false) as Boolean;
 
             // Backfill for app upgraders: storage predating the threshold keys
             // has resetDefaults=false, skipping the seed block above. Writing
@@ -208,3 +220,7 @@ var gUseEffectiveCrossGust as Boolean = true;
 var gHideRiskAdvice as Boolean = false;
 var gShortHazard as Boolean = false;
 var gHideUnitsWhenActive as Boolean = true;
+var gSimplifyWindOne as Boolean = false;
+var gSimplifyWindLarge as Boolean = false;
+var gSimplifyWindWide as Boolean = false;
+var gSimplifyWindSmall as Boolean = false;
