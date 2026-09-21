@@ -73,6 +73,10 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("simplifyWindLarge", false);
                 Storage.setValue("simplifyWindWide", false);
                 Storage.setValue("simplifyWindSmall", false);
+                Storage.setValue("riskFooterOne", false);
+                Storage.setValue("riskFooterLarge", false);
+                Storage.setValue("riskFooterWide", false);
+                Storage.setValue("riskFooterSmall", false);
 
                 Storage.setValue("threshIceAlert", 3.0f);
                 Storage.setValue("threshHighCrosswind", 25.0f);
@@ -137,6 +141,14 @@ class SlipperyApp extends Application.AppBase {
                 $.getStorageValue("simplifyWindWide", false) as Boolean;
             $.gSimplifyWindSmall =
                 $.getStorageValue("simplifyWindSmall", false) as Boolean;
+            $.gRiskFooterOne =
+                $.getStorageValue("riskFooterOne", false) as Boolean;
+            $.gRiskFooterLarge =
+                $.getStorageValue("riskFooterLarge", false) as Boolean;
+            $.gRiskFooterWide =
+                $.getStorageValue("riskFooterWide", false) as Boolean;
+            $.gRiskFooterSmall =
+                $.getStorageValue("riskFooterSmall", false) as Boolean;
 
             // Backfill for app upgraders: storage predating the threshold keys
             // has resetDefaults=false, skipping the seed block above. Writing
@@ -224,3 +236,7 @@ var gSimplifyWindOne as Boolean = false;
 var gSimplifyWindLarge as Boolean = false;
 var gSimplifyWindWide as Boolean = false;
 var gSimplifyWindSmall as Boolean = false;
+var gRiskFooterOne as Boolean = false;
+var gRiskFooterLarge as Boolean = false;
+var gRiskFooterWide as Boolean = false;
+var gRiskFooterSmall as Boolean = false;

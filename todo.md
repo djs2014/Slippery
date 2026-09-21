@@ -4,6 +4,8 @@
 graphic examples
 get skill for connect IQ
 52.352547, 4.852022
+69.840043, 26.883803
+
 sunshine_duration? x sec/hour
 
 What changed
@@ -39,3 +41,7 @@ Frame sizes (params + vars) across the worst path, gusty forecast with arrows dr
 - now: peak ≈ 127; typical no-arrow frames ≈ 82 (was 128)
 Verified: braces/parens balanced, drawGustChevrons defined once / called once, all 11 geom keys passed match the 11 read, STEP C code exists in exactly one place, behavior identical (pure move — severity thresholds, halo geometry, and draw order untouched).
 One honest caveat on the mechanism: nested frames still add up, so extraction pays off most where sequential passes replace one giant live frame (the draw() split) rather than subdivide an already-nested one (this change). The remaining nested tail is drawWindLayer (33) + drawWindArrow (27) + chevrons (24) — if you ever need more headroom there, inlining the chevron call's dict (i.e., passing the 3–4 scalars it actually varies on) won't help; the next real lever would be simplifying the halo-outline passes.
+
+
+Add option per field (one, large, wide, small) to show the risklevel under the forecast,
+so in effect the forast bottom shrinks and in the remaining space the risk color is displayed.

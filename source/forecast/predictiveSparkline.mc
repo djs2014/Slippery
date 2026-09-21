@@ -338,6 +338,9 @@ class PredictiveSparkline {
         var showForecastHour = ctx[:showForecastHour] as ShowForecastHour;
         var hourColor = ctx[:hourColor] as Graphics.ColorType;
         var isDark = ctx[:isDark] as Boolean;
+        // Risk heatmap is redundant while the risk footer below carries the
+        // per-hour risk (Forecast menu): skip blocks + labels, keep geometry.
+        var showRisk = !$.riskFooterFor(ctx[:edgeField] as EdgeField);
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -368,7 +371,8 @@ class PredictiveSparkline {
             }
 
             // --- LAYER B: RISK HEATMAP & HOUR LABELS ---
-            if (i < riskProfile.size()) {
+            // (Skipped when the risk footer shows the per-hour risk instead.)
+            if (showRisk && i < riskProfile.size()) {
                 // Show high color if risk level is above moderate
                 if (currentRisk > RiskLevelModerate) {
                     dc.setColor(

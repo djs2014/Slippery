@@ -75,3 +75,18 @@ function simplifyWindFor(ef as EdgeField) as Boolean {
   }
   return $.gSimplifyWindSmall;
 }
+
+// Per-layout risk footer: when true for the active field, the forecast slot
+// shrinks and the remaining bottom strip shows the current risk color.
+function riskFooterFor(ef as EdgeField) as Boolean {
+  if (ef == EfOne) {
+    return $.gRiskFooterOne;
+  }
+  if (ef == EfLarge) {
+    return $.gRiskFooterLarge;
+  }
+  if (ef == EfWide) {
+    return $.gRiskFooterWide;
+  }
+  return $.gRiskFooterSmall;
+}

@@ -397,6 +397,68 @@ class SlipperyView extends WatchUi.DataField {
         }
     }
 
+    // Risk footer strip under the forecast slot: one risk-colored column per
+    // forecast hour, like the comfort bar shows per-hour dewpoint colors.
+    // Column geometry MUST match PredictiveSparkline.draw() so footer columns
+    // line up with the heatmap bars above. footerH = 0 skips (menu default).
+    // Sequential single call per frame; negligible stack cost.
+    private function drawRiskFooter(
+        dc as Dc,
+        width as Number,
+        paddingX as Number,
+        topY as Number,
+        slotH as Number,
+        footerH as Number,
+        isDark as Boolean
+    ) as Void {
+        if (footerH <= 0) {
+            return;
+        }
+        var profile = mRiskAssessment.hourlyRisksLevels;
+        var numHours = mWeatherMetrics.timeStampsForeCast.size();
+        if (numHours == 0) {
+            return;
+        }
+        // Same column geometry as PredictiveSparkline.draw().
+        var smallWidth = mEdgeField == EfSmall;
+        var barGap = smallWidth ? 1 : 2;
+        var innerW = width - paddingX * 2;
+        var standardBarWidth = (innerW - (numHours - 1) * barGap) / numHours;
+        if (standardBarWidth < 2) {
+            standardBarWidth = 2;
+        }
+        var bar0Width = (
+            standardBarWidth * mWeatherMetrics.hourFractionRemaining
+        ).toNumber();
+        var leftShift = standardBarWidth - bar0Width;
+        var fy = topY + slotH;
+        var x = paddingX;
+        for (var i = 0; i < numHours; i++) {
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            // Same fallback as the heatmap layer so both always agree.
+            var lvl = i < profile.size() ? profile[i] : RiskLevelSafe;
+
+            if (lvl > RiskLevelModerate) {
+                dc.setColor(
+                    $.getRiskColor(lvl, isDark),
+                    Graphics.COLOR_TRANSPARENT
+                );
+            } else {
+                dc.setColor(
+                    $.getLightRiskColor(lvl, isDark),
+                    Graphics.COLOR_TRANSPARENT
+                );
+            }
+
+            dc.fillRectangle(colX, fy, colW, footerH);
+        }
+        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
+        dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawRectangle(x - 1, fy - 1, innerW + 2, footerH + 2);
+    }
+
     private function drawEdgeSmallFieldWithSparkline(
         dc as Graphics.Dc,
         width as Number,
@@ -425,6 +487,10 @@ class SlipperyView extends WatchUi.DataField {
             paddingX = 2;
         }
 
+        // Risk footer reserves the bottom of the forecast slot (0 = off).
+        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var slotH = sparklineHeight - footerH;
+
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
@@ -441,13 +507,22 @@ class SlipperyView extends WatchUi.DataField {
             paddingX,
             topGridHeight + 4,
             width - paddingX * 2,
-            sparklineHeight - 8,
+            slotH - 8,
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
             false,
             ForecastHourNone,
             mEdgeField
+        );
+        drawRiskFooter(
+            dc,
+            width,
+            paddingX,
+            topGridHeight,
+            slotH,
+            footerH,
+            isDark
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -496,7 +571,10 @@ class SlipperyView extends WatchUi.DataField {
         // Chart stacked below the comfort strip (no overlap); compact
         // labels-off fallback keeps short slots from collapsing (see draw()).
         // (Kept inline: a helper frame here deepened the onUpdate call chain.)
-        var drawH = sparklineHeight - 10 - 2;
+        // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
+        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var slotH = sparklineHeight - footerH;
+        var drawH = slotH - 10 - 2;
         var showLb = drawH >= 42;
         PredictiveSparkline.drawComfort(
             dc,
@@ -520,6 +598,15 @@ class SlipperyView extends WatchUi.DataField {
             showLb,
             showLb ? $.gShowForecastHour : ForecastHourNone,
             mEdgeField
+        );
+        drawRiskFooter(
+            dc,
+            width,
+            paddingX,
+            topGridHeight,
+            slotH,
+            footerH,
+            isDark
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -553,7 +640,10 @@ class SlipperyView extends WatchUi.DataField {
         // Chart stacked below the comfort strip (no overlap); compact
         // labels-off fallback keeps short slots from collapsing (see draw()).
         // (Kept inline: a helper frame here deepened the onUpdate call chain.)
-        var drawH = sparklineHeight - 6 - 2;
+        // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
+        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var slotH = sparklineHeight - footerH;
+        var drawH = slotH - 6 - 2;
         var showLb = drawH >= 42;
         PredictiveSparkline.drawComfort(
             dc,
@@ -577,6 +667,15 @@ class SlipperyView extends WatchUi.DataField {
             showLb,
             showLb ? $.gShowForecastHour : ForecastHourNone,
             mEdgeField
+        );
+        drawRiskFooter(
+            dc,
+            width,
+            paddingX,
+            topGridHeight,
+            slotH,
+            footerH,
+            isDark
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
@@ -611,7 +710,10 @@ class SlipperyView extends WatchUi.DataField {
         // Chart stacked below the comfort strip (no overlap); Wide keeps its
         // labels-off rendering at all heights.
         // (Kept inline: a helper frame here deepened the onUpdate call chain.)
-        var drawH = sparklineHeight - 4 - 2;
+        // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
+        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var slotH = sparklineHeight - footerH;
+        var drawH = slotH - 4 - 2;
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
@@ -634,6 +736,15 @@ class SlipperyView extends WatchUi.DataField {
             false,
             ForecastHourNone,
             mEdgeField
+        );
+        drawRiskFooter(
+            dc,
+            width,
+            paddingX,
+            topGridHeight,
+            slotH,
+            footerH,
+            isDark
         );
 
         // 2. Draw Top Metrics Section (y = 0 to topGridHeight)

@@ -248,6 +248,48 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         )
       );
 
+      var footer;
+      footer = Storage.getValue("riskFooterOne") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Risk footer One",
+          null,
+          "riskFooterOne",
+          footer,
+          null
+        )
+      );
+      footer = Storage.getValue("riskFooterLarge") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Risk footer Large",
+          null,
+          "riskFooterLarge",
+          footer,
+          null
+        )
+      );
+      footer = Storage.getValue("riskFooterWide") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Risk footer Wide",
+          null,
+          "riskFooterWide",
+          footer,
+          null
+        )
+      );
+      footer = Storage.getValue("riskFooterSmall") ? true : false;
+      fcMenu.addItem(
+        new WatchUi.ToggleMenuItem(
+          "Risk footer Small",
+          null,
+          "riskFooterSmall",
+          footer,
+          null
+        )
+      );
+
       WatchUi.pushView(fcMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
       return;
     }
