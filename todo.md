@@ -11,7 +11,7 @@ draw() (~110 frame slots) is now a thin orchestrator (~24 slots) plus 8 sequenti
 Function	Frame size	Does
 draw()	11 params + 13 vars	geometry, one heap ctx Dictionary, calls passes in order
 computePrecipRanges()	2 + 21	old PASS 1 (min/max, ice flag, first shower/rain idx)
-drawRiskLayer()	4 + 23	old layers A+B (freezing bg, risk heatmap, hour labels)
+drawRiskLayer()	4 + 23	old layers A+B (freezing bg, risk heatmap,\ hour labels)
 drawPrecipLayer()	3 + 36	old layer C (stacked rain/snow bars, highlights)
 drawTempLayer()	4 + 26	old layer D, returns firstStY
 drawSunLayer()	3 + 23	old layer F, returns firstSunY

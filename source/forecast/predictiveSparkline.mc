@@ -151,8 +151,8 @@ class PredictiveSparkline {
         var bar0Width = (
             standardBarWidth * metrics.hourFractionRemaining
         ).toNumber();
-        var baselineY = y + height - (showLabels ? 16 : 0);
-        var chartHeight = baselineY - y - (showLabels ? 14 : 0);
+        var baselineY = y + height; //- (showLabels ? 16 : 0);
+        var chartHeight = baselineY - y;//  - (showLabels ? 14 : 0);
 
         // PASS 1 range scan in its own frame (locals freed before PASS 2).
         var ranges = computePrecipRanges(metrics, numHours);
@@ -348,6 +348,8 @@ class PredictiveSparkline {
                 i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
 
             // --- LAYER A: FREEZING TEMP BACKGROUND ---
+            // Height ends exactly at the chart bottom (no slot overflow now
+            // that chartHeight spans the full slot height).
             if (
                 hasTempData &&
                 i < surfaceTempForecast.size() &&
@@ -361,7 +363,7 @@ class PredictiveSparkline {
                     colX,
                     y + offsetIceBars,
                     colW,
-                    chartHeight + 2
+                    chartHeight - offsetIceBars
                 );
             }
 
@@ -1144,42 +1146,8 @@ class PredictiveSparkline {
         dc.fillPolygon(trianglePts);
 
         // --- STEP C: STACKED GUST BARS BEHIND BASE ---
-        // Own frame (drawGustChevrons); geometry travels as one Dictionary.
-        drawGustChevrons(dc, {
-            :baseX => baseX,
-            :baseY => baseY,
-            :uX => uX,
-            :uY => uY,
-            :pX => pX,
-            :pY => pY,
-            :baseHalfWidth => baseHalfWidth,
-            :mainColor => mainColor,
-            :haloColor => haloColor,
-            :windSpeed => windSpeed,
-            :gust => gust,
-        });
-    }
-
-    // STEP C of drawWindArrow(): stacked gust chevrons behind the arrow base.
-    // Own frame (see draw() note): the chevron loop holds ~15 locals that
-    // used to sit in drawWindArrow's frame on top of the draw() chain.
-    // Geometry travels in one small Dictionary (heap) to stay clear of the
-    // per-function parameter limit.
-    private static function drawGustChevrons(
-        dc as Graphics.Dc,
-        geom as Dictionary
-    ) as Void {
-        var baseX = geom[:baseX] as Number;
-        var baseY = geom[:baseY] as Number;
-        var uX = geom[:uX] as Float;
-        var uY = geom[:uY] as Float;
-        var pX = geom[:pX] as Float;
-        var pY = geom[:pY] as Float;
-        var baseHalfWidth = geom[:baseHalfWidth] as Number;
-        var mainColor = geom[:mainColor] as Graphics.ColorType;
-        var haloColor = geom[:haloColor] as Graphics.ColorType;
-        var windSpeed = geom[:windSpeed] as Float;
-        var gust = geom[:gust] as Float;
+        // (Kept inline: a nested helper frame here deepened the worst-case
+        // call chain and overflowed the VM stack on-device. See draw() note.)
         var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
         var numGustBars = 0;
 

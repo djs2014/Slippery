@@ -493,6 +493,11 @@ class SlipperyView extends WatchUi.DataField {
         // Add 15px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 15;
 
+        // Chart stacked below the comfort strip (no overlap); compact
+        // labels-off fallback keeps short slots from collapsing (see draw()).
+        // (Kept inline: a helper frame here deepened the onUpdate call chain.)
+        var drawH = sparklineHeight - 10 - 2;
+        var showLb = drawH >= 42;
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
@@ -503,18 +508,17 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             mEdgeField
         );
-
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 2,
+            topGridHeight + 10,
             width - paddingX * 2,
-            sparklineHeight - 4,
+            drawH,
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            true,
-            $.gShowForecastHour,
+            showLb,
+            showLb ? $.gShowForecastHour : ForecastHourNone,
             mEdgeField
         );
 
@@ -546,6 +550,11 @@ class SlipperyView extends WatchUi.DataField {
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 6;
 
+        // Chart stacked below the comfort strip (no overlap); compact
+        // labels-off fallback keeps short slots from collapsing (see draw()).
+        // (Kept inline: a helper frame here deepened the onUpdate call chain.)
+        var drawH = sparklineHeight - 6 - 2;
+        var showLb = drawH >= 42;
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
@@ -556,18 +565,17 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             mEdgeField
         );
-
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 2,
+            topGridHeight + 6,
             width - paddingX * 2,
-            sparklineHeight - 4,
+            drawH,
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
-            true,
-            $.gShowForecastHour,
+            showLb,
+            showLb ? $.gShowForecastHour : ForecastHourNone,
             mEdgeField
         );
 
@@ -600,6 +608,10 @@ class SlipperyView extends WatchUi.DataField {
         // Add 4px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 6;
 
+        // Chart stacked below the comfort strip (no overlap); Wide keeps its
+        // labels-off rendering at all heights.
+        // (Kept inline: a helper frame here deepened the onUpdate call chain.)
+        var drawH = sparklineHeight - 4 - 2;
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
@@ -610,13 +622,12 @@ class SlipperyView extends WatchUi.DataField {
             isDark,
             mEdgeField
         );
-
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 2,
+            topGridHeight + 4,
             width - paddingX * 2,
-            sparklineHeight - 4,
+            drawH,
             mWeatherMetrics,
             mRiskAssessment.hourlyRisksLevels,
             isDark,
