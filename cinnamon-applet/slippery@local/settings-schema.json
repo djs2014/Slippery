@@ -35,7 +35,7 @@
         "section-panel": {
             "type": "section",
             "title": "Panel chip",
-            "keys": ["show-temperature", "show-peak-risk", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
+            "keys": ["show-temperature", "show-peak-risk", "panel-chip-locations", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
         },
         "section-popup": {
             "type": "section",
@@ -192,6 +192,16 @@
         "default": true,
         "description": "Show peak risk of coming hours on panel",
         "tooltip": "When on, the panel chip shows the highest risk level over the coming forecast hours instead of the current risk (uses the Coming hours count above)."
+    },
+    "panel-chip-locations": {
+        "type": "combobox",
+        "default": "primary",
+        "description": "Panel chip locations",
+        "tooltip": "Primary only = chip shows the first point; a CRITICAL other point is appended next to it with its own risk background while the calm part stays plain (e.g. H Ok|I Crt). All points = chip shows the first point plus the highest-risk point, each with its own risk background. Hovering the chip lists details for points reaching 'Show colors only when risk is above'.",
+        "options": {
+            "Primary location only": "primary",
+            "All locations": "all"
+        }
     },
     "thresh-ice-alert": {
         "type": "spinbutton",

@@ -291,9 +291,16 @@ function windArrow(deg) {
 // near (10% below / small margin above) its threshold. Returns
 // { cold, heat, wind, precip, tempRow, windRow } with prebuilt
 // compact row strings (null when nothing in that group is relevant).
-function relevantDetails(p, t) {
+// profile (optional, from calculateProfile) is used so an ICE-ahead banner
+// always has a visible temperature explanation: when a coming hour drops
+// near the ice threshold, cold becomes true and tempRow gains the forecast
+// low (air + surface + hour), even if the current hour is warm.
+function relevantDetails(p, t, profile) {
     const feels = p.hasFeelsLike ? p.feelsLike : p.airTemp;
-    const cold = (p.airTemp <= t.ice + 2.0) || (p.surfaceTemp <= t.ice + 2.0);
+    const lows = forecastLows(profile);
+    const coldNow = (p.airTemp <= t.ice + 2.0) || (p.surfaceTemp <= t.ice + 2.0);
+    const coldAhead = !!lows && ((lows.minAir <= t.ice + 2.0) || (lows.minSfc <= t.ice + 2.0));
+    const cold = coldNow || coldAhead;
     const heat = feels >= t.heat - 3.0;
     const windGate = Math.min(
         Math.max(t.crossGust, 1), Math.max(t.highCross, 1),
@@ -311,6 +318,14 @@ function relevantDetails(p, t) {
         tempRow = "Air " + p.airTemp.toFixed(1) + "°";
         if (p.hasFeelsLike) tempRow += " (feels " + p.feelsLike.toFixed(1) + "°)";
         tempRow += " · sfc " + p.surfaceTemp.toFixed(1) + "°";
+        // When the ICE banner comes from a coming hour (current looks warm),
+        // append the forecast low so the popup explains the warning.
+        if (lows && coldAhead) {
+            tempRow += " → low air " + lows.minAir.toFixed(1) + "°" +
+                (lows.minAirTime ? " @" + hourLabel(lows.minAirTime, false) : "") +
+                " · sfc " + lows.minSfc.toFixed(1) + "°" +
+                (lows.minSfcTime ? " @" + hourLabel(lows.minSfcTime, false) : "");
+        }
     }
     let windRow = null;
     if (wind) {
@@ -548,11 +563,37 @@ function calculateProfile(parsed, maxHours) {
             windGust: wG,
             windDir: wD,
             airTemp: airTemp,
+            surfaceTemp: surfaceTemp,
             feelsLike: at(feelT, h),
             sun: at(sun, h),
         });
     }
     return out;
+}
+
+// Coldest air/surface temps over the coming forecast hours (profile[1..],
+// current hour excluded). Returns null when there are no coming hours.
+// Used so the popup can explain an ICE-ahead banner even when the current
+// hour looks warm.
+function forecastLows(profile) {
+    if (!profile || profile.length < 2) return null;
+    let minAir = null, minSfc = null, minAirTime = null, minSfcTime = null;
+    for (let i = 1; i < profile.length; i++) {
+        const hh = profile[i];
+        if (hh.airTemp !== undefined && hh.airTemp !== null &&
+            (minAir === null || hh.airTemp < minAir)) {
+            minAir = hh.airTemp;
+            minAirTime = hh.time || null;
+        }
+        if (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null &&
+            (minSfc === null || hh.surfaceTemp < minSfc)) {
+            minSfc = hh.surfaceTemp;
+            minSfcTime = hh.time || null;
+        }
+    }
+    if (minAir === null && minSfc === null) return null;
+    return { minAir: minAir, minSfc: minSfc,
+             minAirTime: minAirTime, minSfcTime: minSfcTime };
 }
 
 function hourLabel(d, isNow) {
@@ -566,17 +607,32 @@ function hourLabel(d, isNow) {
 // the current one. Each segment is only shown when relevant, i.e. above 80%
 // of its threshold (rain vs precip-ahead, snow vs snow threshold, gust vs the
 // lowest wind threshold, max risk vs SLIGHT, ice whenever an ICE hour lands
-// in the window). Returns "" when there are no coming hours or nothing is
-// relevant.
+// in the window). Segments that breach a full warning threshold get a
+// warning glyph, so threshold hits stand out even with popup colors off:
+//   ❄ ice hours (hazard ICE hour, or surface temp at/below the ice
+//     threshold — same rule as the ICE-ahead banner),
+//   ⚠ rain when the peak hourly rate reaches the engine HIGH rule (7.5 mm/h),
+//   ⚠ snow when the peak hourly rate reaches 0.5 cm/h,
+//   ⚠ max when the peak coming risk is HIGH or worse,
+//   ⚠ gust when the peak gust reaches the heavy-wind threshold.
+// Returns "" when there are no coming hours or nothing is relevant.
 function comingSummary(profile, t) {
     if (!profile || profile.length < 2) return "";
+    // Thresholds come from _thresholds(); fall back to its defaults when t
+    // is missing so the helper stays safe to call standalone.
+    const numOr = (v, dflt) => {
+        const x = parseNum(v);
+        return isNaN(x) ? dflt : x;
+    };
+    const iceT = numOr(t && t.ice, 3.0);
+    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
     let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE";
     let maxRainHour = 0, maxSnowHour = 0;
     for (let i = 1; i < profile.length; i++) {
         const hh = profile[i];
         rain += hh.rain || 0;
         snow += hh.snow || 0;
-        if (hh.ice) ice++;
+        if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) ice++;
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
         if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; }
         if ((hh.rain || 0) > maxRainHour) maxRainHour = hh.rain;
@@ -584,21 +640,15 @@ function comingSummary(profile, t) {
     }
     const n = profile.length - 1;
     const segs = [];
-    // Thresholds come from _thresholds(); fall back to its defaults when t
-    // is missing so the helper stays safe to call standalone.
-    const numOr = (v, dflt) => {
-        const x = parseNum(v);
-        return isNaN(x) ? dflt : x;
-    };
     const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
-    if (maxRainHour >= precipGate) segs.push("rain " + rain.toFixed(1) + "mm");
-    if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push("snow " + snow.toFixed(1) + "cm");
-    if (ice > 0) segs.push("ice " + ice + "h");
-    if (maxLvl >= RiskLevel.SLIGHT) segs.push("max " + maxName);
+    if (maxRainHour >= precipGate) segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + rain.toFixed(1) + "mm");
+    if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + snow.toFixed(1) + "cm");
+    if (ice > 0) segs.push("❄ ice " + ice + "h");
+    if (maxLvl >= RiskLevel.SLIGHT) segs.push((maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName);
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
         Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
-    if (gust >= windGate) segs.push("gust " + Math.round(gust));
+    if (gust >= windGate) segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + Math.round(gust));
     if (segs.length === 0) return "";
     return "Next " + n + "h: " + segs.join(" | ");
 }
@@ -797,7 +847,7 @@ SlipperyApplet.prototype = {
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
-            "show-advice", "show-peak-risk",
+            "show-advice", "show-peak-risk", "panel-chip-locations",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -815,6 +865,7 @@ SlipperyApplet.prototype = {
         this._busy = false;
         this._startupId = 0;
         this._lastResults = null;
+        this._chipBox = null;
         this.set_applet_label("…");
         this.set_applet_tooltip("Slippery: fetching Open-Meteo…");
         this._schedule();
@@ -905,6 +956,10 @@ SlipperyApplet.prototype = {
     },
 
     on_applet_removed_from_panel: function () {
+        if (this._chipBox) {
+            try { this._chipBox.destroy(); } catch (e) { /* ignore */ }
+            this._chipBox = null;
+        }
         if (this._timeoutId > 0) {
             Mainloop.source_remove(this._timeoutId);
             this._timeoutId = 0;
@@ -1074,6 +1129,104 @@ SlipperyApplet.prototype = {
         return true;
     },
 
+    // Panel chip in single-point mode: the stock TextApplet label with one
+    // risk background on the whole chip. Clears any multi-segment box first.
+    _renderChipSingle: function (label, levelNum, riskName, opts) {
+        this._clearChipBox();
+        this.set_applet_label(label);
+        this.actor.set_style(chipStyle(opts.colorMode, opts.minLevel, levelNum,
+            riskName, opts.useHsp, opts.hspT));
+    },
+
+    _clearChipBox: function () {
+        if (this._chipBox) {
+            try { this._chipBox.destroy(); } catch (e) { /* ignore */ }
+            this._chipBox = null;
+        }
+        try { if (this._applet_label) this._applet_label.show(); } catch (e) { /* ignore */ }
+    },
+
+    // Panel chip in all-points mode: one segment per location, each with its
+    // own risk background (e.g. H SAFE|I CRITICAL). Hides the stock label
+    // and builds a box of per-segment labels instead. A segment flagged
+    // plain:true stays on the theme background (no risk color) — used so a
+    // calm first point stays plain next to a critical one. Returns false
+    // (caller falls back to the single-point chip) when custom actors fail.
+    _renderChipMulti: function (segments, opts) {
+        if (!St) return false;
+        try {
+            this._clearChipBox();
+            if (this._applet_label) this._applet_label.hide();
+            this.actor.set_style("");
+            const box = new St.BoxLayout({ style: "spacing: 0px;" });
+            for (let i = 0; i < segments.length; i++) {
+                if (i > 0) box.add_actor(new St.Label({ text: "|", style: "padding: 0 1px;" }));
+                let css;
+                if (segments[i].plain) {
+                    css = "padding: 0 4px;";
+                } else {
+                    css = chipStyle(opts.colorMode, opts.minLevel,
+                        segments[i].level, segments[i].name, opts.useHsp, opts.hspT);
+                    css += (css && css.charAt(css.length - 1) !== ";" ? ";" : "") + "padding: 0 4px;";
+                }
+                box.add_actor(new St.Label({ text: segments[i].text, style: css }));
+            }
+            this.actor.add_actor(box);
+            this._chipBox = box;
+            return true;
+        } catch (e) {
+            this._clearChipBox();
+            return false;
+        }
+    },
+
+    // Per-location block: compact status row (extra points only — the
+    // primary point's full status is already in the above section), then a
+    // graph button labelled with location name + risk level, then the short
+    // coming-hours summary (or a calm placeholder so every point has one).
+    // A summary whose peak coming risk reaches SLIGHT is highlighted with
+    // the risk background color (same settings as the panel chip); the calm
+    // placeholder stays plain. Warning glyphs inside the summary text (from
+    // comingSummary) carry the alert even when colors are off.
+    _addLocationBlock: function (r, idx, th, hours, opts) {
+        if (!r.parsed) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
+            return;
+        }
+        // if (idx > 0) {
+        //     let row = r.loc.name + ": " + (SHORT_LABEL[r.parsed.risk.name] || "?") +
+        //         " " + Math.round(r.parsed.airTemp) + "° " +
+        //         r.parsed.rainCurrent.toFixed(1) + "mm";
+        //     if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
+        //     if (r.iceNow) row = "\u2744 " + row + " ICE";
+        //     else if (r.iceAhead) row = row + " (\u2744>)";
+        //     const rowOk = this._addRiskRow(row, r.parsed.risk.level, r.parsed.risk.name, opts);
+        //     if (!rowOk) {
+        //         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+        //     }
+        // }
+        const gi = new PopupMenu.PopupMenuItem(
+            r.loc.name + ": " + r.parsed.risk.name + " — Hourly graph");
+        gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
+        this.menu.addMenuItem(gi);
+        const sum = comingSummary(r.profile, th);
+        if (sum) {
+            let highlighted = false;
+            const peak = peakComingRisk(r.profile);
+            if (peak && peak.level >= RiskLevel.SLIGHT) {
+                highlighted = this._addRiskRow(sum, peak.level, peak.name, opts);
+            }
+            if (!highlighted) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));
+            }
+        } else {
+            const n = (r.profile && r.profile.length > 1) ? (r.profile.length - 1) : hours;
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                "Next " + n + "h: calm", { reactive: false }));
+        }
+    },
+
     _showAll: function (results) {
         const primary = results[0];
         if (!primary || !primary.parsed) {
@@ -1102,16 +1255,22 @@ SlipperyApplet.prototype = {
             r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= iceT;
             r.iceAhead = false;
             for (let h = 1; h < r.profile.length; h++) {
+                // Hazard-based ICE hour, or surface-temp margin (<= ice threshold)
+                // in a coming hour — same rule as iceNow, projected forward.
                 if (r.profile[h].ice) { r.iceAhead = true; break; }
+                const stH = r.profile[h].surfaceTemp;
+                if (stH !== undefined && stH !== null && stH <= iceT) { r.iceAhead = true; break; }
             }
-            // Surface-threshold ice in any coming hour also counts as ICE ahead.
-            if (!r.iceAhead && r.parsed._data && r.parsed._data.hourly) {
+            // Fallback for profiles without surface temps (should not happen
+            // anymore): scan the raw hourly array directly.
+            if (!r.iceAhead && r.profile.length === 0 && r.parsed._data && r.parsed._data.hourly) {
                 const st = pickHourly(r.parsed._data.hourly, ["surface_temperature"], 0);
                 for (let h = r.parsed._targetIdx + 1;
                      h < Math.min(st.length, r.parsed._targetIdx + 1 + hours); h++) {
                     if (st[h] != null && st[h] <= iceT) { r.iceAhead = true; break; }
                 }
             }
+            r.lows = forecastLows(r.profile);
             if (r.iceNow || r.iceAhead) iceAnywhere = true;
             if (r.parsed.risk.level > worstLevel) {
                 worstLevel = r.parsed.risk.level;
@@ -1119,35 +1278,144 @@ SlipperyApplet.prototype = {
             }
         }
 
-        // --- Panel chip (primary location; ICE anywhere is a big warning) ---
-        // Colored only when the shown risk reaches color-min-level (Never = plain).
-        // Label is the long risk name prefixed with the location initial.
-        // With show-peak-risk, the chip shows the peak of the coming hours.
+        // --- Panel chip (short risk labels: Ok/Low/Mod/Hig/Crt) ---
+        // At most two segments, so the chip stays narrow: the 1st point
+        // plus the one other point with the highest risk level.
+        // "primary" (default): stock label with the first point; ICE
+        // anywhere prefixes a snowflake. A CRITICAL other point is
+        // appended (H Ok|I Crt): the calm part stays plain, the critical
+        // part gets its risk background.
+        // "all": first point plus highest-risk point, each with its own
+        // risk background, e.g. H Ok|I Crt.
+        // With show-peak-risk, segments show the peak of the coming hours.
         const p = primary.parsed;
-        const peakPrimary = showPeak ? peakComingRisk(primary.profile) : null;
-        const shownName = peakPrimary ? peakPrimary.name : p.risk.name;
-        const shownLevel = peakPrimary ? peakPrimary.level : p.risk.level;
-        const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
-        let label = locInitial + " " + shownName;
-        if (this.s["show-temperature"]) label += " " + Math.round(p.airTemp) + "°";
-        if (iceAnywhere) label = "❄ " + label;
-        this.set_applet_label(label);
-        this.actor.set_style(chipStyle(colorMode, colorMin, shownLevel, shownName, useHsp, hspT));
+        const chipMode = String(this.s["panel-chip-locations"] || "primary");
+        const chipOpts = { colorMode: colorMode, minLevel: colorMin,
+                           useHsp: useHsp, hspT: hspT };
+        const chipSegs = [];
+        for (let ci = 0; ci < results.length; ci++) {
+            const cr = results[ci];
+            const initial = ((cr.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
+            if (!cr.parsed) {
+                chipSegs.push({ text: initial + " n/a", level: RiskLevel.NO_DATA, name: "NO_DATA" });
+                continue;
+            }
+            const pk = showPeak ? peakComingRisk(cr.profile) : null;
+            const nm = pk ? pk.name : cr.parsed.risk.name;
+            const lv = pk ? pk.level : cr.parsed.risk.level;
+            let tx = initial + " " + (SHORT_LABEL[nm] || nm);
+            if (this.s["show-temperature"]) tx += " " + Math.round(cr.parsed.airTemp) + "°";
+            if (cr.iceNow || cr.iceAhead) tx = "❄ " + tx;
+            chipSegs.push({ text: tx, level: lv, name: nm });
+        }
+        if (chipMode === "all" && chipSegs.length > 0) {
+            // Chip shows the 1st point plus the one other point with the
+            // highest risk level (first one wins ties) — never every point,
+            // so the chip stays narrow enough for the panel.
+            const topSegs = [chipSegs[0]];
+            let best = -1;
+            for (let mi = 1; mi < chipSegs.length; mi++) {
+                if (best === -1 || chipSegs[mi].level > chipSegs[best].level) best = mi;
+            }
+            if (best !== -1) topSegs.push(chipSegs[best]);
+            const multiOk = this._renderChipMulti(topSegs, chipOpts);
+            if (!multiOk) {
+                // Fallback when custom actors fail: joined single label with
+                // the worst background.
+                const joined = topSegs.map((s) => s.text).join("|");
+                this._renderChipSingle(joined, worstLevel, worstName, chipOpts);
+            }
+        } else {
+            // Single-point chip: primary point, with the ICE marker when
+            // any point is icy. If another point is at CRITICAL, only the
+            // first-highest one is appended next to it (e.g. H Ok|I Crt):
+            // the calm part stays on the theme background while the
+            // critical part gets its risk background (per-part rendering
+            // via _renderChipMulti, with a plain single-label fallback
+            // carrying the worst background).
+            const peakPrimary = showPeak ? peakComingRisk(primary.profile) : null;
+            const shownName = peakPrimary ? peakPrimary.name : p.risk.name;
+            const shownLevel = peakPrimary ? peakPrimary.level : p.risk.level;
+            const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
+            let label = locInitial + " " + (SHORT_LABEL[shownName] || shownName);
+            if (this.s["show-temperature"]) label += " " + Math.round(p.airTemp) + "°";
+            if (iceAnywhere) label = "❄ " + label;
+            let chipLevel = shownLevel, chipName = shownName;
+            let critIdx = -1;
+            for (let ai = 1; ai < chipSegs.length; ai++) {
+                if (chipSegs[ai].level >= RiskLevel.CRITICAL) { critIdx = ai; break; }
+            }
+            if (critIdx === -1) {
+                this._renderChipSingle(label, chipLevel, chipName, chipOpts);
+            } else {
+                // Segment texts carry their own "❄ " prefix when icy;
+                // strip it here, the chip-wide marker above already
+                // covers ice.
+                label += "|" + chipSegs[critIdx].text.replace(/^❄ /, "");
+                if (chipSegs[critIdx].level > chipLevel) {
+                    chipLevel = chipSegs[critIdx].level;
+                    chipName = chipSegs[critIdx].name;
+                }
+                const alertSegs = [
+                    { text: chipSegs[0].text, level: chipSegs[0].level,
+                      name: chipSegs[0].name,
+                      plain: chipSegs[0].level < RiskLevel.CRITICAL },
+                    { text: chipSegs[critIdx].text, level: chipSegs[critIdx].level,
+                      name: chipSegs[critIdx].name, plain: false },
+                ];
+                if (!this._renderChipMulti(alertSegs, chipOpts)) {
+                    this._renderChipSingle(label, chipLevel, chipName, chipOpts);
+                }
+            }
+        }
 
         let tip = "Slippery: " + p.risk.name + " @ " + primary.loc.name +
             (p.risk.hazards.length > 0 ? "\n" + p.risk.hazards.join("\n") : "\nNo hazards") +
             "\nWind " + Math.round(p.windSpeed) + " km/h " + compass16(p.windDir) +
             ", gust " + Math.round(p.windGust) + " km/h" +
             " · rain 12h " + p.rain12.toFixed(1) + " mm";
-        if (peakPrimary) tip += "\n" + peakComingText(primary.profile, peakPrimary);
+        if (showPeak) {
+            const peakPrimary = peakComingRisk(primary.profile);
+            if (peakPrimary) tip += "\n" + peakComingText(primary.profile, peakPrimary);
+        }
         if (results.length > 1) tip += "\nWorst of " + results.length + " points: " + worstName;
         if (iceAnywhere) tip += "\n\u2744 ICE WARNING — check popup";
+        // Hover details for extra points (the primary point is detailed
+        // above), so the tooltip covers all locations, not just the first.
+        // Only points reaching "Show colors only when risk is above" are
+        // listed — the same gate as the chip colors. Errors are always
+        // shown so a dead point is never silently hidden.
+        for (let ti = 1; ti < results.length; ti++) {
+            const tr = results[ti];
+            if (!tr.parsed) {
+                tip += "\n" + tr.loc.name + ": " + (tr.error || "no data");
+                continue;
+            }
+            const tipPeak = showPeak ? peakComingRisk(tr.profile) : null;
+            const tipLevel = tipPeak ? tipPeak.level : tr.parsed.risk.level;
+            if (!colorPassesMinLevel(colorMin, tipLevel)) continue;
+            tip += "\n" + tr.loc.name + ": " + tr.parsed.risk.name +
+                " — air " + tr.parsed.airTemp.toFixed(1) + "° sfc " +
+                tr.parsed.surfaceTemp.toFixed(1) + "°" +
+                " · gust " + Math.round(tr.parsed.windGust) + " km/h" +
+                " · rain 12h " + tr.parsed.rain12.toFixed(1) + " mm";
+            if (tr.parsed.risk.hazards.length > 0) {
+                tip += "\n  " + tr.parsed.risk.hazards.join("; ");
+            }
+            if (tr.iceNow || tr.iceAhead) tip += " ❄";
+        }
         this.set_applet_tooltip(tip);
 
         // --- Compact popup menu ---
+        // Above section: general warning for all locations (ICE banner +
+        // per-icy-point temps), then hazards and threshold warnings.
         this.menu.removeAll();
 
         // todo.md: "ICE or ICE coming hours is big warning" — top banner.
+        // The banner used to be generic ("now or coming") while the details
+        // below only showed the current hour, so a cold forecast hour
+        // triggered ICE with no visible low temperature. Now each icy point
+        // gets its own temperature explanation row right under the banner.
         if (iceAnywhere) {
             let bannerOk = false;
             try {
@@ -1157,6 +1425,26 @@ SlipperyApplet.prototype = {
             if (!bannerOk) {
                 this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
                     "\u2744 ICE — freezing surface now or coming", { reactive: false }));
+            }
+            for (let i = 0; i < results.length; i++) {
+                const r = results[i];
+                if (!r.parsed || (!r.iceNow && !r.iceAhead)) continue;
+                let line = "\u2744 " + r.loc.name + ": sfc " +
+                    r.parsed.surfaceTemp.toFixed(1) + "° · air " +
+                    r.parsed.airTemp.toFixed(1) + "°";
+                if (r.iceNow) line += " — now";
+                if (r.iceAhead && r.lows &&
+                    (r.lows.minSfc !== null || r.lows.minAir !== null)) {
+                    line += (r.iceNow ? "; " : " → ") + "low sfc " +
+                        (r.lows.minSfc !== null ? r.lows.minSfc.toFixed(1) + "°" : "?") +
+                        (r.lows.minSfcTime ? " @" + hourLabel(r.lows.minSfcTime, false) : "") +
+                        " · air " +
+                        (r.lows.minAir !== null ? r.lows.minAir.toFixed(1) + "°" : "?") +
+                        (r.lows.minAirTime ? " @" + hourLabel(r.lows.minAirTime, false) : "");
+                } else if (r.iceAhead) {
+                    line += " → colder coming hours";
+                }
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(line, { reactive: false }));
             }
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
@@ -1183,7 +1471,9 @@ SlipperyApplet.prototype = {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // todo.md: short summary, each group only when relevant (near thresholds).
-        const det = relevantDetails(p, th);
+        // Pass the forecast profile so a warm current hour with a cold night
+        // ahead still shows the temperature row (with forecast low).
+        const det = relevantDetails(p, th, primary.profile);
         let shownDetail = false;
         if (det.windRow) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
@@ -1210,46 +1500,20 @@ SlipperyApplet.prototype = {
                 "Details calm \u2014 nothing near thresholds", { reactive: false }));
         }
 
-        // Coming-hours totals + graph button for the primary location.
+        // --- Per active location: graph button (name + risk level) -------
+        // followed by the short coming-hours summary.
         // (The per-hour rows were removed; the full graph covers them.)
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        const sum1 = comingSummary(primary.profile, th);
-        if (sum1) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum1, { reactive: false }));
-        }
-        const graphItem1 = new PopupMenu.PopupMenuItem("Hourly graph: " + primary.loc.name);
-        graphItem1.connect("activate", () => this._openGraph(primary));
-        this.menu.addMenuItem(graphItem1);
+        this._addLocationBlock(primary, 0, th, hours,
+            { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
 
-        // todo.md: per-point current status + coming-hours totals + graph button.
-        // (results[0] is the primary location shown above, so start at 1.)
+        // Remaining points, one block each (results[0] is the primary
+        // location shown above, so start at 1).
         if (results.length > 1) {
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             for (let i = 1; i < results.length; i++) {
-                const r = results[i];
-                if (!r.parsed) {
-                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                        r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
-                    continue;
-                }
-                let row = r.loc.name + ": " + (SHORT_LABEL[r.parsed.risk.name] || "?") +
-                    " " + Math.round(r.parsed.airTemp) + "° " +
-                    r.parsed.rainCurrent.toFixed(1) + "mm";
-                if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
-                if (r.iceNow) row = "\u2744 " + row + " ICE";
-                else if (r.iceAhead) row = row + " (\u2744>)";
-                const rowOk = this._addRiskRow(row, r.parsed.risk.level, r.parsed.risk.name,
+                this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+                this._addLocationBlock(results[i], i, th, hours,
                     { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
-                if (!rowOk) {
-                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
-                }
-                const sum = comingSummary(r.profile, th);
-                if (sum) {
-                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));
-                }
-                const gi = new PopupMenu.PopupMenuItem("Hourly graph: " + r.loc.name);
-                gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
-                this.menu.addMenuItem(gi);
             }
         }
 
