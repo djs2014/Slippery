@@ -4,6 +4,7 @@ import Toybox.Math;
 import Toybox.Time;
 import Toybox.System;
 
+(:extendedCode) 
 class PredictiveSparkline {
     public static function drawComfort(
         dc as Graphics.Dc,
@@ -113,6 +114,13 @@ class PredictiveSparkline {
         }
     }
 
+    // NOTE (VM stack): this frame sits 4+ calls deep at runtime
+    // (compute > onUpdate > drawEdge* > draw), and Monkey C keeps locals on a
+    // small fixed-size stack (heap RAM does not help). The previous ~100-local
+    // single-frame version of this function overflowed the stack on-device on
+    // the first draw with real data. Keep this frame small: shared state
+    // travels in ONE Dictionary (heap) and every pass below runs in its own
+    // frame, freed before the next pass starts.
     public static function draw(
         dc as Graphics.Dc,
         x as Number,
@@ -126,58 +134,101 @@ class PredictiveSparkline {
         showForecastHour as ShowForecastHour,
         edgeField as EdgeField
     ) as Void {
-        var timeStampsForeCast = metrics.timeStampsForeCast;
-        var numHours = timeStampsForeCast.size();
+        var numHours = metrics.timeStampsForeCast.size();
         if (numHours == 0) {
             return;
         }
-
-        var currentHour = metrics.currentHour;
-        var rainForecast = metrics.rainForecast;
-        var showersForecast = metrics.showersForecast;
-        var snowForecast = metrics.snowForecast;
-        var windForecast = metrics.windForecast;
-        var windDirForecast = metrics.windDirForecast;
-        var windGustForecast = metrics.windGustForecast;
-        var surfaceTempForecast = metrics.surfaceTempForecast;
-        var minutelyRainForecast = metrics.minutelyRainForecast;
-        var minutelySnowForecast = metrics.minutelySnowForecast;
-        var precipProbForecast = metrics.precipProbForecast;
 
         // Layout-driven (not pixel-driven): matches the field classification
         // in field_utils, so small slots stay compact on high-res devices too.
         // Drives bar gaps, compact arrows, and gust-dot suppression.
         var smallWidth = edgeField == EfSmall;
         var barGap = smallWidth ? 1 : 2;
-        var totalGaps = (numHours - 1) * barGap;
-        var standardBarWidth = (width - totalGaps) / numHours;
+        var standardBarWidth = (width - (numHours - 1) * barGap) / numHours;
         if (standardBarWidth < 2) {
             standardBarWidth = 2;
         }
-
         var bar0Width = (
             standardBarWidth * metrics.hourFractionRemaining
         ).toNumber();
-        var leftShift = standardBarWidth - bar0Width;
+        var baselineY = y + height - (showLabels ? 16 : 0);
+        var chartHeight = baselineY - y - (showLabels ? 14 : 0);
+
+        // PASS 1 range scan in its own frame (locals freed before PASS 2).
+        var ranges = computePrecipRanges(metrics, numHours);
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
             : Graphics.COLOR_DK_GRAY;
-        var offsetLabels = showLabels ? 16 : 0;
-        var offsetChartHeight = showLabels ? 14 : 0;
-        var offsetIceBars = showLabels ? 12 : 0;
+        // Shared render state: one container on the stack, contents on heap.
+        var ctx = {
+            :x => x,
+            :y => y,
+            :width => width,
+            :isDark => isDark,
+            :showLabels => showLabels,
+            :showForecastHour => showForecastHour,
+            :smallWidth => smallWidth,
+            :standardBarWidth => standardBarWidth,
+            :barGap => barGap,
+            :bar0Width => bar0Width,
+            :leftShift => standardBarWidth - bar0Width,
+            :offsetIceBars => showLabels ? 12 : 0,
+            :baselineY => baselineY,
+            :chartHeight => chartHeight,
+            :riskBlockY => y + (height - chartHeight - 4) + 2 + (chartHeight * 0.33).toNumber(),
+            :riskBlockHeight => (chartHeight * 0.66).toNumber(),
+            :hourColor => AppState.getColor(ThemeManager.COLOR_BG),
+            :haloColor => isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE,
+            :sunColor => AppState.getColor(ThemeManager.COLOR_SUN),
+            :enableBadges => x >= 12,
+            :maxPrecip => ranges[:maxPrecip],
+            :minSt => ranges[:minSt],
+            :maxSt => ranges[:maxSt],
+            :hasIceAhead => ranges[:hasIceAhead],
+            :hasTempData => ranges[:hasTempData],
+            :hasSunshineData => ranges[:hasSunshineData],
+            :firstShowerIdx => ranges[:firstShowerIdx],
+            :firstRainIdx => ranges[:firstRainIdx],
+        };
 
-        var baselineY = y + height - offsetLabels;
-        var chartHeight = baselineY - y - offsetChartHeight;
+        // Baseline Line
+        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
+        dc.drawLine(x, baselineY, x + width, baselineY);
 
-        var sparklineH = height - chartHeight - 4;
-        var hourColor = AppState.getColor(ThemeManager.COLOR_BG);
-        var riskBlockY = y + sparklineH + 2 + (chartHeight * 0.33).toNumber();
-        var riskBlockHeight = (chartHeight * 0.66).toNumber();
+        // PASS 2 render passes, sequential so each frame is freed first.
+        // Same order as the old combined loop (background > risk > precip >
+        // temp/sun/wind lines); layers are independent and track their own
+        // previous-point state internally.
+        drawRiskLayer(dc, metrics, riskProfile, ctx);
+        drawPrecipLayer(dc, metrics, ctx);
+        var firstStY = drawTempLayer(dc, metrics, riskProfile, ctx);
+        var firstSunY = drawSunLayer(dc, metrics, ctx);
+        var firstWindY = drawWindLayer(dc, metrics, riskProfile, ctx);
+        drawMinutelyOverlay(dc, metrics, ctx);
 
-        // ==========================================
-        // PASS 1: PRE-CALCULATIONS & MIN/MAX RANGES
-        // ==========================================
+        // --- LINE UNDER THE SPARKLINE ---
+        dc.setColor(
+            AppState.getColor(ThemeManager.COLOR_TEXT),
+            Graphics.COLOR_TRANSPARENT
+        );
+        dc.drawLine(x, baselineY, x + width, baselineY);
+
+        drawBadges(dc, ctx, firstStY, firstWindY, firstSunY);
+    }
+
+    // PASS 1 of draw(): min/max ranges + first-significant-hour indexes.
+    // Own frame: its locals are freed before the PASS 2 render passes start,
+    // keeping the peak VM stack small (see draw() note).
+    private static function computePrecipRanges(
+        metrics as WeatherMetrics,
+        numHours as Number
+    ) as Dictionary {
+        var rainForecast = metrics.rainForecast;
+        var showersForecast = metrics.showersForecast;
+        var snowForecast = metrics.snowForecast;
+        var surfaceTempForecast = metrics.surfaceTempForecast;
+        var precipProbForecast = metrics.precipProbForecast;
         var maxPrecip = 2.0f;
         var minSt = 1000.0f;
         var maxSt = -1000.0f;
@@ -191,6 +242,7 @@ class PredictiveSparkline {
         var firstShowerIdx = -1;
         var firstRainIdx = -1;
         var hasTempData = surfaceTempForecast.size() > 0;
+        var hasSunshineData = metrics.sunshineDurationForecast.size() > 0;
 
         for (var i = 0; i < numHours; i++) {
             // 1. Precip Max
@@ -247,32 +299,49 @@ class PredictiveSparkline {
             }
         }
 
-        // Baseline Line
-        dc.setColor(textColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(x, baselineY, x + width, baselineY);
+        return {
+            :maxPrecip => maxPrecip,
+            :minSt => minSt,
+            :maxSt => maxSt,
+            :hasIceAhead => hasIceAhead,
+            :hasTempData => hasTempData,
+            :hasSunshineData => hasSunshineData,
+            :firstShowerIdx => firstShowerIdx,
+            :firstRainIdx => firstRainIdx,
+        };
+    }
 
-        // Overlay Badge pre-calcs
-        var enableBadges = x >= 12;
-        var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
-
-        // Tracking state across render iterations
-        var prevStX = -1,
-            prevStY = -1,
-            firstStY = -1;
-        var prevWindX = -1,
-            prevWindY = -1,
-            firstWindY = -1;
-        var maxWind = 60.0f;
-
-        // ==========================================
-        // PASS 2: COMBINED DRAWING LOOP
-        // ==========================================        
+    // PASS 2 layer A+B of draw(): freezing-temp background + risk heatmap
+    // with hour labels. Own frame (see draw() note).
+    private static function drawRiskLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        riskProfile as Array<RiskLevel>,
+        ctx as Dictionary
+    ) as Void {
+        var numHours = metrics.timeStampsForeCast.size();
+        var currentHour = metrics.currentHour;
+        var surfaceTempForecast = metrics.surfaceTempForecast;
+        var hasTempData = ctx[:hasTempData] as Boolean;
+        var x = ctx[:x] as Number;
+        var y = ctx[:y] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var offsetIceBars = ctx[:offsetIceBars] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var riskBlockY = ctx[:riskBlockY] as Number;
+        var riskBlockHeight = ctx[:riskBlockHeight] as Number;
+        var showLabels = ctx[:showLabels] as Boolean;
+        var showForecastHour = ctx[:showForecastHour] as ShowForecastHour;
+        var hourColor = ctx[:hourColor] as Graphics.ColorType;
+        var isDark = ctx[:isDark] as Boolean;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
                 i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
             var colW = i == 0 ? bar0Width : standardBarWidth;
-            var px = colX + colW / 2; // Midpoint for line nodes
 
             var currentRisk =
                 i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
@@ -302,7 +371,7 @@ class PredictiveSparkline {
                     dc.setColor(
                         $.getRiskColor(currentRisk, isDark),
                         Graphics.COLOR_TRANSPARENT
-                    );                    
+                    );
                 } else {
                     dc.setColor(
                         $.getLightRiskColor(currentRisk, isDark),
@@ -330,6 +399,43 @@ class PredictiveSparkline {
                     );
                 }
             }
+        }
+    }
+
+    // PASS 2 layer C of draw(): stacked precipitation bars (liquid base,
+    // snow cap). Own frame (see draw() note).
+    private static function drawPrecipLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        ctx as Dictionary
+    ) as Void {
+        var numHours = metrics.timeStampsForeCast.size();
+        var rainForecast = metrics.rainForecast;
+        var showersForecast = metrics.showersForecast;
+        var snowForecast = metrics.snowForecast;
+        var precipProbForecast = metrics.precipProbForecast;
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var isDark = ctx[:isDark] as Boolean;
+        var maxPrecip = ctx[:maxPrecip] as Float;
+        var firstShowerIdx = ctx[:firstShowerIdx] as Number;
+        var firstRainIdx = ctx[:firstRainIdx] as Number;
+        // Significant precip floor shared with AlertStateAnalyzer
+        // (threshPrecipAhead setting): drives badges, outlines, segment floor.
+        var precipHlThreshold = AlertStateAnalyzer.threshPrecipAhead;
+        // Confidence floor (%): hours below render hollow (uncertain) bars.
+        var probFloor = 30;
+        for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2; // Midpoint for line nodes
 
             // --- LAYER C: PRECIPITATION BARS (stacked: liquid base, snow cap) ---
             var rain = rainForecast[i];
@@ -486,6 +592,43 @@ class PredictiveSparkline {
                     dc.drawRectangle(colX, baselineY - barH, colW, barH);
                 }
             }
+        }
+    }
+
+    // PASS 2 layer D of draw(): surface-temp sparkline. Returns the first
+    // point Y for the "T" badge. Own frame (see draw() note).
+    private static function drawTempLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        riskProfile as Array<RiskLevel>,
+        ctx as Dictionary
+    ) as Number {
+        var numHours = metrics.timeStampsForeCast.size();
+        var surfaceTempForecast = metrics.surfaceTempForecast;
+        var hasTempData = ctx[:hasTempData] as Boolean;
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var isDark = ctx[:isDark] as Boolean;
+        var minSt = ctx[:minSt] as Float;
+        var maxSt = ctx[:maxSt] as Float;
+        var prevStX = -1;
+        var prevStY = -1;
+        var firstStY = -1;
+        for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2; // Midpoint for line nodes
+
+            var currentRisk =
+                i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
 
             // --- LAYER D: TEMP SPARKLINE SEGMENT ---
             if (hasTempData && i < surfaceTempForecast.size()) {
@@ -532,6 +675,108 @@ class PredictiveSparkline {
                 prevStX = px;
                 prevStY = py;
             }
+        }
+        return firstStY;
+    }
+
+    // PASS 2 layer F of draw(): sunshine-duration sparkline. Returns the
+    // first point Y for the "S" badge. Own frame (see draw() note).
+    private static function drawSunLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        ctx as Dictionary
+    ) as Number {
+        var numHours = metrics.timeStampsForeCast.size();
+        var sunshineDurationForecast = metrics.sunshineDurationForecast;
+        var hasSunshineData = ctx[:hasSunshineData] as Boolean;
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var sunColor = ctx[:sunColor] as Graphics.ColorType;
+        var maxSunshine = 3600.0f; // full hour of sun = full chart height
+        var prevSunX = -1;
+        var prevSunY = -1;
+        var firstSunY = -1;
+        for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2; // Midpoint for line nodes
+
+            // --- LAYER F: SUNSHINE SPARKLINE ---
+            // sunshineDurationForecast = seconds the sun shines that hour
+            // (0 at night, up to 3600). Fixed full-hour scale so the line
+            // reads like the temp line, labeled with an "S" badge.
+            if (hasSunshineData && i < sunshineDurationForecast.size()) {
+                var sunSec = sunshineDurationForecast[i];
+                var sunRatio = sunSec / maxSunshine;
+                if (sunRatio > 1.0f) {
+                    sunRatio = 1.0f;
+                }
+                var sunPy = baselineY - (sunRatio * chartHeight).toNumber();
+                if (i == 0) {
+                    firstSunY = sunPy;
+                }
+
+                if (prevSunX != -1) {
+                    dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawLine(prevSunX, prevSunY - 1, px, sunPy - 1);
+                    dc.drawLine(prevSunX, prevSunY + 2, px, sunPy + 2);
+
+                    dc.setColor(sunColor, Graphics.COLOR_TRANSPARENT);
+                    dc.drawLine(prevSunX, prevSunY, px, sunPy);
+                    dc.drawLine(prevSunX, prevSunY + 1, px, sunPy + 1);
+                }
+
+                prevSunX = px;
+                prevSunY = sunPy;
+            }
+        }
+        return firstSunY;
+    }
+
+    // PASS 2 layer E of draw(): wind/gust sparkline with direction arrows.
+    // Returns the first point Y for the "W" badge. Own frame (see draw()
+    // note); drawWindArrow nests one level under this small frame now.
+    private static function drawWindLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        riskProfile as Array<RiskLevel>,
+        ctx as Dictionary
+    ) as Number {
+        var numHours = metrics.timeStampsForeCast.size();
+        var windForecast = metrics.windForecast;
+        var windDirForecast = metrics.windDirForecast;
+        var windGustForecast = metrics.windGustForecast;
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var smallWidth = ctx[:smallWidth] as Boolean;
+        var isDark = ctx[:isDark] as Boolean;
+        var maxWind = 60.0f;
+        var prevWindX = -1;
+        var prevWindY = -1;
+        var firstWindY = -1;
+        for (var i = 0; i < numHours; i++) {
+            // Common column geometries
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2; // Midpoint for line nodes
+
+            var currentRisk =
+                i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
 
             // --- LAYER E: WIND SPARKLINE & ARROWS ---
             var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
@@ -606,8 +851,25 @@ class PredictiveSparkline {
             prevWindX = px;
             prevWindY = windPy;
         }
+        return firstWindY;
+    }
 
-        // --- SUB-SEGMENTED MINUTELY PRECIPITATION SPARKLINE ---
+    // Minutely overlay of draw(), factored out (stack: own frame, see
+    // draw() note). Overlays the remaining 15-min blocks of the current
+    // hour (1-4 blocks: elapsed quarters are sliced off by the caller when
+    // data goes stale), scaled relative to a global maxPrecip.
+    private static function drawMinutelyOverlay(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        ctx as Dictionary
+    ) as Void {
+        var minutelyRainForecast = metrics.minutelyRainForecast;
+        var minutelySnowForecast = metrics.minutelySnowForecast;
+        var x = ctx[:x] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var maxPrecip = ctx[:maxPrecip] as Float;
         // Minutely slots start at the fetch-time quarter, not at wall-clock
         // "now": drop elapsed quarters so stale data is never rendered as
         // upcoming rain, then keep only the quarters covered by the shrunk
@@ -671,17 +933,27 @@ class PredictiveSparkline {
                 slicedRain,
                 slicedSnow,
                 slicedMax,
-                isDark
+                ctx[:isDark] as Boolean
             );
         }
+    }
 
-        // --- LINE UNDER THE SPARKLINE ---
-        dc.setColor(
-            AppState.getColor(ThemeManager.COLOR_TEXT),
-            Graphics.COLOR_TRANSPARENT
-        );
-        dc.drawLine(x, baselineY, x + width, baselineY);
-
+    // Badge row of draw(): T/W/S line badges plus the ICE/SHOWERS/RAIN
+    // outlook badges. Own frame (see draw() note).
+    private static function drawBadges(
+        dc as Graphics.Dc,
+        ctx as Dictionary,
+        firstStY as Number,
+        firstWindY as Number,
+        firstSunY as Number
+    ) as Void {
+        var x = ctx[:x] as Number;
+        var y = ctx[:y] as Number;
+        var width = ctx[:width] as Number;
+        var enableBadges = ctx[:enableBadges] as Boolean;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var sunColor = ctx[:sunColor] as Graphics.ColorType;
+        var isDark = ctx[:isDark] as Boolean;
         // --- BADGES AND HEADERS ---
         if (enableBadges) {
             if (firstStY != -1) {
@@ -726,12 +998,30 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
             }
+            if (firstSunY != -1) {
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    x - 2,
+                    firstSunY + 1,
+                    Graphics.FONT_XTINY,
+                    "S",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+                dc.setColor(sunColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawText(
+                    x - 3,
+                    firstSunY,
+                    Graphics.FONT_XTINY,
+                    "S",
+                    Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
+                );
+            }
         }
 
         // Outlook badges, stacked top-right in attention order:
         // ice (danger), showers (sudden), steady rain (expected).
         var badgeY = y;
-        if (hasIceAhead) {
+        if (ctx[:hasIceAhead] as Boolean) {
             dc.setColor(AppState.getColor(ThemeManager.COLOR_RED), Graphics.COLOR_TRANSPARENT);
             dc.drawText(
                 x + width,
@@ -744,7 +1034,7 @@ class PredictiveSparkline {
         }
 
         // Convective outlook badge.
-        if (firstShowerIdx >= 0) {
+        if ((ctx[:firstShowerIdx] as Number) >= 0) {
             dc.setColor(
                 AppState.getColor(ThemeManager.COLOR_SHOWERS),
                 Graphics.COLOR_TRANSPARENT
@@ -760,7 +1050,7 @@ class PredictiveSparkline {
         }
 
         // Steady-rain outlook badge.
-        if (firstRainIdx >= 0) {
+        if ((ctx[:firstRainIdx] as Number) >= 0) {
             dc.setColor(
                 AppState.getColor(ThemeManager.COLOR_BLUE),
                 Graphics.COLOR_TRANSPARENT

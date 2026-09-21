@@ -3,7 +3,7 @@ import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
 
-
+(:extendedCode) 
 class WeatherMetrics {
     var isValid as Boolean = false;
     var currentHour as Number = 0; // Current hour of the day (0-23)
@@ -29,6 +29,7 @@ class WeatherMetrics {
 
     // forecast metrics per hour
     var hourFractionRemaining as Float = 1.0; // Fraction of the current hour that is remaining (0.0 - 1.0)
+    
     var timeStampsForeCast as Array<Number> = []; // Number items (unixtime in seconds)
     var rainForecast as Array<Float> = []; // Float items (mm/h)
     var showersForecast as Array<Float> = []; // Float items (mm/h)
@@ -40,6 +41,7 @@ class WeatherMetrics {
     var precipProbForecast as Array<Number> = []; // Number items (0-100% per hour)
     var surfaceTempForecast as Array<Float> = []; // Float items (°C surface)
     var dewpointForecast as Array<Float> = []; // Float items (°C)
+    var sunshineDurationForecast as Array<Float> = []; // Float items (hours) (seconds per hour)
 
     // Immediate rain in 15-minute intervals
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
@@ -106,6 +108,8 @@ class WeatherMetrics {
             surfaceTempForecast +
             ", dewpointForecast=" +
             dewpointForecast +
+            ", sunshineDurationForecast=" +
+            sunshineDurationForecast +
             "}"
         );
     }

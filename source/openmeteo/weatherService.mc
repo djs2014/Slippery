@@ -3,6 +3,7 @@ import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
 
+(:extendedCode) 
 class WeatherService {
     private static var _metrics as WeatherMetrics = new WeatherMetrics();
     private static var _risks as RiskAssessment = new RiskAssessment();
@@ -83,7 +84,7 @@ class WeatherService {
                     formatUnixTime(currentHourTime)
             );
 
-            // Extract current metrics directlyp = precips[t
+            // Extract current metrics directly
             var metrics = new WeatherMetrics();
             metrics.currentHour = currentHour;
 
@@ -99,6 +100,8 @@ class WeatherService {
             var windGusts = hourly.get("wind_gusts_10m") as Array<Float>?;
             var windDirections =
                 hourly.get("wind_direction_10m") as Array<Number>?;
+            var sunshineDuration = hourly.get("sunshine_duration") as Array<Float>?;
+
             // Optional: older cached responses may lack it; fallback below
             // treats wet hours as certain so rendering matches legacy data.
             var precipProbs =
@@ -273,6 +276,9 @@ class WeatherService {
                 );
                 metrics.dewpointForecast.add(
                     l < dewPoints.size() ? dewPoints[l] : 0.0f
+                );
+                metrics.sunshineDurationForecast.add(
+                    l < sunshineDuration.size() ? sunshineDuration[l] : 0.0f
                 );
                 // Probability 0-100%; when the field is missing, wet hours
                 // count as certain so legacy data renders solid as before.

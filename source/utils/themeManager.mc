@@ -61,6 +61,8 @@ class ThemeManager {
     private static const RAW_SHADES_OF_ALICE_BLUE  = 0xDCEEFF;
     private static const RAW_SHADES_OF_AQUA        = 0x00FFFF;
     private static const RAW_SHADES_OF_OLIVE       = 0x666600;
+    private static const RAW_SUN_DARK               = 0xFFC800; // vivid amber/gold (dark theme)
+    private static const RAW_SUN_LIGHT              = 0xCC8800; // muted amber/gold (light theme)
 
     // 2. Semantic Color Keys (0 through 30)
     public enum ColorKey {
@@ -95,7 +97,8 @@ class ThemeManager {
         COLOR_SNOW_PATTERN,                // 28
         COLOR_SHOWERS,                     // 29
         COLOR_OLIVE,                       // 30
-        COLOR_COUNT                        // 31 (Guard marker for palette size)
+        COLOR_SUN,                         // 31
+        COLOR_COUNT                        // 32 (Guard marker for palette size)
     }
 
     // 3. Dark Palette
@@ -130,7 +133,8 @@ class ThemeManager {
         RAW_SHADES_OF_TANGAROA,            // 27
         Graphics.COLOR_WHITE,              // 28
         RAW_DEEP_PURPLE_LIGHT,             // 29
-        RAW_SHADES_OF_OLIVE                // 30
+        RAW_SHADES_OF_OLIVE,               // 30
+        RAW_SUN_DARK                       // 31
     ];
 
     // 4. Light Palette
@@ -165,6 +169,7 @@ class ThemeManager {
         RAW_SHADES_OF_ALICE_BLUE,          // 27
         RAW_SHADES_OF_AQUA,                // 28
         RAW_DEEP_PURPLE_DARK,              // 29
-        RAW_SHADES_OF_OLIVE                // 30
+        RAW_SHADES_OF_OLIVE,               // 30
+        RAW_SUN_LIGHT                      // 31
     ];   
 }
