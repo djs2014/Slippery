@@ -328,6 +328,10 @@ class DemoWeatherService {
             wd.precipProbForecast = [
                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ];
+            wd.sunshineDurationForecast = [
+                1800.0f, 2400.0f, 3000.0f, 3600.0f, 3600.0f, 3000.0f, 2400.0f, 1800.0f, 1200.0f, 600.0f,
+                0.0f, 0.0f,
+            ];
         } else if (counter <= 10) {
             wd.showersForecast = [
                 0.0f, 0.1f, 0.2f, 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -341,6 +345,10 @@ class DemoWeatherService {
             wd.minutelySnowForecast = [0.0f, 0.0f, 0.0f, 0.0f];
             wd.precipProbForecast = [
                 0, 35, 60, 75, 55, 25, 5, 0, 0, 0, 0, 0,
+            ];
+            wd.sunshineDurationForecast = [
+                600.0f, 1200.0f, 1800.0f, 2400.0f, 2800.0f, 3000.0f, 2600.0f, 2000.0f, 1200.0f, 600.0f,
+                0.0f, 0.0f,
             ];
         } else if (counter <= 20) {
             wd.showersForecast = [
@@ -356,6 +364,10 @@ class DemoWeatherService {
             wd.precipProbForecast = [
                 90, 95, 95, 85, 60, 30, 10, 0, 0, 0, 0, 0,
             ];
+            wd.sunshineDurationForecast = [
+                300.0f, 200.0f, 100.0f, 0.0f, 0.0f, 100.0f, 300.0f, 600.0f, 900.0f, 600.0f,
+                300.0f, 0.0f,
+            ];
         } else if (counter <= 30) {
             wd.showersForecast = [
                 0.5f, 0.8f, 0.4f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -369,6 +381,10 @@ class DemoWeatherService {
             wd.minutelySnowForecast = [0.0f, 0.2f, 0.8f, 1.5f]; // snow from ~15 min
             wd.precipProbForecast = [
                 95, 90, 85, 80, 50, 20, 5, 0, 0, 0, 0, 0,
+            ];
+            wd.sunshineDurationForecast = [
+                0.0f, 0.0f, 0.0f, 100.0f, 300.0f, 600.0f, 800.0f, 600.0f, 300.0f, 100.0f,
+                0.0f, 0.0f,
             ];
         } else if (counter <= 40) {
             wd.showersForecast = [
@@ -384,6 +400,10 @@ class DemoWeatherService {
             wd.precipProbForecast = [
                 20, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             ];
+            wd.sunshineDurationForecast = [
+                0.0f, 200.0f, 600.0f, 1200.0f, 1800.0f, 2000.0f, 1800.0f, 1200.0f, 600.0f, 200.0f,
+                0.0f, 0.0f,
+            ];
         } else if (counter <= 50) {
             wd.showersForecast = [
                 0.2f, 0.1f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -397,6 +417,10 @@ class DemoWeatherService {
             wd.minutelySnowForecast = [1.5f, 2.0f, 2.5f, 2.8f];
             wd.precipProbForecast = [
                 85, 90, 95, 85, 60, 30, 5, 0, 0, 0, 0, 0,
+            ];
+            wd.sunshineDurationForecast = [
+                0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                0.0f, 0.0f,
             ];
         }
 
@@ -439,6 +463,29 @@ class DemoWeatherService {
         );
         assessment.hazards = RiskCalculator.getHazards();
         assessment.advice = RiskCalculator.getAdvice();
+
+        // Forecast risk heatmap for the sparkline (layer B draws nothing
+        // when this stays empty): same 12h projection engine as the live
+        // path, run over the demo forecast hours. Demo has no humidity
+        // forecast, so current humidity is held constant across the window.
+        var demoHumidities = new [12] as Array<Number>;
+        for (var hh = 0; hh < 12; hh++) {
+            demoHumidities[hh] = metrics.humidity;
+        }
+        assessment.hourlyRisksLevels =
+            RiskProjectionEngine.calculate12HourRiskProfile(
+                metrics,
+                0,
+                metrics.airTempForecast,
+                metrics.surfaceTempForecast,
+                metrics.dewpointForecast,
+                demoHumidities,
+                metrics.rainForecast,
+                metrics.showersForecast,
+                metrics.snowForecast,
+                metrics.windForecast,
+                metrics.windGustForecast
+            );
         return assessment;
     }
 }
