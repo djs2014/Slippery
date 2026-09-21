@@ -35,7 +35,7 @@
         "section-panel": {
             "type": "section",
             "title": "Panel chip",
-            "keys": ["show-temperature", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
+            "keys": ["show-temperature", "show-peak-risk", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
         },
         "section-popup": {
             "type": "section",
@@ -186,6 +186,12 @@
         "type": "switch",
         "default": true,
         "description": "Show advice in popup"
+    },
+    "show-peak-risk": {
+        "type": "switch",
+        "default": true,
+        "description": "Show peak risk of coming hours on panel",
+        "tooltip": "When on, the panel chip shows the highest risk level over the coming forecast hours instead of the current risk (uses the Coming hours count above)."
     },
     "thresh-ice-alert": {
         "type": "spinbutton",

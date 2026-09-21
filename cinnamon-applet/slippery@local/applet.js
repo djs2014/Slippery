@@ -588,6 +588,30 @@ function comingSummary(profile) {
         snow.toFixed(1) + "cm | ice " + ice + "h | max " + maxName + " | gust " + Math.round(gust);
 }
 
+// Highest risk level over the coming forecast hours (profile[1..], i.e.
+// without the current hour). Returns null when there are no coming hours,
+// otherwise { level, name, time } with the earliest hour at the peak level.
+function peakComingRisk(profile) {
+    if (!profile || profile.length < 2) return null;
+    let best = null;
+    for (let i = 1; i < profile.length; i++) {
+        const hh = profile[i];
+        if (!best || (hh.level || 0) > best.level) {
+            best = { level: hh.level || 0, name: hh.name || "SAFE", time: hh.time || null };
+        }
+    }
+    return best;
+}
+
+// One-line label for the peak risk, e.g. "Peak next 8h: HIGH @ 14:00".
+function peakComingText(profile, peak) {
+    if (!peak) return "";
+    const n = profile.length - 1;
+    let at = "";
+    if (peak.time) at = " @ " + hourLabel(peak.time, false);
+    return "Peak next " + n + "h: " + peak.name + at;
+}
+
 // SVG graph (port of nodetest/graph.js — same layout: risk columns, rain bars,
 // gust dots, top W row with blow-to arrow + speed, legend below the hours).
 // Pure string building, no Cinnamon dependencies, so node tests cover it.
@@ -758,7 +782,7 @@ SlipperyApplet.prototype = {
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
-            "show-advice",
+            "show-advice", "show-peak-risk",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -1050,6 +1074,7 @@ SlipperyApplet.prototype = {
         const hspT = this.s["hsp-threshold"];
         // Hazards are always shown (the show-hazards setting was removed).
         const showAdv = this.s["show-advice"] !== false;
+        const showPeak = this.s["show-peak-risk"] !== false;
 
         // Enrich every location: forecast profile + ICE flags.
         let iceAnywhere = false;
@@ -1080,19 +1105,26 @@ SlipperyApplet.prototype = {
         }
 
         // --- Panel chip (primary location; ICE anywhere is a big warning) ---
-        // Colored only when primary risk reaches color-min-level (Never = plain).
+        // Colored only when the shown risk reaches color-min-level (Never = plain).
+        // Label is the long risk name prefixed with the location initial.
+        // With show-peak-risk, the chip shows the peak of the coming hours.
         const p = primary.parsed;
-        let label = SHORT_LABEL[p.risk.name] || "?";
+        const peakPrimary = showPeak ? peakComingRisk(primary.profile) : null;
+        const shownName = peakPrimary ? peakPrimary.name : p.risk.name;
+        const shownLevel = peakPrimary ? peakPrimary.level : p.risk.level;
+        const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
+        let label = locInitial + " " + shownName;
         if (this.s["show-temperature"]) label += " " + Math.round(p.airTemp) + "°";
         if (iceAnywhere) label = "❄ " + label;
         this.set_applet_label(label);
-        this.actor.set_style(chipStyle(colorMode, colorMin, p.risk.level, p.risk.name, useHsp, hspT));
+        this.actor.set_style(chipStyle(colorMode, colorMin, shownLevel, shownName, useHsp, hspT));
 
         let tip = "Slippery: " + p.risk.name + " @ " + primary.loc.name +
             (p.risk.hazards.length > 0 ? "\n" + p.risk.hazards.join("\n") : "\nNo hazards") +
             "\nWind " + Math.round(p.windSpeed) + " km/h " + compass16(p.windDir) +
             ", gust " + Math.round(p.windGust) + " km/h" +
             " · rain 12h " + p.rain12.toFixed(1) + " mm";
+        if (peakPrimary) tip += "\n" + peakComingText(primary.profile, peakPrimary);
         if (results.length > 1) tip += "\nWorst of " + results.length + " points: " + worstName;
         if (iceAnywhere) tip += "\n\u2744 ICE WARNING — check popup";
         this.set_applet_tooltip(tip);
