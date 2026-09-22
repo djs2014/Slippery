@@ -17,7 +17,7 @@ class SlipperyView extends WatchUi.DataField {
     private var mRiskAssessment as RiskAssessment = new RiskAssessment();
     private var mHasWeatherData as Boolean = false; // TODO then all color grey
     private var mHazardStrings as Array<String> = [];
-    private var mHazardStringsShortened as Array<String> = [];
+    // private var mHazardStringsShortened as Array<String> = [];
     private var mAdviceStrings as Array<String> = [];
 
     private var mMinutesUntilSecondsCounter as Number = 0;
@@ -129,7 +129,7 @@ class SlipperyView extends WatchUi.DataField {
 
     function setHazardAndAdviceStrings() as Void {
         var hazardStrings = [];
-        var hazardStringsShortened = [];
+        // var hazardStringsShortened = [];
         for (var i = 0; i < mRiskAssessment.hazards.size(); i++) {
             var shortHazardStr = getShortHazardString(
                 mRiskAssessment.hazards[i]
@@ -140,7 +140,7 @@ class SlipperyView extends WatchUi.DataField {
                 var fullHazardStr = getHazardString(mRiskAssessment.hazards[i]);
                 hazardStrings.add(fullHazardStr);
             }
-            hazardStringsShortened.add(shortHazardStr);
+            // hazardStringsShortened.add(shortHazardStr);
         }
         var adviceStrings = [];
         for (var i = 0; i < mRiskAssessment.advice.size(); i++) {
@@ -148,7 +148,7 @@ class SlipperyView extends WatchUi.DataField {
         }
         // Atomic swap: Single pointer assignment is thread-safe
         mHazardStrings = hazardStrings;
-        mHazardStringsShortened = hazardStringsShortened;
+        // mHazardStringsShortened = hazardStringsShortened;
         mAdviceStrings = adviceStrings;
     }
 
@@ -402,12 +402,13 @@ class SlipperyView extends WatchUi.DataField {
     // Column geometry MUST match PredictiveSparkline.draw() so footer columns
     // line up with the heatmap bars above. footerH = 0 skips (menu default).
     // Sequential single call per frame; negligible stack cost.
+    // Same dc, x, y, width, height order as PredictiveSparkline.draw():
+    // y is the footer top, footerH is the footer height.
     private function drawRiskFooter(
         dc as Dc,
+        x as Number,
+        y as Number,
         width as Number,
-        paddingX as Number,
-        topY as Number,
-        slotH as Number,
         footerH as Number,
         isDark as Boolean
     ) as Void {
@@ -422,7 +423,7 @@ class SlipperyView extends WatchUi.DataField {
         // Same column geometry as PredictiveSparkline.draw().
         var smallWidth = mEdgeField == EfSmall;
         var barGap = smallWidth ? 1 : 2;
-        var innerW = width - paddingX * 2;
+        var innerW = width - x * 2;
         var standardBarWidth = (innerW - (numHours - 1) * barGap) / numHours;
         if (standardBarWidth < 2) {
             standardBarWidth = 2;
@@ -431,8 +432,6 @@ class SlipperyView extends WatchUi.DataField {
             standardBarWidth * mWeatherMetrics.hourFractionRemaining
         ).toNumber();
         var leftShift = standardBarWidth - bar0Width;
-        var fy = topY + slotH;
-        var x = paddingX;
         for (var i = 0; i < numHours; i++) {
             var colX =
                 i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
@@ -452,11 +451,11 @@ class SlipperyView extends WatchUi.DataField {
                 );
             }
 
-            dc.fillRectangle(colX, fy, colW, footerH);
+            dc.fillRectangle(colX, y, colW, footerH);
         }
         var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
         dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawRectangle(x - 1, fy - 1, innerW + 2, footerH + 2);
+        dc.drawRectangle(x - 1, y - 1, innerW + 2, footerH + 2);
     }
 
     private function drawEdgeSmallFieldWithSparkline(
@@ -517,10 +516,9 @@ class SlipperyView extends WatchUi.DataField {
         );
         drawRiskFooter(
             dc,
-            width,
             paddingX,
-            topGridHeight,
-            slotH,
+            topGridHeight + slotH,
+            width,
             footerH,
             isDark
         );
@@ -601,10 +599,9 @@ class SlipperyView extends WatchUi.DataField {
         );
         drawRiskFooter(
             dc,
-            width,
             paddingX,
-            topGridHeight,
-            slotH,
+            topGridHeight + slotH,
+            width,
             footerH,
             isDark
         );
@@ -620,45 +617,50 @@ class SlipperyView extends WatchUi.DataField {
     ) as Void {
         // 1. Reserve bottom 25% of total height for the 12h Sparkline
         var sparklineHeight = (height * 0.2).toNumber();
-        var topGridHeight = height - sparklineHeight;
-
         // Minimum height check: ensure sparkline gets at least 32px to render legibly
         if (sparklineHeight < 32) {
             sparklineHeight = 32;
-            topGridHeight = height - sparklineHeight;
         }
 
-        // 3. Draw Divider Line
-        var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
-        dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
+        var topGridHeight = height - sparklineHeight;
+        var linePos = drawEdgeLargeField(
+            dc,
+            0,
+            0,
+            width,
+            topGridHeight,
+            isDark
+        );
 
-        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
-        // Add 4px horizontal padding on left/right so edges don't touch screen bezels
+        var maxHazardsHeight = (height * 0.3).toNumber();
+        linePos = drawHazards(dc, 0, linePos, width, maxHazardsHeight, isDark);
+
+        // 4. Draw Bottom Sparkline Section 
         var paddingX = 6;
-
-        // Chart stacked below the comfort strip (no overlap); compact
-        // labels-off fallback keeps short slots from collapsing (see draw()).
-        // (Kept inline: a helper frame here deepened the onUpdate call chain.)
-        // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
+        
+        
+        var comfortH = 6;
         var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
-        var slotH = sparklineHeight - footerH;
-        var drawH = slotH - 6 - 2;
+        var drawH = height - linePos - comfortH - footerH;
         var showLb = drawH >= 42;
+        
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
-            topGridHeight,
+            linePos,
             width - paddingX * 2,
-            6,
+            comfortH,
             mWeatherMetrics,
             isDark,
             mEdgeField
         );
+
+        linePos += comfortH;
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 6,
+            linePos,
             width - paddingX * 2,
             drawH,
             mWeatherMetrics,
@@ -668,18 +670,32 @@ class SlipperyView extends WatchUi.DataField {
             showLb ? $.gShowForecastHour : ForecastHourNone,
             mEdgeField
         );
+
+        linePos += drawH;        
         drawRiskFooter(
             dc,
-            width,
             paddingX,
-            topGridHeight,
-            slotH,
+            linePos,
+            width,
             footerH,
             isDark
         );
-
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeLargeField(dc, 0, 0, width, topGridHeight, isDark);
+        
+        // --- CURRENT WIND ARROW CENTERED IN FIELD ---
+        CurrentWindWidget.draw(
+            dc,
+            width / 2, // Widget X center
+            height / 2, // Widget Y center
+            0,
+            height,
+            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
+            mWeatherMetrics.windGust, // e.g. 38.0f km/h
+            mWeatherMetrics.windDirection, // e.g. 180.0f deg
+            mHeadingDegrees, // Heading from activity
+            true, // true = Relative to bike heading, false = Cardinal North
+            isDark,
+            false // Big field scaling
+        );
     }
 
     private function drawEdgeWideFieldWithSparkline(
@@ -739,10 +755,9 @@ class SlipperyView extends WatchUi.DataField {
         );
         drawRiskFooter(
             dc,
-            width,
             paddingX,
-            topGridHeight,
-            slotH,
+            topGridHeight + slotH,
+            width,
             footerH,
             isDark
         );
@@ -1716,7 +1731,7 @@ class SlipperyView extends WatchUi.DataField {
         w as Number,
         h as Number,
         isDark as Boolean
-    ) as Void {
+    ) as Number {
         var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
         var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
         var isRiskColorLight = $.isColorLight(riskColor);
@@ -1955,23 +1970,18 @@ class SlipperyView extends WatchUi.DataField {
                 unitColor
             );
         }
-        // // --- CURRENT WIND ARROW CENTERED IN GRID ---
-        // CurrentWindWidget.draw(
-        //     dc,
-        //     w / 2, // Widget X center
-        //     h / 2, // gridTop + gridHeight / 2, // Widget Y center
-        //     0,
-        //     h,
-        //     mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-        //     mWeatherMetrics.windGust, // e.g. 38.0f km/h
-        //     mWeatherMetrics.windDirection, // e.g. 180.0f deg
-        //     mHeadingDegrees, // Heading from activity
-        //     true, // true = Relative to bike heading, false = Cardinal North
-        //     isDark,
-        //     false // Big field scaling
-        // );
-        // 4. Hazards & Advice Section
 
+        return gridTop + gridHeight + 2;
+    }
+
+    private function drawHazards(
+        dc as Graphics.Dc,
+        x as Number,
+        y as Number,
+        width as Number,
+        height as Number,
+        isDark as Boolean
+    ) as Number {
         dc.setColor(
             AppState.getColor(ThemeManager.COLOR_HAZARD),
             Graphics.COLOR_TRANSPARENT
@@ -1981,14 +1991,11 @@ class SlipperyView extends WatchUi.DataField {
         // Capture pointer once at start of frame
         var localHazards = mHazardStrings;
         var localAdvice = mAdviceStrings;
-        // Footer text inset: keeps wrapped lines off the screen bezels.
-        // Measure and draw calls below must use this same geometry.
+
         var footerX = x + 4;
-        var footerW = w - 8;
-        var linePos = gridTop + gridHeight + 2;
-        // Footer blocks clip at the field bottom: trailing lines are dropped
-        // rather than overflowing. In hide mode the advice draws whenever any
-        // of it fits (a space saver, not a gag).
+        var footerW = width - 8;
+        var linePos = y;
+
         if (localHazards.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
@@ -1999,7 +2006,7 @@ class SlipperyView extends WatchUi.DataField {
                 localHazards.size(), // maxLines
                 Graphics.FONT_TINY,
                 AppState.getColor(ThemeManager.COLOR_HAZARD),
-                y + h
+                y + height
             );
         }
 
@@ -2013,24 +2020,10 @@ class SlipperyView extends WatchUi.DataField {
                 localAdvice.size(), // maxLines
                 Graphics.FONT_XTINY,
                 AppState.getColor(ThemeManager.COLOR_TEXT),
-                y + h
+                y + height
             );
         }
-        // --- CURRENT WIND ARROW CENTERED IN GRID ---
-        CurrentWindWidget.draw(
-            dc,
-            w / 2, // Widget X center
-            h / 2, // Widget Y center
-            0,
-            h,
-            mWeatherMetrics.windSpeed, // e.g. 24.0f km/h
-            mWeatherMetrics.windGust, // e.g. 38.0f km/h
-            mWeatherMetrics.windDirection, // e.g. 180.0f deg
-            mHeadingDegrees, // Heading from activity
-            true, // true = Relative to bike heading, false = Cardinal North
-            isDark,
-            false // Big field scaling
-        );
+        return linePos;
     }
 
     private function drawMetricColumn(

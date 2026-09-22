@@ -8,3 +8,6 @@
 list some lat/lon with interesting wheater situations for testing purpose
 
 
+fix -104 issue
+
+hide hazard large field, etc..
