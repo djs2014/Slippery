@@ -1706,37 +1706,37 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        // TODO put in header?
-        // --- IMMINENT PRECIPITATION ALERT (ANCHORED AT BOTTOM RIGHT) ---
-        if (
-            (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
-            (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
-        ) {
-            var alertX = x;
-            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-            var alertH = alertLineHeight + 4;
-            var alertY = y + h - alertH;
-            var alertW = colW * 3;
+        // --- IMMINENT PRECIPITATION ALERT  ---
+        // if (
+        //     (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
+        //     (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
+        // ) {
+        //     var alertX = x;
+        //     var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+        //     var alertH = alertLineHeight + 4;
+        //     var alertY = linePos;
+        //     var alertW = colW * 3;
 
-            dc.setColor(
-                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
-                Graphics.COLOR_TRANSPARENT
-            );
-            dc.fillRectangle(alertX, alertY, alertW, alertH);
+        //     dc.setColor(
+        //         AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
+        //         Graphics.COLOR_TRANSPARENT
+        //     );
+        //     dc.fillRectangle(alertX, alertY, alertW, alertH);
 
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-            dc.drawText(
-                alertX + alertW / 2,
-                alertY + alertH / 2,
-                Graphics.FONT_XTINY,
-                $.getPrecipitationAlertMessage(
-                    mMinutesUntilRain,
-                    mMinutesUntilSnow,
-                    false
-                ),
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-            );
-        }
+        //     dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+        //     dc.drawText(
+        //         alertX + alertW / 2,
+        //         alertY + alertH / 2,
+        //         Graphics.FONT_XTINY,
+        //         $.getPrecipitationAlertMessage(
+        //             mMinutesUntilRain,
+        //             mMinutesUntilSnow,
+        //             false
+        //         ),
+        //         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+        //     );
+        //     linePos += alertH;
+        // }
         return linePos;
     }
 
