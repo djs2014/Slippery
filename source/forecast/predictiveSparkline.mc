@@ -13,6 +13,7 @@ class PredictiveSparkline {
         width as Number,
         height as Number,
         metrics as WeatherMetrics,
+        showBadges as Boolean,
         isDark as Boolean,
         edgeField as EdgeField
     ) {
@@ -64,7 +65,7 @@ class PredictiveSparkline {
 
         // --- CALC OVERLAY BADGE VISIBILITY ---
         // Render badges only if there is at least 12px margin on the left side of 'x'
-        var enableBadges = x >= 12;
+        var enableBadges = showBadges && x >= 12;
         if (enableBadges && y != -1) {
             dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
             dc.drawText(
@@ -131,6 +132,7 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         isDark as Boolean,
         showLabels as Boolean,
+        showBadges as Boolean,
         showForecastHour as ShowForecastHour,
         edgeField as EdgeField
     ) as Void {
@@ -181,7 +183,7 @@ class PredictiveSparkline {
             :hourColor => AppState.getColor(ThemeManager.COLOR_BG),
             :haloColor => isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE,
             :sunColor => AppState.getColor(ThemeManager.COLOR_SUN),
-            :enableBadges => x >= 12,
+            :enableBadges => showBadges && x >= 12,
             :edgeField => edgeField,
             :maxPrecip => ranges[:maxPrecip],
             :minSt => ranges[:minSt],
