@@ -1674,69 +1674,38 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         var linePos = y + colHeight;
-        return linePos;
 
-        // --- HAZARD LIST (BELOW METRIC COLUMNS, clipped at the precip strip) ---
-
-        var localHazards = mHazardStrings;
-        // The bottom-anchored precip strip overlaps the footer while imminent
-        // precipitation is in range; keep text above it.
-        var footerBottom = y + h;
+        // --- IMMINENT PRECIPITATION ALERT  ---
         if (
             (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
             (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
         ) {
-            footerBottom -= Graphics.getFontHeight(Graphics.FONT_XTINY) + 4;
-        }
-        // 2px side pads: keep text off the badge edge (left) and bezel (right).
-        var hazardWidth = 3 * colW - 4;
-        var lineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-        linePos += (lineHeight / 2).toNumber();
-        if (localHazards.size() > 0) {
-            linePos += StringListRenderer.drawWrappedStrings(
-                dc,
-                localHazards,
-                x + 2,
-                linePos,
-                hazardWidth,
-                localHazards.size(), // maxLines
-                Graphics.FONT_XTINY,
-                AppState.getColor(ThemeManager.COLOR_HAZARD),
-                footerBottom
+            var alertX = x;
+            var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
+            var alertH = alertLineHeight + 4;
+            var alertY = linePos;
+            var alertW = colW * 3;
+
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
+                Graphics.COLOR_TRANSPARENT
             );
+            dc.fillRectangle(alertX, alertY, alertW, alertH);
+
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
+            dc.drawText(
+                alertX + alertW / 2,
+                alertY + alertH / 2,
+                Graphics.FONT_XTINY,
+                $.getPrecipitationAlertMessage(
+                    mMinutesUntilRain,
+                    mMinutesUntilSnow,
+                    false
+                ),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+            linePos += alertH;
         }
-
-        // --- IMMINENT PRECIPITATION ALERT  ---
-        // if (
-        //     (mMinutesUntilRain >= 0 && mMinutesUntilRain <= 45) ||
-        //     (mMinutesUntilSnow >= 0 && mMinutesUntilSnow <= 45)
-        // ) {
-        //     var alertX = x;
-        //     var alertLineHeight = Graphics.getFontHeight(Graphics.FONT_XTINY);
-        //     var alertH = alertLineHeight + 4;
-        //     var alertY = linePos;
-        //     var alertW = colW * 3;
-
-        //     dc.setColor(
-        //         AppState.getColor(ThemeManager.COLOR_DEEP_CYAN),
-        //         Graphics.COLOR_TRANSPARENT
-        //     );
-        //     dc.fillRectangle(alertX, alertY, alertW, alertH);
-
-        //     dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_TRANSPARENT);
-        //     dc.drawText(
-        //         alertX + alertW / 2,
-        //         alertY + alertH / 2,
-        //         Graphics.FONT_XTINY,
-        //         $.getPrecipitationAlertMessage(
-        //             mMinutesUntilRain,
-        //             mMinutesUntilSnow,
-        //             false
-        //         ),
-        //         Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
-        //     );
-        //     linePos += alertH;
-        // }
         return linePos;
     }
 
@@ -2022,7 +1991,9 @@ class SlipperyView extends WatchUi.DataField {
 
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
         // Capture pointer once at start of frame
-        var localHazards = shortHazards ? mHazardStringsShortened : mHazardStrings;
+        var localHazards = shortHazards
+            ? mHazardStringsShortened
+            : mHazardStrings;
         var localAdvice = mAdviceStrings;
 
         var footerX = x + 4;

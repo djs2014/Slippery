@@ -234,21 +234,21 @@ public class RiskCalculator {
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentRain);
-            if (immediateRainAndShower == 0) {
-                addAdvice(AdviceRainStartingNow);
-            } else {
-                addAdvice(AdviceRainExpectedShortly);
-            }
+            // if (immediateRainAndShower == 0) {
+            //     addAdvice(AdviceRainStartingNow);
+            // } else {
+            //     addAdvice(AdviceRainExpectedShortly);
+            // }
         }
         // --- 13. IMMEDIATE: Imminent Snow ---
         if (immediateSnow >= 0 && snowCurrent < SNOW_THRESHOLD) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentSnow);
-            if (immediateSnow == 0) {
-                addAdvice(AdviceSnowStartingNow);
-            } else {
-                addAdvice(AdviceSnowExpectedShortly);
-            }
+            // if (immediateSnow == 0) {
+            //     addAdvice(AdviceSnowStartingNow);
+            // } else {
+            //     addAdvice(AdviceSnowExpectedShortly);
+            // }
         }
 
         return _riskLevel;
