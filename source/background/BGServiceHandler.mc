@@ -4,7 +4,7 @@
 // 2026-06-05 Application.PropertyValueType mCurrentLocation
 // 2026-06-06 onBackgroundData check for null data
 // 2026-09-06 added g_bg_timeout_seconds and g_bg_delay_seconds
-// 2026-09-13 added handling for BLE connection unavailable error
+// 2026-09-23 added handling for BLE connection unavailable error + mHttpStatus
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.System;
@@ -133,6 +133,7 @@ class BGServiceHandler {
       mError == -104 // Communications.BLE_CONNECTION_UNAVAILABLE   // Will try again in 5 minutes
     ) {
       mError = CustomErrors.ERROR_BG_NONE;
+      mHttpStatus = HTTP_OK; // Reset HTTP status as well
     }
 
     if (!mPhoneConnected) {
