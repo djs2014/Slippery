@@ -92,7 +92,7 @@ class BackgroundServiceDelegate extends System.ServiceDelegate {
           "longitude" => lonStr,
           "hourly"
           =>
-          "temperature_2m,relativehumidity_2m,dewpoint_2m,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m",
+          "temperature_2m,relativehumidity_2m,dewpoint_2m,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m,sunshine_duration",
           // "past_days" => pastDays.toString(),
           // "forecast_days" => "1",
           "past_hours" => pastHours.toString(),

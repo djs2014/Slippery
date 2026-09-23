@@ -55,6 +55,9 @@ class DataFieldSettingsDelegate extends WatchUi.BehaviorDelegate {
 
     mi = new WatchUi.MenuItem("Thresholds", null, "thresholds", null);
     menu.addItem(mi);
+
+    mi = new WatchUi.MenuItem("Forecast", null, "forecast", null);
+    menu.addItem(mi);
     
     mi = new WatchUi.MenuItem("Advanced", null, "advanced", null);
     menu.addItem(mi);
