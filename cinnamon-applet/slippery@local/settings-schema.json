@@ -35,12 +35,12 @@
         "section-panel": {
             "type": "section",
             "title": "Panel chip",
-            "keys": ["show-temperature", "show-peak-risk", "panel-chip-locations", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
+            "keys": ["show-temperature", "show-peak-risk", "panel-chip-locations", "panel-chip-alert-level", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
         },
         "section-popup": {
             "type": "section",
             "title": "Popup",
-            "keys": ["show-advice"]
+            "keys": ["show-advice", "demo-mode"]
         },
         "section-thresh": {
             "type": "section",
@@ -50,60 +50,70 @@
     },
     "location-1-name": {
         "type": "entry",
+        "expand-width": true,
         "default": "Home",
         "description": "1 name",
         "tooltip": "Display name for the primary forecast point (panel chip shows this point)."
     },
     "location-1-coords": {
         "type": "entry",
+        "expand-width": true,
         "default": "52.18895, 4.549666",
         "description": "1 latitude,longitude",
         "tooltip": "Paste straight from Google Maps: 52.387520877358256, 4.7199631014777 — or type lat, lon with dot decimals."
     },
     "location-2-name": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "2 name",
         "tooltip": "Empty coordinates = disabled. Extra commute stop."
     },
     "location-2-coords": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "2 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-3-name": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "3 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-3-coords": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "3 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-4-name": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "4 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-4-coords": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "4 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
     "location-5-name": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "5 name",
         "tooltip": "Empty coordinates = disabled."
     },
     "location-5-coords": {
         "type": "entry",
+        "expand-width": true,
         "default": "",
         "description": "5 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
@@ -130,13 +140,13 @@
     },
     "forecast-hours": {
         "type": "spinbutton",
-        "default": 8,
+        "default": 12,
         "min": 1,
         "max": 12,
         "step": 1,
         "units": "h",
         "description": "Coming hours shown in popup",
-        "tooltip": "How many coming forecast hours (risk + precipitation) to list in the popup. Covers the ride home after ~8h work."
+        "tooltip": "How many coming forecast hours (risk + precipitation) to list in the popup. 12 covers the full Open-Meteo fetch window, including the ride home after work."
     },
     "show-temperature": {
         "type": "switch",
@@ -187,6 +197,12 @@
         "default": true,
         "description": "Show advice in popup"
     },
+    "demo-mode": {
+        "type": "switch",
+        "default": false,
+        "description": "Demo: canned scenario once",
+        "tooltip": "When ON, the next refresh uses built-in demo values (cold snap + rain + snow + gusts, with ICE hours) for layout testing, then switches itself back OFF automatically."
+    },
     "show-peak-risk": {
         "type": "switch",
         "default": true,
@@ -197,10 +213,22 @@
         "type": "combobox",
         "default": "primary",
         "description": "Panel chip locations",
-        "tooltip": "Primary only = chip shows the first point; a CRITICAL other point is appended next to it with its own risk background while the calm part stays plain (e.g. H Ok|I Crt). All points = chip shows the first point plus the highest-risk point, each with its own risk background. Hovering the chip lists details for points reaching 'Show colors only when risk is above'.",
+        "tooltip": "Primary only = chip shows location 1 plus the first other location reaching the alert level below (each with its own risk background, calm part stays plain, e.g. H Ok|I Crt). All points = chip shows location 1 plus the highest-risk point. Hovering the chip lists details for points reaching 'Show colors only when risk is above'.",
         "options": {
-            "Primary location only": "primary",
+            "Primary + first alert": "primary",
             "All locations": "all"
+        }
+    },
+    "panel-chip-alert-level": {
+        "type": "combobox",
+        "default": "high",
+        "description": "Panel chip alert level",
+        "tooltip": "In 'Primary + first alert' mode, the first other location at or above this risk level is appended next to location 1.",
+        "options": {
+            "SLIGHT and above": "slight",
+            "MODERATE and above": "moderate",
+            "HIGH and above": "high",
+            "CRITICAL only": "critical"
         }
     },
     "thresh-ice-alert": {
