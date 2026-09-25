@@ -3,8 +3,8 @@
 // 2026-06-04 added methods
 // 2026-06-05 Application.PropertyValueType mCurrentLocation
 // 2026-06-06 onBackgroundData check for null data
-// 2026-09-06 added g_bg_timeout_seconds and g_bg_delay_seconds
-// 2026-09-23 added handling for BLE connection unavailable error + mHttpStatus
+// Global background timeout and delay settings
+// 2026-09-25 Handles background service scheduling and error management for the application.
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.System;
@@ -129,11 +129,11 @@ class BGServiceHandler {
       mError == CustomErrors.ERROR_BG_GPS_LEVEL ||
       mError == CustomErrors.ERROR_BG_NO_PHONE ||
       mError == CustomErrors.ERROR_BG_NO_POSITION ||
-      mError == CustomErrors.ERROR_BG_EXCEPTION ||
-      mError == -104 // Communications.BLE_CONNECTION_UNAVAILABLE   // Will try again in 5 minutes
+      mError == CustomErrors.ERROR_BG_GATEWAY_TIMEOUT ||
+      mError == CustomErrors.ERROR_BG_BLE_CONNECTION ||
+      mError == CustomErrors.ERROR_BG_EXCEPTION
     ) {
       mError = CustomErrors.ERROR_BG_NONE;
-      mHttpStatus = HTTP_OK; // Reset HTTP status as well
     }
 
     if (!mPhoneConnected) {
@@ -252,6 +252,8 @@ class BGServiceHandler {
       var code = data as Lang.Number;
       if (code < 0) {
         mError = code;
+        // Clear any stale HTTP status so getError() shows the custom text.
+        mHttpStatus = HTTP_OK;
       } else {
         mHttpStatus = code;
         mError = CustomErrors.ERROR_BG_HTTPSTATUS;
@@ -329,6 +331,5 @@ class BGServiceHandler {
     return mErrorMessage;
   }
 }
-
 var g_bg_timeout_seconds as Number = 0;
 var g_bg_delay_seconds as Number = 0;
