@@ -582,7 +582,8 @@ class SlipperyView extends WatchUi.DataField {
             mHeadingDegrees, // Heading from activity
             true, // true = Relative to bike heading, false = Cardinal North
             isDark,
-            false // Big field scaling
+            false, // Big field scaling
+            false // Slide glyph with vertical pointing direction
         );
     }
     private function drawEdgeOneFieldWithSparkline(
@@ -749,7 +750,8 @@ class SlipperyView extends WatchUi.DataField {
             mHeadingDegrees, // Heading from activity
             true, // true = Relative to bike heading, false = Cardinal North
             isDark,
-            false // Big field scaling
+            false, // Big field scaling
+            false // Slide glyph with vertical pointing direction
         );
     }
 
@@ -816,7 +818,8 @@ class SlipperyView extends WatchUi.DataField {
             mHeadingDegrees, // Heading from activity
             true, // true = Relative to bike heading, false = Cardinal North
             isDark,
-            false // Big field scaling
+            false, // Big field scaling
+            true // Slide glyph with vertical pointing direction (clears header badge)
         );
 
         // Right part: metrics and sparkline
@@ -1235,7 +1238,8 @@ class SlipperyView extends WatchUi.DataField {
             mHeadingDegrees, // Heading from activity
             true, // true = Relative to bike heading, false = Cardinal North
             isDark, // Use risklevel background
-            true // Big field scaling
+            true, // Big field scaling
+            false // Slide glyph with vertical pointing direction
         );
 
         gridLinePos += rowHeight;

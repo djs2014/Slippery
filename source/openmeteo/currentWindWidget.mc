@@ -17,7 +17,8 @@ class CurrentWindWidget {
         headingDeg as Number?, // Pass null if activity not started / no heading
         useRelativeHeading as Boolean,
         isDark as Boolean,
-        isBigField as Boolean // Scaling factor for big fields + inline speed label
+        isBigField as Boolean, // Scaling factor for big fields + inline speed label
+        slideYWithDirection as Boolean // Wide fields: slide glyph with its vertical pointing direction so it clears the header badge on top
     ) as Void {
         // 1. DETERMINE DISPLAY ANGLE
         var effectiveAngle = windDirDeg;
@@ -58,18 +59,28 @@ class CurrentWindWidget {
 
         // Direction unit vector
         var rad = Math.toRadians(effectiveAngle);
-        var uX = Math.sin(rad);
-        var uY = -Math.cos(rad);
+        var uX = Math.sin(rad); // uX is -1 pointing left  +1 pointing right
+        var uY = -Math.cos(rad); // uY is -1 pointing up / +1 pointing down
 
         // Perpendicular vector for base (+90 deg rotation)
         var pX = -uY;
         var pY = uX;
 
+        // Optional vertical slide: nudge the whole glyph in its pointing
+        // direction (up when pointing up, down when pointing down).
+        // Proportional to uY, so full nudge when vertical, zero when
+        // horizontal. X stays fixed.
+        var drawCy = cy;
+        if (slideYWithDirection) {
+            var slide = (len * 0.3f).toNumber();
+            drawCy = cy + (uY * slide).toNumber();
+        }
+
         var halfLen = len / 2.0f;
         var apexX = cx + (halfLen * uX).toNumber();
-        var apexY = cy + (halfLen * uY).toNumber();
+        var apexY = drawCy + (halfLen * uY).toNumber();
         var baseX = cx - (halfLen * uX).toNumber();
-        var baseY = cy - (halfLen * uY).toNumber();
+        var baseY = drawCy - (halfLen * uY).toNumber();
 
         // Rear Outer Corners
         var corner1X = baseX + (baseHalfWidth * pX).toNumber();
