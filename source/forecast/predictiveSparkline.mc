@@ -756,7 +756,8 @@ class PredictiveSparkline {
     // Returns the first point Y for the "W" badge. Own frame (see draw()
     // note); drawWindArrow nests one level under this small frame now.
     // Per-layout simplification (Forecast menu): simplified fields skip the
-    // connecting line and the direction arrows; gust dots keep existing rules.
+    // direction arrows only; the connecting wind line is always drawn so
+    // the trend stays visible on small fields. Gust dots keep existing rules.
     private static function drawWindLayer(
         dc as Graphics.Dc,
         metrics as WeatherMetrics,
@@ -815,7 +816,7 @@ class PredictiveSparkline {
                       ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE)
                       : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED);
 
-            if (!simplified && prevWindX != -1 && i % 2 == 0) {
+            if (prevWindX != -1 && i % 2 == 0) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawLine(prevWindX, prevWindY - 1, px, windPy - 1);
                 dc.drawLine(prevWindX, prevWindY + 1, px, windPy + 1);
