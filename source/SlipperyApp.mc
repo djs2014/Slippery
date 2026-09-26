@@ -52,6 +52,7 @@ class SlipperyApp extends Application.AppBase {
     function loadUserSettings() as Void {
         try {
             System.println("Loading user settings");
+
             var reset = Storage.getValue("resetDefaults");
             if (reset == null || (reset as Boolean)) {
                 System.println("Reset user settings");
@@ -61,22 +62,12 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("alert_beep", true);
                 Storage.setValue("alert_toast", false);
                 Storage.setValue("alert_beep_state_change", true);
-                Storage.setValue("hsp_showvalue", false);                
-                Storage.setValue("hsp_darklight_breakpoint", 180);    
-                Storage.setValue("showForecastHour", ForecastHourAbsolute);            
-                Storage.setValue("useEffectiveCrossGust", true);            
-                Storage.setValue("useFeelsLikeTemperature", true);            
-                Storage.setValue("shortHazard", false);            
-                Storage.setValue("hideRiskAdvice", false);            
+                Storage.setValue("hsp_showvalue", false);
+                Storage.setValue("hsp_darklight_breakpoint", 180);
+                Storage.setValue("showForecastHour", ForecastHourAbsolute);
+
+                resetDisplayFields();
                 Storage.setValue("hideUnitsWhenActive", true);
-                Storage.setValue("simplifyWindOne", false);
-                Storage.setValue("simplifyWindLarge", false);
-                Storage.setValue("simplifyWindWide", false);
-                Storage.setValue("simplifyWindSmall", false);
-                Storage.setValue("riskFooterOne", false);
-                Storage.setValue("riskFooterLarge", false);
-                Storage.setValue("riskFooterWide", false);
-                Storage.setValue("riskFooterSmall", false);
 
                 Storage.setValue("threshIceAlert", 3.0f);
                 Storage.setValue("threshHighCrosswind", 25.0f);
@@ -86,6 +77,12 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("threshHeadwind", 12.0f);
                 Storage.setValue("threshHeatStress", 32.0f);
                 Storage.setValue("threshPrecipAhead", 0.5f);
+            }
+
+            var hadConversionToArrays = Storage.getValue("show_one_field");
+            if (hadConversionToArrays == null) {
+                removeObsolete();
+                resetDisplayFields();
             }
 
             $.g_bg_timeout_seconds =
@@ -117,38 +114,17 @@ class SlipperyApp extends Application.AppBase {
             $.gBeepOnAlert = $.getStorageValue("alert_beep", true) as Boolean;
             $.gToastOnAlert =
                 $.getStorageValue("alert_toast", false) as Boolean;
-            $.gBeepOnAlertStateChange = $.getStorageValue("alert_beep_state_change", true) as Boolean;
+            $.gBeepOnAlertStateChange =
+                $.getStorageValue("alert_beep_state_change", true) as Boolean;
             $.gHSPshowValue =
                 $.getStorageValue("hsp_showvalue", false) as Boolean;
 
             $.gShowForecastHour =
-                $.getStorageValue("showForecastHour", ForecastHourAbsolute) as ShowForecastHour;
-            $.gUseEffectiveCrossGust =
-                $.getStorageValue("useEffectiveCrossGust", true) as Boolean;
-            $.gUseFeelsLikeTemperature =
-                $.getStorageValue("useFeelsLikeTemperature", true) as Boolean;
-            $.gHideRiskAdvice =
-                $.getStorageValue("hideRiskAdvice", false) as Boolean;  
-            $.gShortHazard =
-                $.getStorageValue("shortHazard", false) as Boolean;  
+                $.getStorageValue("showForecastHour", ForecastHourAbsolute) as
+                ShowForecastHour;
+
             $.gHideUnitsWhenActive =
-                $.getStorageValue("hideUnitsWhenActive", true) as Boolean;  
-            $.gSimplifyWindOne =
-                $.getStorageValue("simplifyWindOne", false) as Boolean;
-            $.gSimplifyWindLarge =
-                $.getStorageValue("simplifyWindLarge", false) as Boolean;
-            $.gSimplifyWindWide =
-                $.getStorageValue("simplifyWindWide", false) as Boolean;
-            $.gSimplifyWindSmall =
-                $.getStorageValue("simplifyWindSmall", false) as Boolean;
-            $.gRiskFooterOne =
-                $.getStorageValue("riskFooterOne", false) as Boolean;
-            $.gRiskFooterLarge =
-                $.getStorageValue("riskFooterLarge", false) as Boolean;
-            $.gRiskFooterWide =
-                $.getStorageValue("riskFooterWide", false) as Boolean;
-            $.gRiskFooterSmall =
-                $.getStorageValue("riskFooterSmall", false) as Boolean;
+                $.getStorageValue("hideUnitsWhenActive", true) as Boolean;
 
             // Backfill for app upgraders: storage predating the threshold keys
             // has resetDefaults=false, skipping the seed block above. Writing
@@ -165,14 +141,30 @@ class SlipperyApp extends Application.AppBase {
 
             // Fallback defaults mirror the seeded values above so behavior is
             // correct even when storage has no threshold keys (e.g. upgrades).
-            AlertStateAnalyzer.setTreshIceAlert($.getStorageValue("threshIceAlert", 3.0f) as Float);              
-            AlertStateAnalyzer.setTreshHighCrosswind($.getStorageValue("threshHighCrosswind", 25.0f) as Float);              
-            AlertStateAnalyzer.setTreshCrossGust($.getStorageValue("threshCrossGust", 18.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeavyWind($.getStorageValue("threshHeavyWind", 35.0f) as Float);              
-            AlertStateAnalyzer.setTreshSustainedWind($.getStorageValue("threshSustainedWind", 25.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeadwind($.getStorageValue("threshHeadwind", 12.0f) as Float);              
-            AlertStateAnalyzer.setTreshHeatStress($.getStorageValue("threshHeatStress", 32.0f) as Float);              
-            AlertStateAnalyzer.setTreshPrecipAhead($.getStorageValue("threshPrecipAhead", 0.5f) as Float);              
+            AlertStateAnalyzer.setTreshIceAlert(
+                $.getStorageValue("threshIceAlert", 3.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshHighCrosswind(
+                $.getStorageValue("threshHighCrosswind", 25.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshCrossGust(
+                $.getStorageValue("threshCrossGust", 18.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshHeavyWind(
+                $.getStorageValue("threshHeavyWind", 35.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshSustainedWind(
+                $.getStorageValue("threshSustainedWind", 25.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshHeadwind(
+                $.getStorageValue("threshHeadwind", 12.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshHeatStress(
+                $.getStorageValue("threshHeatStress", 32.0f) as Float
+            );
+            AlertStateAnalyzer.setTreshPrecipAhead(
+                $.getStorageValue("threshPrecipAhead", 0.5f) as Float
+            );
         } catch (ex) {
             System.println(ex.getErrorMessage());
             ex.printStackTrace();
@@ -207,9 +199,71 @@ class SlipperyApp extends Application.AppBase {
         }
 
         var bgHandler = getBGServiceHandler();
-        bgHandler.onBackgroundData(data); //, self, :updateBgData);   
+        bgHandler.onBackgroundData(data); //, self, :updateBgData);
 
-        WatchUi.requestUpdate();     
+        WatchUi.requestUpdate();
+    }
+
+    (:typecheck(disableBackgroundCheck))
+    function removeObsolete() {
+        Storage.deleteValue("useEffectiveCrossGust");
+        Storage.deleteValue("useFeelsLikeTemperature");
+        Storage.deleteValue("hideRiskAdvice");
+        Storage.deleteValue("shortHazard");
+        Storage.deleteValue("simplifyWindOne");
+        Storage.deleteValue("simplifyWindLarge");
+        Storage.deleteValue("simplifyWindWide");
+        Storage.deleteValue("simplifyWindSmall");
+        Storage.deleteValue("riskFooterOne");
+        Storage.deleteValue("riskFooterLarge");
+        Storage.deleteValue("riskFooterWide");
+        Storage.deleteValue("riskFooterSmall");
+    }
+    (:typecheck(disableBackgroundCheck))
+    function resetDisplayFields() {
+        Storage.setValue("show_one_field", [
+            true, // show hazards
+            false, // short hazard
+            true, // show advice
+            false, // simplify wind
+            true, // show risk footer
+            true, // effective crossgust
+            true, // show feelslike temperature
+            true, // show winddata as default
+        ]);
+
+        Storage.setValue("show_large_field", [
+            true, // show hazards
+            true, // short hazard
+            true, // show advice
+            false, // simplify wind
+            true, // show risk footer
+            true, // effective crossgust
+            true, // show feelslike temperature
+            true, // show winddata as default
+        ]);
+
+        Storage.setValue("show_wide_field", [
+            true, // show hazards
+            true, // short hazard
+            false, // show advice
+            false, // simplify wind
+            true, // show risk footer
+            true, // effective crossgust
+            true, // show feelslike temperature
+            true, // show winddata as default
+        ]);
+
+        Storage.setValue("show_small_field", [
+            true, // show hazards
+            true, // short hazard
+            false, // show advice
+            true, // simplify wind
+            true, // show risk footer
+            true, // effective crossgust
+            true, // show feelslike temperature
+            true, // show winddata as default
+        ]);
     }
 }
 
@@ -227,16 +281,7 @@ var gBeepOnAlertStateChange as Boolean = true;
 
 var gHSPshowValue as Boolean = false;
 var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
-var gUseFeelsLikeTemperature as Boolean = true;
-var gUseEffectiveCrossGust as Boolean = true; 
-var gHideRiskAdvice as Boolean = false;
-var gShortHazard as Boolean = false;
 var gHideUnitsWhenActive as Boolean = true;
-var gSimplifyWindOne as Boolean = false;
-var gSimplifyWindLarge as Boolean = false;
-var gSimplifyWindWide as Boolean = false;
-var gSimplifyWindSmall as Boolean = false;
-var gRiskFooterOne as Boolean = false;
-var gRiskFooterLarge as Boolean = false;
-var gRiskFooterWide as Boolean = false;
-var gRiskFooterSmall as Boolean = false;
+
+(:typecheck(disableBackgroundCheck))
+var gSizeArrFieldItems = 8; // Included the 0 index

@@ -57,6 +57,15 @@ class SlipperyView extends WatchUi.DataField {
     private var mNetHeadwindKmh as Float = 0.0f;
     private var mFeelsLikeTemp as Float = 0.0f;
 
+    private var mShowHazards as Boolean = true;
+    private var mShortHazards as Boolean = true;
+    private var mShowAdvice as Boolean = true;
+    private var mSimplifyWind as Boolean = true;
+    private var mShowRiskFooter as Boolean = true;
+    private var mUseEffectiveCrossGust as Boolean = true;
+    private var mUseFeelsLikeTemperature as Boolean = true;
+    private var mUseWinddataAsDefault as Boolean = true;
+
     function initialize() {
         DataField.initialize();
 
@@ -134,7 +143,7 @@ class SlipperyView extends WatchUi.DataField {
             var shortHazardStr = getShortHazardString(
                 mRiskAssessment.hazards[i]
             );
-            if ($.gShortHazard) {
+            if (mShortHazards) {
                 hazardStrings.add(shortHazardStr);
             } else {
                 var fullHazardStr = getHazardString(mRiskAssessment.hazards[i]);
@@ -158,6 +167,34 @@ class SlipperyView extends WatchUi.DataField {
         dc.clearClip();
 
         mEdgeField = $.getEdgeField(dc);
+
+        var arrShowField = [] as Array<Numeric>;
+        if (mEdgeField == EfOne) {
+            arrShowField =
+                $.getStorageValue("show_one_field", []) as
+                Array<Numeric or Boolean>;
+        } else if (mEdgeField == EfLarge) {
+            arrShowField =
+                $.getStorageValue("show_large_field", []) as
+                Array<Numeric or Boolean>;
+        } else if (mEdgeField == EfWide) {
+            arrShowField =
+                $.getStorageValue("show_wide_field", []) as
+                Array<Numeric or Boolean>;
+        } else {
+            arrShowField =
+                $.getStorageValue("show_small_field", []) as
+                Array<Numeric or Boolean>;
+        }
+
+        mShowHazards = arrShowField[0] == true;
+        mShortHazards = arrShowField[1] == true;
+        mShowAdvice = arrShowField[2] == true;
+        mSimplifyWind = arrShowField[3] == true;
+        mShowRiskFooter = arrShowField[4] == true;
+        mUseEffectiveCrossGust = arrShowField[5] == true;
+        mUseFeelsLikeTemperature = arrShowField[6] == true;
+        mUseWinddataAsDefault = arrShowField[7] == true;
     }
 
     var demoCounter as Number = 0;
@@ -207,7 +244,7 @@ class SlipperyView extends WatchUi.DataField {
         UpdateAlertState();
     }
 
-    hidden var mAlertCategory as AlertCategory = CATEGORY_NONE;
+    hidden var mAlertCategory as AlertCategory = CATEGORY_NONE_TEMP;
     function UpdateAlertState() as Void {
         mCrossGust = CrosswindAnalyzer.evaluateCrosswind(
             mWeatherMetrics.windDirection,
@@ -252,8 +289,11 @@ class SlipperyView extends WatchUi.DataField {
             maxRainAhead,
             maxShowersAhead
         );
-
-        mAlertCategory = AlertCategoryRenderer.getCategoryForState(mAlertState);
+        
+        mAlertCategory = AlertCategoryRenderer.getCategoryForState(
+            mAlertState,
+            (mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP)
+        );
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
         }
@@ -487,7 +527,7 @@ class SlipperyView extends WatchUi.DataField {
         }
 
         // Risk footer reserves the bottom of the forecast slot (0 = off).
-        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var footerH = mShowRiskFooter ? 14 : 0;
         var slotH = sparklineHeight - footerH;
 
         PredictiveSparkline.drawComfort(
@@ -514,6 +554,8 @@ class SlipperyView extends WatchUi.DataField {
             false,
             false,
             ForecastHourNone,
+            mSimplifyWind,
+            !mShowRiskFooter,
             mEdgeField
         );
         drawRiskFooter(
@@ -572,7 +614,7 @@ class SlipperyView extends WatchUi.DataField {
         // labels-off fallback keeps short slots from collapsing (see draw()).
         // (Kept inline: a helper frame here deepened the onUpdate call chain.)
         // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
-        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var footerH = mShowRiskFooter ? 14 : 0;
         var slotH = sparklineHeight - footerH;
         var drawH = slotH - 10 - 2;
         var showLb = drawH >= 42;
@@ -599,6 +641,8 @@ class SlipperyView extends WatchUi.DataField {
             showLb,
             showLb,
             showLb ? $.gShowForecastHour : ForecastHourNone,
+            mSimplifyWind,
+            !mShowRiskFooter,
             mEdgeField
         );
         drawRiskFooter(
@@ -645,8 +689,9 @@ class SlipperyView extends WatchUi.DataField {
             width,
             maxHazardsHeight,
             Graphics.FONT_TINY,
-            false,
-            false,
+            mShowHazards,
+            mShortHazards,
+            mShowAdvice,
             isDark
         );
 
@@ -654,7 +699,7 @@ class SlipperyView extends WatchUi.DataField {
         var paddingX = 6;
 
         var comfortH = 6;
-        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var footerH = mShowRiskFooter ? 14 : 0;
         var drawH = height - linePos - comfortH - footerH;
         var showLb = drawH >= 42;
 
@@ -683,6 +728,8 @@ class SlipperyView extends WatchUi.DataField {
             showLb,
             showLb,
             showLb ? $.gShowForecastHour : ForecastHourNone,
+            mSimplifyWind,
+            !mShowRiskFooter,
             mEdgeField
         );
 
@@ -801,13 +848,14 @@ class SlipperyView extends WatchUi.DataField {
             remainingWidth,
             maxHazardsHeight,
             Graphics.FONT_XTINY,
-            true,
-            true,
+            mShowHazards,
+            true, // short hazards
+            false, // hide advice
             isDark
         );
 
         var comfortH = 4;
-        var footerH = $.riskFooterFor(mEdgeField) ? 14 : 0;
+        var footerH = mShowRiskFooter ? 14 : 0;
         var drawH = height - linePos - comfortH - footerH;
 
         PredictiveSparkline.drawComfort(
@@ -834,6 +882,8 @@ class SlipperyView extends WatchUi.DataField {
             false,
             false,
             ForecastHourNone,
+            mSimplifyWind,
+            !mShowRiskFooter,
             mEdgeField
         );
         linePos += drawH;
@@ -1022,7 +1072,7 @@ class SlipperyView extends WatchUi.DataField {
         var gridLinePos = y + gridTop;
         // Cell 1: Air Temp
 
-        if ($.gUseFeelsLikeTemperature) {
+        if (mUseFeelsLikeTemperature) {
             // Cell 1: Feels like
             drawGridCell(
                 dc,
@@ -1132,9 +1182,12 @@ class SlipperyView extends WatchUi.DataField {
 
         // Capture pointer once at start of frame
         var localHazards = mHazardStrings;
+        if (mShortHazards) {
+            localHazards = mHazardStringsShortened;
+        }
         var localAdvice = mAdviceStrings;
 
-        if ($.gHideRiskAdvice || localHazards.size() <= 3) {
+        if (!mShowHazards || !mShowAdvice || localHazards.size() <= 3) {
             // Show when no advice or max 3 hazard
             gridLinePos += rowHeight;
 
@@ -1195,13 +1248,13 @@ class SlipperyView extends WatchUi.DataField {
 
         // var linePos = y + gridTop + gridHeight + 2;
         var linePos = gridLinePos;
-        var hazardFont = $.gHideRiskAdvice
-            ? Graphics.FONT_SMALL
-            : Graphics.FONT_TINY;
+        // Hazard font can be bigger if no advice is shown
+        var hazardFont = mShowAdvice ? Graphics.FONT_TINY : Graphics.FONT_SMALL;
+
         // Footer blocks clip at the field bottom: trailing lines are dropped
         // rather than overflowing. In hide mode the advice draws whenever any
         // of it fits (a space saver, not a gag).
-        if (localHazards.size() > 0) {
+        if (mShowHazards && localHazards.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localHazards,
@@ -1215,7 +1268,7 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        if (localAdvice.size() > 0) {
+        if (mShowAdvice && localAdvice.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localAdvice,
@@ -1358,19 +1411,21 @@ class SlipperyView extends WatchUi.DataField {
         var localHazards = mHazardStrings;
         var hazardY = y + badgeHeight - 5;
         var hazardX = badgeX + 1;
-        for (var i = 0; i < localHazards.size(); i += 1) {
+        for (var i = 0; i < localHazards.size() && i < 5; i += 1) {
             dc.setColor(
                 AppState.getColor(ThemeManager.COLOR_BG),
                 Graphics.COLOR_TRANSPARENT
             );
             dc.fillRoundedRectangle(hazardX, hazardY, 4, 4, 2);
-            //dc.fillCircle(hazardX, hazardY, 3);
             hazardX += 5;
         }
 
-        if (mAlertCategory == CATEGORY_WIND) {
+        if (
+            mAlertCategory == CATEGORY_WIND ||
+            mAlertCategory == CATEGORY_NONE_WIND
+        ) {
             // Col1: Cross Gust or Gust
-            if ($.gUseEffectiveCrossGust) {
+            if (mUseEffectiveCrossGust) {
                 drawMetricColumn(
                     dc,
                     col1x,
@@ -1426,7 +1481,7 @@ class SlipperyView extends WatchUi.DataField {
                 false
             );
         } else {
-            if ($.gUseFeelsLikeTemperature) {
+            if (mUseFeelsLikeTemperature) {
                 // Col 1: Feels Like Temp
                 drawMetricColumn(
                     dc,
@@ -1529,7 +1584,10 @@ class SlipperyView extends WatchUi.DataField {
         // Compact columns height (~40% of field height)
         var colHeight = (h * 0.5).toNumber();
 
-        if (mAlertCategory == CATEGORY_WIND) {
+        if (
+            mAlertCategory == CATEGORY_WIND ||
+            mAlertCategory == CATEGORY_NONE_WIND
+        ) {
             // Col 1: Wind
             drawMetricColumn(
                 dc,
@@ -1547,7 +1605,7 @@ class SlipperyView extends WatchUi.DataField {
             );
 
             // Col 2: Cross Gust
-            if ($.gUseEffectiveCrossGust) {
+            if (mUseEffectiveCrossGust) {
                 drawMetricColumn(
                     dc,
                     x + colW,
@@ -1602,7 +1660,7 @@ class SlipperyView extends WatchUi.DataField {
                 true
             );
         } else {
-            if ($.gUseFeelsLikeTemperature) {
+            if (mUseFeelsLikeTemperature) {
                 // Col 1: Feels Like Temp
                 drawMetricColumn(
                     dc,
@@ -1839,7 +1897,10 @@ class SlipperyView extends WatchUi.DataField {
         var labelColor = AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT);
         var unitColor = AppState.getColor(ThemeManager.COLOR_UNIT);
 
-        if (mAlertCategory == CATEGORY_WIND) {
+        if (
+            mAlertCategory == CATEGORY_WIND ||
+            mAlertCategory == CATEGORY_NONE_WIND
+        ) {
             drawGridCell(
                 dc,
                 x,
@@ -1896,7 +1957,7 @@ class SlipperyView extends WatchUi.DataField {
                 unitColor
             );
         } else {
-            if ($.gUseFeelsLikeTemperature) {
+            if (mUseFeelsLikeTemperature) {
                 drawGridCell(
                     dc,
                     x,
@@ -1980,8 +2041,9 @@ class SlipperyView extends WatchUi.DataField {
         width as Number,
         height as Number,
         fontHazard as Graphics.FontType,
+        showHazards as Boolean,
         shortHazards as Boolean,
-        hideAdvice as Boolean,
+        showAdvice as Boolean,
         isDark as Boolean
     ) as Number {
         dc.setColor(
@@ -1989,6 +2051,9 @@ class SlipperyView extends WatchUi.DataField {
             Graphics.COLOR_TRANSPARENT
         );
 
+        if (!showHazards) {
+            return y; // Skip drawing hazards if not showing them
+        }
         // --- DRAW FOOTER: HAZARD & ADVICE TEXT ---
         // Capture pointer once at start of frame
         var localHazards = shortHazards
@@ -2014,7 +2079,7 @@ class SlipperyView extends WatchUi.DataField {
             );
         }
 
-        if (!hideAdvice && localAdvice.size() > 0) {
+        if (showAdvice && localAdvice.size() > 0) {
             linePos += StringListRenderer.drawCenteredWrappedStrings(
                 dc,
                 localAdvice,

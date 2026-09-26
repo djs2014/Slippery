@@ -12,18 +12,29 @@ class DataFieldSettingsMenu extends WatchUi.Menu2 {
 
 //! Handles menu input and stores the menu data
 class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
-  // hidden var _currentMenuItem as MenuItem?;
-  // hidden var _view as DataFieldSettingsView;
+  hidden var _item as MenuItem?;
+  hidden var _storageKey as String = "";
+  hidden var _arrayIndex as Number = -1;
 
   function initialize() {
     Menu2InputDelegate.initialize();
     // _view = view;
   }
 
-  function onSelect(item as MenuItem) as Void {
-    // _currentMenuItem = item;
-    var id = item.getId();
+  function onSelect(menuItem as MenuItem) as Void {
+    _item = menuItem;
+    var id = menuItem.getId();
 
+    // System.println(["onSelect id", id, id.toString(), id instanceof String]);
+
+    // Extract selected storage key and index
+    _storageKey = stringLeft(id.toString(), "|", id.toString());
+    var idx = stringRight(id.toString(), "|", "").toNumber();
+    if (idx == null) {
+      _arrayIndex = -1;
+    } else {
+      _arrayIndex = idx;
+    }
     if (id instanceof String && id.equals("background")) {
       var proxyMenu = new WatchUi.Menu2({ :title => "Background config" });
 
@@ -109,8 +120,8 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         )
       );
 
-      if (id instanceof String && item instanceof ToggleMenuItem) {
-        $.StorageSetValue(id as String, item.isEnabled());
+      if (id instanceof String && menuItem instanceof ToggleMenuItem) {
+        $.StorageSetValue(id as String, menuItem.isEnabled());
         return;
       }
 
@@ -203,94 +214,137 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       return;
     }
 
-    if (id instanceof String && id.equals("forecast")) {
-      var fcMenu = new WatchUi.Menu2({ :title => "Forecast" });
+    if (
+      id instanceof String &&
+      (id.equals("show_one_field") ||
+        id.equals("show_large_field") ||
+        id.equals("show_wide_field") ||
+        id.equals("show_small_field"))
+    ) {
+      var label = menuItem.getLabel();
+      var fieldMenu = new WatchUi.Menu2({ :title => label + " items" });
 
-      var simplify;
-      simplify = Storage.getValue("simplifyWindOne") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Simplify wind One",
-          null,
-          "simplifyWindOne",
-          simplify,
-          null
-        )
-      );
-      simplify = Storage.getValue("simplifyWindLarge") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Simplify wind Large",
-          null,
-          "simplifyWindLarge",
-          simplify,
-          null
-        )
-      );
-      simplify = Storage.getValue("simplifyWindWide") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Simplify wind Wide",
-          null,
-          "simplifyWindWide",
-          simplify,
-          null
-        )
-      );
-      simplify = Storage.getValue("simplifyWindSmall") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Simplify wind Small",
-          null,
-          "simplifyWindSmall",
-          simplify,
-          null
-        )
-      );
+      var storageKey = id.toString();
 
-      var footer;
-      footer = Storage.getValue("riskFooterOne") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Risk footer One",
-          null,
-          "riskFooterOne",
-          footer,
-          null
+      var array = $.getStorageValue(storageKey, []) as Array<Number or Boolean>;
+      // Check size
+      if (
+        $.ensureArraySize(
+          array as Array<Application.PropertyValueType>,
+          $.gSizeArrFieldItems,
+          0
         )
-      );
-      footer = Storage.getValue("riskFooterLarge") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Risk footer Large",
+      ) {
+        $.setStorageValueOrArray(
+          storageKey,
+          array as Array<Application.PropertyValueType>
+        );
+      }
+      var isWideField = id.equals("show_wide_field");
+      var isSmallField = id.equals("show_small_field");
+      var showShowHazards = !isSmallField;
+      var showShortHazard = !isWideField && !isSmallField;
+      var showShowAdvice = !isWideField && !isSmallField;
+      var showSimplifyWind = !isSmallField;
+
+      var index = 0;
+      if (showShowHazards) {
+        $.addToggleMenuItem(
+          fieldMenu,
+          "Show hazards",
           null,
-          "riskFooterLarge",
-          footer,
-          null
-        )
-      );
-      footer = Storage.getValue("riskFooterWide") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Risk footer Wide",
+          $.getKeyAndIndex(storageKey, index),
+          array[index] == true
+        );
+      }
+      index = 1;
+      if (showShortHazard) {
+        $.addToggleMenuItem(
+          fieldMenu,
+          "Short hazard",
           null,
-          "riskFooterWide",
-          footer,
-          null
-        )
-      );
-      footer = Storage.getValue("riskFooterSmall") ? true : false;
-      fcMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Risk footer Small",
+          $.getKeyAndIndex(storageKey, index),
+          array[index] == true
+        );
+      }
+
+      index = 2;
+      if (showShowAdvice) {
+        $.addToggleMenuItem(
+          fieldMenu,
+          "Show advice",
           null,
-          "riskFooterSmall",
-          footer,
-          null
-        )
+          $.getKeyAndIndex(storageKey, index),
+          array[index] == true
+        );
+      }
+
+      index = 3;
+      if (showSimplifyWind) {
+        $.addToggleMenuItem(
+          fieldMenu,
+          "Simplify wind",
+          null,
+          $.getKeyAndIndex(storageKey, index),
+          array[index] == true
+        );
+      }
+
+      index = 4;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show risk footer",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
       );
 
-      WatchUi.pushView(fcMenu, new $.GeneralMenuDelegate(), WatchUi.SLIDE_UP);
+      index = 5;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show effective crossgust",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 6;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show feelslike temperature",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 7;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show winddata default",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      // $.addMenuItem(
+      //   fieldMenu,
+      //   "Hours forecast|0~24",
+      //   (array[index] as Number).toString(),
+      //   getKeyAndIndex(storageKey, index)
+      // );
+      // index = 9; // show_one_field|9 etc
+      // $.addMenuItem(
+      //   fieldMenu,
+      //   "Wind unit",
+      //   $.getShowWindText(array[index] as Number),
+      //   $.getKeyAndIndex(storageKey, index)
+      // );
+
+      WatchUi.pushView(
+        fieldMenu,
+        new $.GeneralMenuDelegate(),
+        WatchUi.SLIDE_UP
+      );
       return;
     }
 
@@ -331,46 +385,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
           null
         )
       );
-      boolean = Storage.getValue("useEffectiveCrossGust") ? true : false;
-      advMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Effective Cross Gust",
-          null,
-          "useEffectiveCrossGust",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("useFeelsLikeTemperature") ? true : false;
-      advMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Feels Like Temperature",
-          null,
-          "useFeelsLikeTemperature",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("shortHazard") ? true : false;
-      advMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Short Hazard",
-          null,
-          "shortHazard",
-          boolean,
-          null
-        )
-      );
-      boolean = Storage.getValue("hideRiskAdvice") ? true : false;
-      advMenu.addItem(
-        new WatchUi.ToggleMenuItem(
-          "Hide Risk Advice",
-          null,
-          "hideRiskAdvice",
-          boolean,
-          null
-        )
-      );
+
       boolean = Storage.getValue("hideUnitsWhenActive") ? true : false;
       advMenu.addItem(
         new WatchUi.ToggleMenuItem(
@@ -386,8 +401,8 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       return;
     }
 
-    if (id instanceof String && item instanceof ToggleMenuItem) {
-      $.StorageSetValue(id as String, item.isEnabled());
+    if (id instanceof String && menuItem instanceof ToggleMenuItem) {
+      $.StorageSetValue(id as String, menuItem.isEnabled());
       return;
     }
   }
@@ -521,4 +536,29 @@ function StorageSetValue(
   } catch (ex) {
     ex.printStackTrace();
   }
+}
+
+function addMenuItem(
+  menu as WatchUi.Menu2,
+  label as String,
+  subLabel as String,
+  id as String
+) {
+  var mi = new WatchUi.MenuItem(label, subLabel, id, null);
+  menu.addItem(mi);
+}
+
+function addToggleMenuItem(
+  menu as WatchUi.Menu2,
+  label as String,
+  subLabel as String?,
+  id as String,
+  enabled as Boolean
+) {
+  var tmi = new WatchUi.ToggleMenuItem(label, subLabel, id, enabled, null);
+  menu.addItem(tmi);
+}
+
+function getKeyAndIndex(key as String, index as Number) as String {
+  return Lang.format("$1$|$2$", [key, index.toString()]);
 }

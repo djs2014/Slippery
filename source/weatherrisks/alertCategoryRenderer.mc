@@ -2,16 +2,18 @@ import Toybox.Lang;
 import Toybox.System;
 import Toybox.Graphics;
 
-    public enum AlertCategory {
-        CATEGORY_NONE,
-        CATEGORY_WIND,
-        CATEGORY_COLD,
-        CATEGORY_HEAT,
-        CATEGORY_RAIN,
-    }
+public enum AlertCategory {
+    CATEGORY_NONE_TEMP,
+    CATEGORY_NONE_WIND,
+    CATEGORY_WIND,
+    CATEGORY_COLD,
+    CATEGORY_HEAT,
+    CATEGORY_RAIN,
+}
 public class AlertCategoryRenderer {
     public static function getCategoryForState(
-        state as AlertState
+        state as AlertState,
+        defaultCategory as AlertCategory
     ) as AlertCategory {
         switch (state) {
             case STATE_ICE_ALERT:
@@ -33,7 +35,7 @@ public class AlertCategoryRenderer {
 
             case STATE_NORMAL:
             default:
-                return CATEGORY_NONE;
+                return defaultCategory;
         }
     }
 
@@ -45,11 +47,31 @@ public class AlertCategoryRenderer {
         category as AlertCategory,
         color as Graphics.ColorType
     ) as Void {
-        if (category == CATEGORY_NONE) {
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        if (category == CATEGORY_NONE_TEMP) {
+            dc.drawCircle(cx, cy, size / 2);
+            dc.drawText(
+                cx,
+                cy,
+                Graphics.FONT_XTINY,
+                "t",
+                Graphics.TEXT_JUSTIFY_CENTER // | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+            return;
+        }
+        if (category == CATEGORY_NONE_WIND) {
+            dc.drawCircle(cx, cy, size / 2);
+            dc.drawText(
+                cx,
+                cy,
+                Graphics.FONT_XTINY,
+                "w",
+                Graphics.TEXT_JUSTIFY_CENTER // | Graphics.TEXT_JUSTIFY_VCENTER
+            );
+
             return;
         }
 
-        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
         var r = size / 2;
 
         switch (category) {

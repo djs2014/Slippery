@@ -8,10 +8,6 @@
 list some lat/lon with interesting wheater situations for testing purpose
 
 
-fix -104 issue
-
-add incoming rain wide field
-hide hazard large field, etc..
 analyze bg service /numeric input etc.
 
 panel chip locations

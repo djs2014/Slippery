@@ -15,7 +15,7 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         showBadges as Boolean,
         isDark as Boolean,
-        edgeField as EdgeField
+        edgeField as EdgeField        
     ) {
         var dewpointForecast = metrics.dewpointForecast; // Float (°C)
         var numHours = dewpointForecast.size();
@@ -134,6 +134,8 @@ class PredictiveSparkline {
         showLabels as Boolean,
         showBadges as Boolean,
         showForecastHour as ShowForecastHour,
+        simplifyWind as Boolean,
+        showRiskBackground as Boolean,
         edgeField as EdgeField
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
@@ -193,6 +195,8 @@ class PredictiveSparkline {
             :hasSunshineData => ranges[:hasSunshineData],
             :firstShowerIdx => ranges[:firstShowerIdx],
             :firstRainIdx => ranges[:firstRainIdx],
+            :simplifyWind => simplifyWind,
+            :showRiskBackground => showRiskBackground,
         };
 
         // Baseline Line
@@ -340,9 +344,7 @@ class PredictiveSparkline {
         var showForecastHour = ctx[:showForecastHour] as ShowForecastHour;
         var hourColor = ctx[:hourColor] as Graphics.ColorType;
         var isDark = ctx[:isDark] as Boolean;
-        // Risk heatmap is redundant while the risk footer below carries the
-        // per-hour risk (Forecast menu): skip blocks + labels, keep geometry.
-        var showRisk = !$.riskFooterFor(ctx[:edgeField] as EdgeField);
+        var showRisk = ctx[:showRiskBackground] as Boolean;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -775,7 +777,7 @@ class PredictiveSparkline {
         var haloColor = ctx[:haloColor] as Graphics.ColorType;
         var smallWidth = ctx[:smallWidth] as Boolean;
         var isDark = ctx[:isDark] as Boolean;
-        var simplified = $.simplifyWindFor(ctx[:edgeField] as EdgeField);
+        var simplified = ctx[:simplifyWind] as Boolean;
         var maxWind = 60.0f;
         var prevWindX = -1;
         var prevWindY = -1;
