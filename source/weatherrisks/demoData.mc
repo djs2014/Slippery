@@ -448,6 +448,8 @@ class DemoWeatherService {
             );
         }
 
+        wd.isValid = true;
+
         return wd;
     }
 

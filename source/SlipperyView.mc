@@ -246,6 +246,17 @@ class SlipperyView extends WatchUi.DataField {
 
     hidden var mAlertCategory as AlertCategory = CATEGORY_NONE_TEMP;
     function UpdateAlertState() as Void {
+        var defaultCategory =
+            mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP;
+        // No weather data yet: fresh WeatherMetrics defaults to
+        // surfaceTemp 0.0, which would trip the ice rule (STATE_ICE_ALERT /
+        // CATEGORY_COLD) and then stick via the 30-cycle hysteresis hold.
+        // Hold NORMAL until real (or demo) data arrives instead.
+        if (!mWeatherMetrics.isValid) {
+            mAlertState = STATE_NORMAL;
+            mAlertCategory = defaultCategory;
+            return;
+        }
         mCrossGust = CrosswindAnalyzer.evaluateCrosswind(
             mWeatherMetrics.windDirection,
             mHeadingDegrees,
@@ -292,7 +303,7 @@ class SlipperyView extends WatchUi.DataField {
 
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(
             mAlertState,
-            mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP
+            defaultCategory
         );
 
         if ($.gBeepOnAlertStateChange) {
