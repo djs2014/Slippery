@@ -36,6 +36,7 @@ class WeatherMetrics {
     var windForecast as Array<Float> = []; // Float items (km/h)
     var windDirForecast as Array<Number> = []; // Number items (0-359 deg) where the wind is coming from (standard weather map style)
     var windGustForecast as Array<Float> = []; // Float items (km/h)
+    var gustSeverityForecast as Array<Number> = []; // Number items (0-3 per Wind.calculateOptimalGustLevel)
     var airTempForecast as Array<Float> = []; // Float items (°C air)
     var snowForecast as Array<Float> = []; // Float items (cm/h)
     var precipProbForecast as Array<Number> = []; // Number items (0-100% per hour)
@@ -98,6 +99,8 @@ class WeatherMetrics {
             windDirForecast +
             ", windGustForecast=" +
             windGustForecast +
+            ", gustSeverityForecast=" +
+            gustSeverityForecast +
             ", airTempForecast=" +
             airTempForecast +
             ", snowForecast=" +

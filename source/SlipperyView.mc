@@ -289,11 +289,12 @@ class SlipperyView extends WatchUi.DataField {
             maxRainAhead,
             maxShowersAhead
         );
-        
+
         mAlertCategory = AlertCategoryRenderer.getCategoryForState(
             mAlertState,
-            (mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP)
+            mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP
         );
+
         if ($.gBeepOnAlertStateChange) {
             AlertAudioNotifier.notifyStateChange(mAlertState);
         }

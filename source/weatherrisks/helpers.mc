@@ -404,29 +404,6 @@ function getShowForecastHourText(hourOption as ShowForecastHour) as String {
     return "-";
 }
 
-function calculateGustSeverity(
-    windSpeed as Float?,
-    windGust as Float?
-) as Number {
-    if (windSpeed == null) {
-        windSpeed = 0;
-    }
-    if (windGust == null) {
-        windGust = 0;
-    }
-    var gustRatio = windSpeed > 1.0f ? windGust / windSpeed : 1.0f;
-    var level = 0;
-
-    if (windGust >= 45.0f || gustRatio >= 1.7f) {
-        level = 3;
-    } else if (windGust >= 35.0f || gustRatio >= 1.5f) {
-        level = 2;
-    } else if (windGust >= 25.0f || gustRatio >= 1.3f) {
-        level = 1;
-    }
-    return level;
-}
-
 function getGustSeverityColor(level as Number, isDark as Boolean) as ColorType {
     switch (level) {
         case 0:

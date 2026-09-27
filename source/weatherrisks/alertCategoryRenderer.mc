@@ -48,25 +48,31 @@ public class AlertCategoryRenderer {
         color as Graphics.ColorType
     ) as Void {
         dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        var yOffset = 1;
+        if (size > 14) {
+            yOffset = 2;
+        }
         if (category == CATEGORY_NONE_TEMP) {
+            dc.setPenWidth(1);
             dc.drawCircle(cx, cy, size / 2);
             dc.drawText(
                 cx,
-                cy,
+                cy + yOffset,
                 Graphics.FONT_XTINY,
-                "t",
-                Graphics.TEXT_JUSTIFY_CENTER // | Graphics.TEXT_JUSTIFY_VCENTER
+                "T",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
             );
             return;
         }
         if (category == CATEGORY_NONE_WIND) {
+            dc.setPenWidth(1);
             dc.drawCircle(cx, cy, size / 2);
             dc.drawText(
                 cx,
-                cy,
+                cy + yOffset,
                 Graphics.FONT_XTINY,
-                "w",
-                Graphics.TEXT_JUSTIFY_CENTER // | Graphics.TEXT_JUSTIFY_VCENTER
+                "W",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER
             );
 
             return;

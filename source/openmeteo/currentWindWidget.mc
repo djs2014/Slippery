@@ -140,7 +140,8 @@ class CurrentWindWidget {
         dc.fillPolygon(dartPts);
 
         // --- STEP D: TAPERED GUST CHEVRONS (DIMENSION CLAMPED) ---
-        var numGustBars = $.calculateGustSeverity(windSpeed, gust);
+        // var numGustBars = $.calculateGustSeverity(windSpeed, gust);
+        var numGustBars = Wind.calculateOptimalGustLevel(windSpeed, gust, true);
 
         if (numGustBars > 0) {
             // 1. DIMENSION CONSTRAINTS

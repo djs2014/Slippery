@@ -768,6 +768,7 @@ class PredictiveSparkline {
         var windForecast = metrics.windForecast;
         var windDirForecast = metrics.windDirForecast;
         var windGustForecast = metrics.windGustForecast;
+        var gustSeverityForecast = metrics.gustSeverityForecast;
         var x = ctx[:x] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
         var barGap = ctx[:barGap] as Number;
@@ -797,6 +798,13 @@ class PredictiveSparkline {
             var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
             var gust =
                 windGustForecast.size() > i ? windGustForecast[i] : windSpd;
+            // Precomputed per-hour severity (populated via
+            // Wind.calculateOptimalGustLevel); fall back to on-the-fly
+            // calculation for stale/legacy metrics without the array.
+            var severity =
+                i < gustSeverityForecast.size()
+                    ? gustSeverityForecast[i]
+                    : Wind.calculateOptimalGustLevel(windSpd, gust, true);
             var gustRatio = gust / maxWind;
             if (gustRatio > 1.0f) {
                 gustRatio = 1.0f;
@@ -848,7 +856,7 @@ class PredictiveSparkline {
                         windPy,
                         windDirForecast[i],
                         windSpd,
-                        gust,
+                        severity,
                         isDark
                     );
                 } else {
@@ -858,7 +866,7 @@ class PredictiveSparkline {
                         windPy,
                         windDirForecast[i],
                         windSpd,
-                        gust,
+                        severity,
                         isDark
                     );
                 }
@@ -1088,7 +1096,7 @@ class PredictiveSparkline {
         cy as Number,
         angleDeg as Number,
         windSpeed as Float,
-        gust as Float,
+        gustSeverity as Number,
         isDark as Boolean
     ) as Void {
         // 1. LARGER TRIANGLE DIMENSIONS (Length: 12px to 18px)
@@ -1157,15 +1165,14 @@ class PredictiveSparkline {
         // --- STEP C: STACKED GUST BARS BEHIND BASE ---
         // (Kept inline: a nested helper frame here deepened the worst-case
         // call chain and overflowed the VM stack on-device. See draw() note.)
-        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var numGustBars = 0;
-
-        if (gust >= 45.0f || gustRatio >= 1.7f) {
+        // Precomputed optimal gust level (0-3) doubles as the barb count,
+        // so no per-frame Wind.calculateOptimalGustLevel() call is needed.
+        var numGustBars = gustSeverity;
+        if (numGustBars < 0) {
+            numGustBars = 0;
+        }
+        if (numGustBars > 3) {
             numGustBars = 3;
-        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-            numGustBars = 2;
-        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-            numGustBars = 1;
         }
 
         var barSpacing = 4;
@@ -1209,7 +1216,7 @@ class PredictiveSparkline {
         cy as Number,
         angleDeg as Number,
         windSpeed as Float,
-        gust as Float,
+        gustSeverity as Number,
         isDark as Boolean
     ) as Void {
         // 1. SHAFT LENGTH BASED ON BASE WIND SPEED (Range: 8px to 14px)
@@ -1239,18 +1246,10 @@ class PredictiveSparkline {
         var tailY = cy - (halfLen * uY).toNumber();
 
         // 2. GUST SEVERITY LEVELS
-        // Same tiers as calculateGustSeverity() and drawWindArrow(), but
-        // encoded in COLOR so the icon stays small: 0 neutral, 1 yellow,
-        // 2 orange, 3 red (see getGustSeverityColor).
-        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var numBarbs = 0;
-        if (gust >= 45.0f || gustRatio >= 1.7f) {
-            numBarbs = 3;
-        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-            numBarbs = 2;
-        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-            numBarbs = 1;
-        }
+        // Precomputed via Wind.calculateOptimalGustLevel(), encoded in
+        // COLOR so the icon stays small: 0 neutral, 1 yellow, 2 orange,
+        // 3 red (see getGustSeverityColor).
+        var numBarbs = gustSeverity;
 
         dc.setColor(
             $.getGustSeverityColor(numBarbs, isDark),

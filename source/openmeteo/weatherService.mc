@@ -132,9 +132,10 @@ class WeatherService {
             metrics.windSpeed = windSpeeds[targetIdx];
             metrics.windGust = windGusts[targetIdx];
             metrics.windDirection = windDirections[targetIdx];
-            metrics.gustSeverity = $.calculateGustSeverity(
+            metrics.gustSeverity = Wind.calculateOptimalGustLevel(
                 metrics.windSpeed,
-                metrics.windGust
+                metrics.windGust,
+                true
             );
 
             // Calculate 12-hour accumulated moisture lookback for slipperiness
@@ -264,6 +265,13 @@ class WeatherService {
                 );
                 metrics.windGustForecast.add(
                     l < windGusts.size() ? windGusts[l] : 0.0f
+                );
+                metrics.gustSeverityForecast.add(
+                    Wind.calculateOptimalGustLevel(
+                        l < windSpeeds.size() ? windSpeeds[l] : 0.0f,
+                        l < windGusts.size() ? windGusts[l] : 0.0f,
+                        true
+                    )
                 );
                 metrics.airTempForecast.add(
                     l < airTemps.size() ? airTemps[l] : 0.0f

@@ -431,6 +431,23 @@ class DemoWeatherService {
             }
         }
 
+        // Precomputed gust severity per forecast hour (same tiers as live
+        // path via Wind.calculateOptimalGustLevel, for predictiveSparkline).
+        wd.gustSeverityForecast = [] as Array<Number>;
+        var demoHours = wd.windForecast.size();
+        if (wd.windGustForecast.size() < demoHours) {
+            demoHours = wd.windGustForecast.size();
+        }
+        for (var g = 0; g < demoHours; g++) {
+            wd.gustSeverityForecast.add(
+                Wind.calculateOptimalGustLevel(
+                    wd.windForecast[g],
+                    wd.windGustForecast[g],
+                    true
+                )
+            );
+        }
+
         return wd;
     }
 
