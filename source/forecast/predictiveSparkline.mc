@@ -1113,6 +1113,13 @@ class PredictiveSparkline {
             baseHalfWidth = 5;
         }
 
+        // Calm air carries no gust bars, so the bare triangle reads
+        // smaller than gust arrows: inflate it slightly to stay visible.
+        if (gustSeverity <= 0) {
+            len += 2;
+            baseHalfWidth += 1;
+        }
+
         // Convert direction: Flip by 180 deg so arrow points WHERE wind is blowing TO
         var rad = Math.toRadians(angleDeg + 180.0f);
         var uX = Math.sin(rad);
@@ -1226,6 +1233,12 @@ class PredictiveSparkline {
             len = isCompact ? 10 : 14;
         } else if (windSpeed >= 25.0f) {
             len = isCompact ? 8 : 12;
+        }
+
+        // Calm-air compensation (see drawWindArrow): severity 0 renders
+        // in neutral color with no bars, so lengthen the shaft slightly.
+        if (gustSeverity <= 0) {
+            len += 2;
         }
 
         // Direction unit vector: flip by 180 deg so the arrow points WHERE
