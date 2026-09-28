@@ -475,8 +475,8 @@ class SlipperyView extends WatchUi.DataField {
         // Same column geometry as PredictiveSparkline.draw().
         var smallWidth = mEdgeField == EfSmall;
         var barGap = smallWidth ? 1 : 2;
-        var innerW = width - x * 2;
-        var standardBarWidth = (innerW - (numHours - 1) * barGap) / numHours;
+        var totalGaps = (numHours - 1) * barGap;
+        var standardBarWidth = (width - totalGaps) / numHours;
         if (standardBarWidth < 2) {
             standardBarWidth = 2;
         }
@@ -507,7 +507,7 @@ class SlipperyView extends WatchUi.DataField {
         }
         var haloColor = isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;
         dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawRectangle(x - 1, y - 1, innerW + 2, footerH + 2);
+        dc.drawRectangle(x - 1, y - 1, width + 2, footerH + 2);
     }
 
     private function drawEdgeSmallFieldWithSparkline(
