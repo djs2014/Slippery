@@ -4,6 +4,8 @@
 52.352547, 4.852022
 69.840043, 26.883803
 64.66204068732797, -19.170883997217427 iceland
+Girona
+42.046663, 2.775519
 
 list some lat/lon with interesting wheater situations for testing purpose
 
@@ -12,3 +14,6 @@ analyze bg service /numeric input etc.
 
 panel chip locations
 primare or high risk 
+
+sparkline arrows larger
+optio bigger arrow

@@ -63,8 +63,10 @@ class ThemeManager {
     private static const RAW_SHADES_OF_OLIVE       = 0x666600;
     private static const RAW_SUN_DARK               = 0xFFC800; // vivid amber/gold (dark theme)
     private static const RAW_SUN_LIGHT              = 0xCC8800; // muted amber/gold (light theme)
+    private static const RAW_SHOWERS_CHANCE_DARK    = 0x9966FF; // lighter purple fill for uncertain showers (dark theme)
+    private static const RAW_SHOWERS_CHANCE_LIGHT   = 0xCC88FF; // lighter purple fill for uncertain showers (light theme)
 
-    // 2. Semantic Color Keys (0 through 30)
+    // 2. Semantic Color Keys (0 through 32)
     public enum ColorKey {
         COLOR_BLUE,                        // 0
         COLOR_CYAN_BLUE,                   // 1
@@ -98,7 +100,8 @@ class ThemeManager {
         COLOR_SHOWERS,                     // 29
         COLOR_OLIVE,                       // 30
         COLOR_SUN,                         // 31
-        COLOR_COUNT                        // 32 (Guard marker for palette size)
+        COLOR_SHOWERS_CHANCE,              // 32
+        COLOR_COUNT                        // 33 (Guard marker for palette size)
     }
 
     // 3. Dark Palette
@@ -134,7 +137,8 @@ class ThemeManager {
         Graphics.COLOR_WHITE,              // 28
         RAW_DEEP_PURPLE_LIGHT,             // 29
         RAW_SHADES_OF_OLIVE,               // 30
-        RAW_SUN_DARK                       // 31
+        RAW_SUN_DARK,                      // 31
+        RAW_SHOWERS_CHANCE_DARK            // 32
     ];
 
     // 4. Light Palette
@@ -170,6 +174,7 @@ class ThemeManager {
         RAW_SHADES_OF_AQUA,                // 28
         RAW_DEEP_PURPLE_DARK,              // 29
         RAW_SHADES_OF_OLIVE,               // 30
-        RAW_SUN_LIGHT                      // 31
+        RAW_SUN_LIGHT,                     // 31
+        RAW_SHOWERS_CHANCE_LIGHT           // 32
     ];   
 }

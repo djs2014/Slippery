@@ -4,7 +4,7 @@ import Toybox.Math;
 import Toybox.Time;
 import Toybox.System;
 
-(:extendedCode) 
+(:extendedCode)
 class PredictiveSparkline {
     public static function drawComfort(
         dc as Graphics.Dc,
@@ -15,7 +15,7 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         showBadges as Boolean,
         isDark as Boolean,
-        edgeField as EdgeField        
+        edgeField as EdgeField
     ) {
         var dewpointForecast = metrics.dewpointForecast; // Float (°C)
         var numHours = dewpointForecast.size();
@@ -156,7 +156,7 @@ class PredictiveSparkline {
             standardBarWidth * metrics.hourFractionRemaining
         ).toNumber();
         var baselineY = y + height; //- (showLabels ? 16 : 0);
-        var chartHeight = baselineY - y;//  - (showLabels ? 14 : 0);
+        var chartHeight = baselineY - y; //  - (showLabels ? 14 : 0);
 
         // PASS 1 range scan in its own frame (locals freed before PASS 2).
         var ranges = computePrecipRanges(metrics, numHours);
@@ -180,7 +180,10 @@ class PredictiveSparkline {
             :offsetIceBars => showLabels ? 12 : 0,
             :baselineY => baselineY,
             :chartHeight => chartHeight,
-            :riskBlockY => y + (height - chartHeight - 4) + 2 + (chartHeight * 0.33).toNumber(),
+            :riskBlockY => y +
+            (height - chartHeight - 4) +
+            2 +
+            (chartHeight * 0.33).toNumber(),
             :riskBlockHeight => (chartHeight * 0.66).toNumber(),
             :hourColor => AppState.getColor(ThemeManager.COLOR_BG),
             :haloColor => isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE,
@@ -263,7 +266,9 @@ class PredictiveSparkline {
             var probP =
                 i < precipProbForecast.size()
                     ? precipProbForecast[i]
-                    : (totalP > 0.05f ? 100 : 0);
+                    : totalP > 0.05f
+                      ? 100
+                      : 0;
             if (
                 firstShowerIdx < 0 &&
                 i < showersForecast.size() &&
@@ -363,7 +368,9 @@ class PredictiveSparkline {
                 surfaceTempForecast[i] <= 0.0f
             ) {
                 dc.setColor(
-                    AppState.getColor(ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND),
+                    AppState.getColor(
+                        ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND
+                    ),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.fillRectangle(
@@ -465,10 +472,8 @@ class PredictiveSparkline {
                 // Confidence: below-floor hours render hollow (outline)
                 // segments in the same colors instead of solid fills.
                 var prob =
-                    i < precipProbForecast.size()
-                        ? precipProbForecast[i]
-                        : 100;
-                var solidBar = prob >= probFloor;
+                    i < precipProbForecast.size() ? precipProbForecast[i] : 100;
+                var highProb = prob >= probFloor;
 
                 // Proportional split; snow cap never exceeds the column.
                 var snowH = 0;
@@ -504,9 +509,7 @@ class PredictiveSparkline {
                         if (showerH > liquidH) {
                             showerH = liquidH;
                         }
-                        if (
-                            showers >= precipHlThreshold && showerH < 2
-                        ) {
+                        if (showers >= precipHlThreshold && showerH < 2) {
                             showerH = liquidH < 2 ? liquidH : 2;
                         }
                         rainH = liquidH - showerH;
@@ -524,10 +527,21 @@ class PredictiveSparkline {
                                         ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
                                     );
                         dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
-                        if (solidBar) {
-                            dc.fillRectangle(colX, precipY - rainH, colW, rainH);
-                        } else {
-                            dc.drawRectangle(colX, precipY - rainH, colW, rainH);
+                        dc.fillRectangle(colX, precipY - rainH, colW, rainH);
+
+                        if (!highProb) {
+                            dc.setColor(
+                                AppState.getColor(
+                                    ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
+                                ),
+                                Graphics.COLOR_TRANSPARENT
+                            );
+                            dc.drawRectangle(
+                                colX,
+                                precipY - rainH,
+                                colW,
+                                rainH
+                            );
                         }
                         precipY -= rainH;
                     }
@@ -537,14 +551,20 @@ class PredictiveSparkline {
                             AppState.getColor(ThemeManager.COLOR_SHOWERS),
                             Graphics.COLOR_TRANSPARENT
                         );
-                        if (solidBar) {
-                            dc.fillRectangle(
-                                colX,
-                                precipY - showerH,
-                                colW,
-                                showerH
+                        dc.fillRectangle(
+                            colX,
+                            precipY - showerH,
+                            colW,
+                            showerH
+                        );
+
+                        if (!highProb) {
+                            // Uncertain hours: light fill for visibility plus
+                            // solid outline so the segment is not lost.
+                            dc.setColor(
+                                AppState.getColor(ThemeManager.COLOR_SHOWERS),
+                                Graphics.COLOR_TRANSPARENT
                             );
-                        } else {
                             dc.drawRectangle(
                                 colX,
                                 precipY - showerH,
@@ -561,11 +581,8 @@ class PredictiveSparkline {
                         AppState.getColor(ThemeManager.COLOR_SNOW_PATTERN),
                         Graphics.COLOR_TRANSPARENT
                     );
-                    if (solidBar) {
-                        dc.fillRectangle(colX, precipY - snowH, colW, snowH);
-                    } else {
-                        dc.drawRectangle(colX, precipY - snowH, colW, snowH);
-                    }
+                    dc.fillRectangle(colX, precipY - snowH, colW, snowH);
+
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
@@ -821,7 +838,9 @@ class PredictiveSparkline {
                         ? Graphics.COLOR_WHITE
                         : Graphics.COLOR_BLACK
                     : isDark
-                      ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE)
+                      ? AppState.getColor(
+                            ThemeManager.COLOR_INTERNATIONAL_ORANGE
+                        )
                       : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED);
 
             if (prevWindX != -1 && i % 2 == 0) {
@@ -910,8 +929,10 @@ class PredictiveSparkline {
         }
         // hourFractionRemaining is quarter-quantized (1.0/0.75/0.5/0.25),
         // so this yields 4/3/2/1 quarters respectively.
-        var quartersToShow =
-            (4.0f * metrics.hourFractionRemaining + 0.99f).toNumber();
+        var quartersToShow = (
+            4.0f * metrics.hourFractionRemaining +
+            0.99f
+        ).toNumber();
         if (quartersToShow < 1) {
             quartersToShow = 1;
         }
@@ -990,7 +1011,9 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? Graphics.COLOR_YELLOW : AppState.getColor(ThemeManager.COLOR_OLIVE),
+                    isDark
+                        ? Graphics.COLOR_YELLOW
+                        : AppState.getColor(ThemeManager.COLOR_OLIVE),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -1011,7 +1034,11 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE) : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED),
+                    isDark
+                        ? AppState.getColor(
+                              ThemeManager.COLOR_INTERNATIONAL_ORANGE
+                          )
+                        : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -1046,7 +1073,10 @@ class PredictiveSparkline {
         // ice (danger), showers (sudden), steady rain (expected).
         var badgeY = y;
         if (ctx[:hasIceAhead] as Boolean) {
-            dc.setColor(AppState.getColor(ThemeManager.COLOR_RED), Graphics.COLOR_TRANSPARENT);
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_RED),
+                Graphics.COLOR_TRANSPARENT
+            );
             dc.drawText(
                 x + width,
                 badgeY,
@@ -1116,8 +1146,8 @@ class PredictiveSparkline {
         // Calm air carries no gust bars, so the bare triangle reads
         // smaller than gust arrows: inflate it slightly to stay visible.
         if (gustSeverity <= 0) {
-            len += 2;
-            baseHalfWidth += 1;
+            len += 4;
+            baseHalfWidth += 2;
         }
 
         // Convert direction: Flip by 180 deg so arrow points WHERE wind is blowing TO

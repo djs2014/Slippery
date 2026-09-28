@@ -39,7 +39,7 @@ class CurrentWindWidget {
         // sizes below (indent, chevrons) follow scale automatically.
         var scale =
             (isBigField ? 2.0f : 1.0f) *
-            ($.gHasHighResScreen ? 1.25f : 1.0f);
+            ($.gHasHighResScreen ? 1.50f : 1.0f);
         var len = (28 * scale).toNumber();
         var baseHalfWidth = (10 * scale).toNumber();
 
