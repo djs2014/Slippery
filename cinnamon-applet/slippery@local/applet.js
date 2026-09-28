@@ -203,7 +203,11 @@ function evaluateRisk(p) {
     }
 
     if (p.immediateRain >= 0 && p.rainCurrent < RAIN_THRESHOLD) {
-        upgrade(RiskLevel.HIGH);
+        if ((p.upcomingRain || 0) >= 2.5) {
+            upgrade(RiskLevel.HIGH);
+        } else {
+            upgrade(RiskLevel.MODERATE);
+        }
         addH(Hazards.IMMINENT_RAIN);
         addA(p.immediateRain === 0 ? Advice.RAIN_NOW : "Rain in " + p.immediateRain + " min");
     }
@@ -451,6 +455,9 @@ function parseResponse(lat, data, nowSec) {
         immR = checkImminent((data.minutely_15.rain || []).slice(0, 4));
         immS = checkImminent((data.minutely_15.snowfall || []).slice(0, 4));
     }
+    const nextHourlyRain = at(rain, targetIdx + 1) + at(showers, targetIdx + 1);
+    const maxMinutelyRain = (data.minutely_15 && data.minutely_15.rain || []).slice(0, 4).reduce((m, v) => Math.max(m, v || 0), 0);
+    const upcomingRain = Math.max(nextHourlyRain, maxMinutelyRain * 4);
     const season = getSeason(lat, new Date(nowSec * 1000));
     const r = evaluateRisk({
         airTemp: airTemp,
@@ -468,6 +475,7 @@ function parseResponse(lat, data, nowSec) {
         immediateSnow: immS,
         surfaceDewSpread: surfaceTemp - dewPoint,
         snowCurrent: snowCurrent,
+        upcomingRain: upcomingRain,
     });
     return {
         risk: r,
@@ -559,6 +567,7 @@ function calculateProfile(parsed, maxHours) {
             immediateSnow: immS,
             surfaceDewSpread: surfaceTemp - dewPoint,
             snowCurrent: snowCur,
+            upcomingRain: h + 1 < n ? at(rain, h + 1) + at(showers, h + 1) : 0,
         });
         const t = hourly.time[h];
         const wS = at(windS, h), wG = at(windG, h), wD = at(windD, h);

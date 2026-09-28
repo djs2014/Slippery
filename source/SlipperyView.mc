@@ -89,6 +89,11 @@ class SlipperyView extends WatchUi.DataField {
         if (!WeatherService.parseOpenMeteoResponse(mLat, data)) {
             return;
         }
+        // Separate call on purpose: parse's large frame is popped before
+        // the risk projection nests evaluateRisk calls (background stack).
+        if (!WeatherService.calculateRisks()) {
+            return;
+        }
         if ($.gDemo) {
             mHasWeatherData = true;
             return;

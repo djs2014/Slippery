@@ -140,6 +140,15 @@ class RiskProjectionEngine {
                     immediateSnow = 60;
                 }
 
+                // --- 3b. UPCOMING INTENSITY (mm/h) ---
+                // Scales the imminent-rain warning: steady rain (>= 2.5)
+                // warns High, lighter imminent rain warns Moderate.
+                var upcomingRainAndShower = 0.0f;
+                if (h + 1 < count) {
+                    upcomingRainAndShower =
+                        rains[h + 1] + showers[h + 1];
+                }
+
                 // --- 4. EVALUATE RISK ---
                 riskProfile[profileIndex] = RiskCalculator.evaluateRisk(
                     airTemp,
@@ -156,7 +165,8 @@ class RiskProjectionEngine {
                     immediateRainAndShower,
                     immediateSnow,
                     surfaceDewSpread,
-                    snowCurrent
+                    snowCurrent,
+                    upcomingRainAndShower
                 );
             }
         } finally {

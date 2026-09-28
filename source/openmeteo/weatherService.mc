@@ -26,7 +26,12 @@ class WeatherService {
             return false;
         }
 
-        return parseOpenMeteoResponse(lat, _cachedData);
+        if (!parseOpenMeteoResponse(lat, _cachedData)) {
+            return false;
+        }
+        // Separate frame on purpose (see calculateRisks): the parser's large
+        // frame is popped before the risk projection nests evaluateRisk calls.
+        return calculateRisks();
     }
 
     // Parse OpenMeteo API response and update weather metrics
@@ -367,36 +372,119 @@ class WeatherService {
                     snowArray,
                     threshold
                 );
+                // Coming intensity (mm/h equivalent) scales the imminent-rain
+                // warning: minutely amounts are per 15 min, so x4 compares
+                // fairly against the 2.5 mm/h steady-rain tier.
+                var nextHourlyRain = 0.0f;
+                if (
+                    rains != null &&
+                    showers != null &&
+                    targetIdx + 1 < rains.size() &&
+                    targetIdx + 1 < showers.size()
+                ) {
+                    nextHourlyRain =
+                        rains[targetIdx + 1] + showers[targetIdx + 1];
+                }
+                var maxMinutelyRain = 0.0f;
+                for (
+                    var m = 0;
+                    m < metrics.minutelyRainForecast.size();
+                    m++
+                ) {
+                    if (metrics.minutelyRainForecast[m] > maxMinutelyRain) {
+                        maxMinutelyRain = metrics.minutelyRainForecast[m];
+                    }
+                }
+                var minutelyRate = maxMinutelyRain * 4.0f;
+                metrics.upcomingRain = nextHourlyRain > minutelyRate
+                    ? nextHourlyRain
+                    : minutelyRate;
             }
 
             metrics.isValid = true;
             _metrics = metrics;
 
-            // Calculate Risk Assessment current and forecasted conditions
-            var risks = calculateCurrentRiskAssessment();
-
-            // Calculate X-hour risk projection
-            risks.hourlyRisksLevels =
-                RiskProjectionEngine.calculate12HourRiskProfile(
-                    _metrics,
-                    targetIdx, // startIndex is current hour
-                    airTemps,
-                    surfTemps,
-                    dewPoints,
-                    humidities,
-                    rains,
-                    showers,
-                    snows,
-                    windSpeeds,
-                    windGusts
-                );
-            _risks = risks;
-
-            _lastRecalculationHour = currentHour;
             return true;
         } finally {
             _processing = false;
         }
+    }
+
+    // Computes the live risk assessment plus the 12h risk projection from
+    // the cached API response. Deliberately separated from
+    // parseOpenMeteoResponse: the parser holds dozens of locals, and keeping
+    // its frame on the stack while the projection nests
+    // RiskCalculator.evaluateRisk calls overflows the small background-task
+    // stack. Callers must run parse first, then this.
+    public static function calculateRisks() as Boolean {
+        var cached = _cachedData;
+        if (_processing || cached == null || !cached.hasKey("hourly")) {
+            return false;
+        }
+        var hourly = cached.get("hourly") as Dictionary;
+        var times = hourly.get("time") as Array<Number>?;
+        if (times == null || times.size() == 0) {
+            System.println("calculateRisks: no hourly time data.");
+            return false;
+        }
+        var airTemps = hourly.get("temperature_2m") as Array<Float>?;
+        var surfTemps = hourly.get("surface_temperature") as Array<Float>?;
+        var dewPoints = hourly.get("dewpoint_2m") as Array<Float>?;
+        var humidities =
+            hourly.get("relativehumidity_2m") as Array<Number>?;
+        var snows = hourly.get("snowfall") as Array<Float>?;
+        var rains = hourly.get("rain") as Array<Float>?;
+        var showers = hourly.get("showers") as Array<Float>?;
+        var windSpeeds = hourly.get("wind_speed_10m") as Array<Float>?;
+        var windGusts = hourly.get("wind_gusts_10m") as Array<Float>?;
+        if (
+            airTemps == null ||
+            surfTemps == null ||
+            dewPoints == null ||
+            humidities == null ||
+            rains == null ||
+            showers == null ||
+            snows == null ||
+            windSpeeds == null ||
+            windGusts == null
+        ) {
+            System.println("calculateRisks: missing hourly arrays.");
+            return false;
+        }
+
+        // Same active-hour rule as the parser: latest hour already started.
+        var nowSec = Time.now().value();
+        var targetIdx = 0;
+        for (var i = 0; i < times.size(); i++) {
+            if (times[i] <= nowSec) {
+                targetIdx = i;
+            } else {
+                break;
+            }
+        }
+
+        // Calculate Risk Assessment current and forecasted conditions
+        var risks = calculateCurrentRiskAssessment();
+
+        // Calculate X-hour risk projection
+        risks.hourlyRisksLevels =
+            RiskProjectionEngine.calculate12HourRiskProfile(
+                _metrics,
+                targetIdx, // startIndex is current hour
+                airTemps,
+                surfTemps,
+                dewPoints,
+                humidities,
+                rains,
+                showers,
+                snows,
+                windSpeeds,
+                windGusts
+            );
+        _risks = risks;
+
+        _lastRecalculationHour = System.getClockTime().hour;
+        return true;
     }
 
     static function calculateCurrentRiskAssessment() as RiskAssessment {
@@ -414,6 +502,7 @@ class WeatherService {
         var immediateRain = _metrics.immediateRain;
         var immediateSnow = _metrics.immediateSnow;
         var snowCurrent = _metrics.snowCurrent;
+        var upcomingRain = _metrics.upcomingRain;
         var surfaceDewSpread = surfaceTemp - dewPoint;
 
         var assessment = new RiskAssessment();
@@ -434,7 +523,8 @@ class WeatherService {
             immediateRain,
             immediateSnow,
             surfaceDewSpread,
-            snowCurrent
+            snowCurrent,
+            upcomingRain
         );
         assessment.riskLevel = riskLevel;
         assessment.hazards = RiskCalculator.getHazards();

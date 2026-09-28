@@ -48,6 +48,10 @@ class WeatherMetrics {
     // (-1 = No rain soon, 0 = Active rain, 15/30/45 = Starting soon)
     var immediateRain as Number = -1;
     var immediateSnow as Number = -1;
+    // Coming rain intensity in mm/h equivalent (next hourly rain+showers vs.
+    // minutely max scaled x4). Scales the imminent-rain warning: >= 2.5 High,
+    // lighter Moderate.
+    var upcomingRain as Float = 0.0;
     var minutelyRainForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
     var minutelySnowForecast as Array<Float> = []; // Array<Float> (mm per 15-min interval)
     var minutelyStartEpoch as Number = 0; // Unixtime (s) of minutely_15 slot 0; 0 = unknown
@@ -85,6 +89,8 @@ class WeatherMetrics {
             immediateRain +
             ", immediateSnow=" +
             immediateSnow +
+            ", upcomingRain=" +
+            upcomingRain +
             ", minutelyStartEpoch=" +
             minutelyStartEpoch +
             ", timeStampsForeCast=" +

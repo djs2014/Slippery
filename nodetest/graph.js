@@ -199,6 +199,7 @@ async function main() {
         windSpeed: at(winds, j), windGust: at(gusts, j),
         immediateRainAndShower: immR, immediateSnow: immS,
         surfaceDewSpread: sfc - dew, snowCurrent: snowCur,
+        upcomingRainAndShower: at(rains, j + 1) + at(showers, j + 1),
       });
       ice = (r.hazards || []).some((hz) => ICE_NAMES.indexOf(hz) !== -1);
     } catch (e) { ice = false; }

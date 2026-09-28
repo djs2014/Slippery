@@ -46,7 +46,8 @@ public class RiskCalculator {
         immediateRainAndShower as Number,
         immediateSnow as Number,
         surfaceDewSpread as Float,
-        snowCurrent as Float
+        snowCurrent as Float,
+        upcomingRainAndShower as Float
     ) as RiskLevel {
         reset();
 
@@ -228,11 +229,18 @@ public class RiskCalculator {
         // --- 12. IMMEDIATE: Imminent Rain ---
         // -1 no immediate precipitation, 0 active now, >0 minutes until start.
         // Suppressed while it is already raining (covered by the rain ladder).
+        // Scaled by coming intensity so drizzle does not outrank actual rain:
+        // steady rain (>= 2.5 mm/h, same tier as the rain ladder) warns High,
+        // lighter imminent rain warns Moderate.
         if (
             immediateRainAndShower >= 0 &&
             rainAndShowerCurrent < RAIN_THRESHOLD
         ) {
-            upgradeRisk(RiskLevelHigh);
+            if (upcomingRainAndShower >= 2.5f) {
+                upgradeRisk(RiskLevelHigh);
+            } else {
+                upgradeRisk(RiskLevelModerate);
+            }
             addHazard(HazardImminentRain);
             // if (immediateRainAndShower == 0) {
             //     addAdvice(AdviceRainStartingNow);
