@@ -214,18 +214,22 @@ async function main() {
   }
 
   // --- layout: columns close together, precip column, risk strip, hour ---
+  // (each hour label has a thin connector line up to its risk strip).
   // Traces: temp red solid, dewpoint grey solid, sun yellow solid,
   // wind white dotted, humidity cyan dashed. ICE hours get a ❄ marker.
-  const W = 780;
   const H = 446;
   const padL = 46;
   const padR = 14;
   const padT = 88;
   const padB = 96;
+  // Wider columns (mirrors the Cinnamon applet): grow the canvas once slots
+  // would get narrower than MIN_SLOT so long windows keep breathing room.
+  const n = N;
+  const MIN_SLOT = 8;
+  const W = Math.max(900, padL + padR + n * MIN_SLOT);
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
   const base = padT + plotH;
-  const n = N;
   const slot = plotW / n;
   const barW = Math.min(52, slot * 0.85);
   const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
@@ -256,6 +260,43 @@ async function main() {
   s += `<text x="${padL - 5}" y="${tempY(tMin) + 4}" fill="#999" font-size="10" text-anchor="end">${tMin.toFixed(0)}°</text>\n`;
   s += `<text x="${W - padR}" y="${padT + 10}" fill="#3377ff" font-size="10" text-anchor="end">${maxRain.toFixed(0)}mm</text>\n`;
 
+  // Hour labels (mirrors the Cinnamon applet): every hour while the window
+  // is short, thinned to ~12 grid labels for long windows. Displayed hour
+  // texts are placed by priority ("now", then midnights, then grid) so any
+  // two are at least ~40px apart — 00:00 always has breathing room.
+  const isNewDayAt = (idx) => {
+    if (idx <= 0 || idx >= n) return false;
+    const a = hours[idx - 1].time, b = hours[idx].time;
+    if (!(a instanceof Date) || isNaN(a) || !(b instanceof Date) || isNaN(b)) return false;
+    return a.getFullYear() !== b.getFullYear() ||
+      a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+  };
+  let labelEvery = 1;
+  if (n > 24) {
+    labelEvery = Math.ceil(n / 12);
+    const pxEvery = Math.ceil(50 / Math.max(slot, 1));
+    if (pxEvery > labelEvery) labelEvery = pxEvery;
+  }
+  const shownList = [0];
+  const collidesShown = (idx) => {
+    for (let c = 0; c < shownList.length; c++) {
+      if (Math.abs(idx - shownList[c]) * slot < 40) return true;
+    }
+    return false;
+  };
+  const midnightHourHidden = {};
+  for (let m = 1; m < n; m++) {
+    if (!isNewDayAt(m)) continue;
+    if (collidesShown(m)) { midnightHourHidden[m] = true; }
+    else { shownList.push(m); }
+  }
+  for (let g = 1; g < n; g++) {
+    if (isNewDayAt(g) || midnightHourHidden[g]) continue;
+    if (n > 24 && (g % labelEvery !== 0)) continue;
+    if (!collidesShown(g)) shownList.push(g);
+  }
+  const isShownLabel = (idx) => shownList.indexOf(idx) !== -1;
+
   for (let i = 0; i < n; i++) {
     const cx = cxOf(i);
     const x = (cx - barW / 2).toFixed(1);
@@ -270,22 +311,21 @@ async function main() {
     }
     s += `<rect x="${x}" y="${stripY}" width="${barW.toFixed(1)}" height="${stripH}" fill="${RISK_FILL[hh.name]}"${hh.ice ? ' stroke="#4dd0e1" stroke-width="1.5"' : ''}/>\n`;
     // When the coming hours cross midnight, the first hour of the new day
-    // keeps its plain "HH:00" label and gets the day number ("D/M") on
-    // its own row underneath, plus a vertical separator (mirrors the
-    // Cinnamon applet time scale).
-    let isNewDay = false;
-    if (i > 0 && hh.time instanceof Date && !isNaN(hh.time) &&
-        hours[i - 1].time instanceof Date && !isNaN(hours[i - 1].time)) {
-      const a = hours[i - 1].time, b = hh.time;
-      isNewDay = a.getFullYear() !== b.getFullYear() ||
-        a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
-    }
+    // gets the day number ("D/M") on its own row underneath, plus a
+    // vertical separator (mirrors the Cinnamon applet time scale).
+    const isNewDay = isNewDayAt(i);
     if (isNewDay) {
       const sepX = (cx - slot / 2).toFixed(1);
       s += `<line x1="${sepX}" y1="${padT}" x2="${sepX}" y2="${base}" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n`;
     }
+    const showLabel = isShownLabel(i);
     const lbl = i === 0 ? 'now' : `${String(hh.time.getHours()).padStart(2, '0')}:00`;
-    s += `<text x="${cx.toFixed(1)}" y="${hourY}" fill="#999" font-size="10" text-anchor="middle">${esc(lbl)}</text>\n`;
+    // Connector from each displayed hour label up to its risk strip, so the
+    // label unambiguously points at its block (mirrors applet.js).
+    if (showLabel) {
+      s += `<line x1="${cx.toFixed(1)}" y1="${stripY + stripH}" x2="${cx.toFixed(1)}" y2="${hourY - 3}" stroke="#888" stroke-width="1"/>\n`;
+    }
+    s += `<text x="${cx.toFixed(1)}" y="${hourY}" fill="#999" font-size="10" text-anchor="middle">${showLabel ? esc(lbl) : ''}</text>\n`;
     if (isNewDay && i !== 0) {
       s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(`${hh.time.getDate()}/${hh.time.getMonth() + 1}`)}</text>\n`;
     }
