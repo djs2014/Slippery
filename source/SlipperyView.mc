@@ -579,7 +579,7 @@ class SlipperyView extends WatchUi.DataField {
             dc,
             paddingX,
             topGridHeight + slotH,
-            width,
+            width - paddingX * 2,
             footerH,
             isDark
         );
@@ -667,7 +667,7 @@ class SlipperyView extends WatchUi.DataField {
             dc,
             paddingX,
             topGridHeight + slotH,
-            width,
+            width - paddingX * 2,
             footerH,
             isDark
         );
@@ -752,7 +752,7 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         linePos += drawH;
-        drawRiskFooter(dc, paddingX, linePos, width, footerH, isDark);
+        drawRiskFooter(dc, paddingX, linePos, width - paddingX * 2, footerH, isDark);
 
         // --- CURRENT WIND ARROW CENTERED IN FIELD ---
         CurrentWindWidget.draw(
