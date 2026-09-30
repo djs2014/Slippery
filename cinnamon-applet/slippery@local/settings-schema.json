@@ -30,7 +30,7 @@
         "section-fetch": {
             "type": "section",
             "title": "Fetching",
-            "keys": ["refresh-minutes", "startup-delay-sec", "forecast-hours"]
+            "keys": ["refresh-minutes", "startup-delay-sec", "forecast-hours", "forecast-days"]
         },
         "section-panel": {
             "type": "section",
@@ -142,11 +142,21 @@
         "type": "spinbutton",
         "default": 12,
         "min": 1,
-        "max": 12,
+        "max": 336,
         "step": 1,
         "units": "h",
         "description": "Coming hours shown in popup",
-        "tooltip": "How many coming forecast hours (risk + precipitation) to list in the popup. 12 covers the full Open-Meteo fetch window, including the ride home after work."
+        "tooltip": "How many coming forecast hours (risk + precipitation) to list in the popup and graph. 12 covers the ride home after work; 24/48 cover the coming days hour-by-hour. The Open-Meteo fetch window follows this (plus the daily overview below, capped at 14 days / 336h)."
+    },
+    "forecast-days": {
+        "type": "spinbutton",
+        "default": 3,
+        "min": 0,
+        "max": 14,
+        "step": 1,
+        "units": "days",
+        "description": "Coming days overview in popup",
+        "tooltip": "Per location, one summary row per coming calendar day (0 = off). Each day aggregates the same hourly risk engine: peak risk, rain/snow totals, ice hours, peak gust and temperature low. The fetch window is extended automatically (days x 24h) up to 14 days / 336h."
     },
     "show-temperature": {
         "type": "switch",
@@ -207,7 +217,7 @@
         "type": "switch",
         "default": true,
         "description": "Show peak risk of coming hours on panel",
-        "tooltip": "When on, the panel chip shows the highest risk level over the coming forecast hours instead of the current risk (uses the Coming hours count above)."
+        "tooltip": "When on, the panel chip shows the highest risk level over the coming forecast hours instead of the current risk (uses the Coming hours count above, not the daily overview)."
     },
     "panel-chip-locations": {
         "type": "combobox",

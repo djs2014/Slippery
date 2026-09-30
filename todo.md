@@ -1,3 +1,5 @@
+risk footer align large / one / small field
+
 - linux taskbar app for local use
 - weather app also same track heading mechanism / edgefield
 

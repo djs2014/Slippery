@@ -228,7 +228,7 @@ async function main() {
   const n = N;
   const slot = plotW / n;
   const barW = Math.min(52, slot * 0.85);
-  const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14;
+  const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
   const barMaxH = plotH * 0.55;
 
   const maxRain = Math.max(2.0, ...hours.map((x) => x.rain));
@@ -269,8 +269,26 @@ async function main() {
       s += `<rect x="${x}" y="${(base - rh - sh).toFixed(1)}" width="${barW.toFixed(1)}" height="${sh.toFixed(1)}" fill="#b3e5fc"/>\n`;
     }
     s += `<rect x="${x}" y="${stripY}" width="${barW.toFixed(1)}" height="${stripH}" fill="${RISK_FILL[hh.name]}"${hh.ice ? ' stroke="#4dd0e1" stroke-width="1.5"' : ''}/>\n`;
+    // When the coming hours cross midnight, the first hour of the new day
+    // keeps its plain "HH:00" label and gets the day number ("D/M") on
+    // its own row underneath, plus a vertical separator (mirrors the
+    // Cinnamon applet time scale).
+    let isNewDay = false;
+    if (i > 0 && hh.time instanceof Date && !isNaN(hh.time) &&
+        hours[i - 1].time instanceof Date && !isNaN(hours[i - 1].time)) {
+      const a = hours[i - 1].time, b = hh.time;
+      isNewDay = a.getFullYear() !== b.getFullYear() ||
+        a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+    }
+    if (isNewDay) {
+      const sepX = (cx - slot / 2).toFixed(1);
+      s += `<line x1="${sepX}" y1="${padT}" x2="${sepX}" y2="${base}" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n`;
+    }
     const lbl = i === 0 ? 'now' : `${String(hh.time.getHours()).padStart(2, '0')}:00`;
     s += `<text x="${cx.toFixed(1)}" y="${hourY}" fill="#999" font-size="10" text-anchor="middle">${esc(lbl)}</text>\n`;
+    if (isNewDay && i !== 0) {
+      s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(`${hh.time.getDate()}/${hh.time.getMonth() + 1}`)}</text>\n`;
+    }
     if (hh.rain >= 0.1 || hh.snow >= 0.1) {
       let pv = '';
       if (hh.rain >= 0.1) pv += hh.rain.toFixed(1);
@@ -293,7 +311,7 @@ async function main() {
   s += `<path d="${linePath((i) => tempY(hours[i].temp))}" fill="none" stroke="#ff5252" stroke-width="2"/>\n`;
 
   // legend in its own rows below the hour numbers, so it never covers them
-  const ly1 = hourY + 22;
+  const ly1 = hourY + 28;
   s += `<text x="${padL}" y="${ly1}" fill="#bbb" font-size="11">— temp (red) · — dewpoint (grey) · — sun (yellow) · ┄ wind (white) · ┄ humidity (cyan) · <tspan fill="#3377ff">blue = rain mm/h</tspan> · <tspan fill="#b3e5fc">pale = snow cm/h</tspan> · strip = risk · ❄ = ICE · W row = wind arrow + speed</text>\n`;
   const advItems = (parsed.advice && parsed.advice.length) ? parsed.advice : ['—'];
   wrapAdvice(advItems, 100).forEach((ln, k) => {

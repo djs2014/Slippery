@@ -4,7 +4,7 @@
  * Same data + same checks as the Slippery Connect IQ data field:
  *  - Open-Meteo request mirrors source/background/BackgroundService.mc
  *    (hourly vars + apparent_temperature, past_hours=12,
- *     forecast_hours=12, unixtime, minutely_15)
+  *     forecast_hours=configurable 1..336h, unixtime, minutely_15)
  *  - evaluateRisk() is a direct port of source/weatherrisks/riskCalculator.mc
  *  - seasons mirror source/weatherrisks/helpers.mc
  *  - user thresholds mirror SlipperyApp.mc / AlertStateAnalyzer.mc
@@ -700,6 +700,94 @@ function peakComingText(profile, peak) {
     return "Peak next " + n + "h: " + peak.name + at;
 }
 
+// --- Daily overview (same hourly risk engine, aggregated per calendar day)
+// Groups the coming hours (profile[1..], current excluded) by local calendar
+// day, up to maxDays distinct days. Returns [{ label, hours: [...] }].
+function groupComingByDay(profile, maxDays) {
+    if (!profile || profile.length < 2 || !maxDays || maxDays < 1) return [];
+    const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const groups = [];
+    const byKey = {};
+    for (let i = 1; i < profile.length; i++) {
+        const hh = profile[i];
+        let key, label;
+        if (hh.time instanceof Date && !isNaN(hh.time)) {
+            const d = hh.time;
+            key = d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+            label = WD[d.getDay()] + " " + d.getDate() + "/" + (d.getMonth() + 1);
+        } else {
+            // Fallback when timestamps are missing: 24h chunks.
+            const dayIdx = Math.floor((i - 1) / 24);
+            key = "chunk-" + dayIdx;
+            label = "Day +" + (dayIdx + 1);
+        }
+        if (!byKey[key]) {
+            if (groups.length >= maxDays) break;
+            const g = { key: key, label: label, hours: [] };
+            byKey[key] = g;
+            groups.push(g);
+        }
+        byKey[key].hours.push(hh);
+    }
+    return groups.slice(0, maxDays);
+}
+
+// Aggregates one day's hourly entries (same metrics as comingSummary, but
+// per calendar day): rain/snow totals, ICE hours, peak risk + time, peak
+// gust, temperature lows. iceT is the user ice threshold (°C).
+function summarizeDay(dayHours, iceT) {
+    const s = { n: dayHours.length, rain: 0, snow: 0, ice: 0, gust: 0,
+                maxLvl: 0, maxName: "SAFE", maxTime: null,
+                minAir: null, minAirTime: null, minSfc: null, minSfcTime: null,
+                maxRainHour: 0, maxSnowHour: 0 };
+    for (let i = 0; i < dayHours.length; i++) {
+        const hh = dayHours[i];
+        s.rain += hh.rain || 0;
+        s.snow += hh.snow || 0;
+        if ((hh.rain || 0) > s.maxRainHour) s.maxRainHour = hh.rain;
+        if ((hh.snow || 0) > s.maxSnowHour) s.maxSnowHour = hh.snow;
+        if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) s.ice++;
+        if ((hh.windGust || 0) > s.gust) s.gust = hh.windGust;
+        if ((hh.level || 0) > s.maxLvl) { s.maxLvl = hh.level; s.maxName = hh.name || "SAFE"; s.maxTime = hh.time || null; }
+        if (hh.airTemp !== undefined && hh.airTemp !== null &&
+            (s.minAir === null || hh.airTemp < s.minAir)) { s.minAir = hh.airTemp; s.minAirTime = hh.time || null; }
+        if (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null &&
+            (s.minSfc === null || hh.surfaceTemp < s.minSfc)) { s.minSfc = hh.surfaceTemp; s.minSfcTime = hh.time || null; }
+    }
+    return s;
+}
+
+// One-line daily row, e.g. "Tue 30/9: HIGH rain 3.2mm ❄ ice 2h gust 45 low -1.0°".
+// Same warning glyphs as comingSummary (⚠ on threshold breaches, ❄ for ice)
+// so alerts stand out even with popup colors off.
+function formatDailyRow(label, s, t) {
+    const numOr = (v, dflt) => {
+        const x = parseNum(v);
+        return isNaN(x) ? dflt : x;
+    };
+    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
+    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
+    const segs = [];
+    segs.push(s.maxLvl >= RiskLevel.HIGH ? "⚠ " + s.maxName : s.maxName);
+    if (s.maxRainHour >= precipGate) segs.push((s.maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + s.rain.toFixed(1) + "mm");
+    if (s.maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((s.maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + s.snow.toFixed(1) + "cm");
+    if (s.ice > 0) segs.push("❄ ice " + s.ice + "h");
+    const windGate = Math.min(
+        Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
+        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
+    if (s.gust >= windGate) segs.push((s.gust >= heavyGust ? "⚠ gust " : "gust ") + Math.round(s.gust));
+    if (s.minSfc !== null && s.minSfc !== undefined) {
+        let low = "low " + s.minSfc.toFixed(1) + "°sfc";
+        if (s.minSfcTime) low += " @" + hourLabel(s.minSfcTime, false);
+        segs.push(low);
+    } else if (s.minAir !== null && s.minAir !== undefined) {
+        let low = "low " + s.minAir.toFixed(1) + "°";
+        if (s.minAirTime) low += " @" + hourLabel(s.minAirTime, false);
+        segs.push(low);
+    }
+    return label + ": " + segs.join(" · ");
+}
+
 // SVG graph (port of nodetest/graph.js — same layout: risk columns, rain bars,
 // gust dots, top W row with blow-to arrow + speed, legend below the hours).
 // Pure string building, no Cinnamon dependencies, so node tests cover it.
@@ -747,11 +835,11 @@ function buildGraphSvg(o) {
     const hours = (o && o.hours) || [];
     const n = hours.length;
     if (n === 0) return "";
-    const W = 780, H = 446, padL = 46, padR = 14, padT = 88, padB = 96;
+    const W = 1560, H = 892, padL = 46, padR = 14, padT = 88, padB = 96;
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const base = padT + plotH;
     const slot = plotW / n, barW = Math.min(52, slot * 0.85);
-    const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14;
+    const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
     let maxRain = 2.0, maxSnow = 1.0, maxWind = 10;
     let tMin = null, tMax = null;
     for (let i = 0; i < n; i++) {
@@ -815,7 +903,30 @@ function buildGraphSvg(o) {
         const rc = GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA;
         s += '<rect x="' + x + '" y="' + stripY + '" width="' + barW.toFixed(1) + '" height="' + stripH + '" fill="' + rc + '"' +
             (hh.ice ? ' stroke="#4dd0e1" stroke-width="1.5"' : '') + '/>\n';
-        s += '<text x="' + cx.toFixed(1) + '" y="' + hourY + '" fill="#999" font-size="10" text-anchor="middle">' + escXml(hourLabel(hh.time, i === 0)) + '</text>\n';
+        // With long windows (up to 336h) label only every Nth hour so the
+        // hour row stays readable; the first column always keeps "now".
+        // When the coming hours cross midnight, the first hour of the new
+        // day keeps its plain "HH:00" label and gets the day number
+        // ("D/M") on its own row underneath, plus a vertical separator —
+        // so dates never mix into the hour strings.
+        const labelEvery = n > 24 ? Math.ceil(n / 12) : 1;
+        let isNewDay = false;
+        if (i > 0 && hh.time instanceof Date && !isNaN(hh.time) &&
+            hours[i - 1].time instanceof Date && !isNaN(hours[i - 1].time)) {
+            const a = hours[i - 1].time, b = hh.time;
+            isNewDay = a.getFullYear() !== b.getFullYear() ||
+                a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+        }
+        if (isNewDay) {
+            const sepX = (cx - slot / 2).toFixed(1);
+            s += '<line x1="' + sepX + '" y1="' + padT + '" x2="' + sepX + '" y2="' + base + '" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n';
+        }
+        const showLabel = (i === 0) || (i % labelEvery === 0) || isNewDay;
+        s += '<text x="' + cx.toFixed(1) + '" y="' + hourY + '" fill="#999" font-size="10" text-anchor="middle">' + (showLabel ? escXml(hourLabel(hh.time, i === 0)) : "") + '</text>\n';
+        if (isNewDay && i !== 0 && hh.time instanceof Date && !isNaN(hh.time)) {
+            s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
+                escXml(hh.time.getDate() + "/" + (hh.time.getMonth() + 1)) + '</text>\n';
+        }
         if ((hh.rain || 0) >= 0.1 || (hh.snow || 0) >= 0.1) {
             let pv = "";
             if ((hh.rain || 0) >= 0.1) pv += (hh.rain).toFixed(1);
@@ -843,7 +954,7 @@ function buildGraphSvg(o) {
     if (hasSun) s += '<path d="' + linePath((i) => sunY(hours[i].sun)) + '" fill="none" stroke="#ffd24a" stroke-width="2"/>\n';
     if (hasDew) s += '<path d="' + linePath((i) => tempY(hours[i].dew)) + '" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n';
     if (hasTemp) s += '<path d="' + linePath((i) => tempY(hours[i].temp)) + '" fill="none" stroke="#ff5252" stroke-width="2"/>\n';
-    const ly1 = hourY + 22;
+    const ly1 = hourY + 28;
     s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">' +
         '<tspan fill="#ff5252">— temp</tspan> · <tspan fill="#9e9e9e">— dewpoint</tspan> · ' +
         '<tspan fill="#ffd24a">— sun</tspan> · <tspan fill="#fff">┄ wind</tspan> · ' +
@@ -863,15 +974,20 @@ function buildGraphSvg(o) {
 // apparent_temperature for the feels-like row. Multiple locations are sent
 // as comma-separated latitude/longitude lists so Open-Meteo returns all
 // forecasts in one response (a JSON array, one object per coordinate).
-function buildUrl(locs) {
+// forecastHours is configurable (1..336, i.e. up to 14 days) so the popup can
+// show coming hours + a per-day overview with the same metrics.
+function buildUrl(locs, forecastHours) {
     const lats = locs.map((l) => l.lat).join(",");
     const lons = locs.map((l) => l.lon).join(",");
+    let fh = parseInt(forecastHours, 10);
+    if (isNaN(fh) || fh < 1) fh = 12;
+    if (fh > 336) fh = 336;
     const q = [
         "latitude=" + encodeURIComponent(lats),
         "longitude=" + encodeURIComponent(lons),
         "hourly=" + encodeURIComponent("temperature_2m,relativehumidity_2m,dewpoint_2m,apparent_temperature,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m,sunshine_duration"),
         "past_hours=12",
-        "forecast_hours=12",
+        "forecast_hours=" + fh,
         "timezone=auto",
         "timeformat=unixtime",
         "minutely_15=" + encodeURIComponent("rain,snowfall"),
@@ -880,13 +996,18 @@ function buildUrl(locs) {
     return "https://api.open-meteo.com/v1/forecast?" + q;
 }
 
-// One-shot demo forecast: 12 past hours + current + 12 future, with varied
-// values so every graph trace moves — warm start, cold snap with ICE hours
-// (wet + sub-zero surface), rain turning to snow, gusty wind, sunny midday.
+// One-shot demo forecast: 12 past hours + current + up to 336 future hours,
+// with varied values so every graph trace moves — warm start, cold snap
+// with ICE hours (wet + sub-zero surface), rain turning to snow, gusty
+// wind, sunny midday (24h base pattern repeated with a slow warming drift
+// so multi-day overviews have something to show).
 // Returns an Open-Meteo-shaped object so parseResponse()/calculateProfile()
 // run the real engine over it. Pure (no Cinnamon deps) for node testing.
-function buildDemoResponse(nowSec) {
-    const N = 25, startIdx = 12;
+function buildDemoResponse(nowSec, futureHours) {
+    let fut = parseInt(futureHours, 10);
+    if (isNaN(fut) || fut < 12) fut = 12;
+    if (fut > 336) fut = 336;
+    const N = 12 + 1 + fut, startIdx = 12;
     const t0 = nowSec - startIdx * 3600;
     const time = [], air = [], feel = [], sfc = [], dew = [], hum = [],
         rain = [], showers = [], snow = [], prob = [],
@@ -958,6 +1079,7 @@ SlipperyApplet.prototype = {
             "location-4-name", "location-4-coords",
             "location-5-name", "location-5-coords",
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
+            "forecast-days",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
             "show-advice", "show-peak-risk", "panel-chip-locations",
@@ -1028,8 +1150,23 @@ SlipperyApplet.prototype = {
     _forecastHours: function () {
         let h = parseInt(this.s["forecast-hours"], 10);
         if (isNaN(h) || h < 1) h = 12;
-        if (h > 12) h = 12;
+        if (h > 336) h = 336;
         return h;
+    },
+
+    _forecastDays: function () {
+        let d = parseInt(this.s["forecast-days"], 10);
+        if (isNaN(d) || d < 0) d = 0;
+        if (d > 14) d = 14;
+        return d;
+    },
+
+    // Open-Meteo fetch window: hourly detail window plus the daily overview
+    // (days x 24h), capped at 14 days / 336h.
+    _fetchHours: function () {
+        const h = this._forecastHours();
+        const d = this._forecastDays();
+        return Math.min(336, Math.max(h, d * 24));
     },
 
     _thresholds: function () {
@@ -1096,7 +1233,7 @@ SlipperyApplet.prototype = {
         if (this.s["demo-mode"]) {
             this._busy = true;
             try {
-                const demo = buildDemoResponse(Math.floor(Date.now() / 1000));
+                const demo = buildDemoResponse(Math.floor(Date.now() / 1000), this._fetchHours());
                 const acc = [];
                 for (let i = 0; i < locs.length; i++) {
                     let parsed = null;
@@ -1144,8 +1281,9 @@ SlipperyApplet.prototype = {
 
     // One request for all points: Open-Meteo answers with a JSON array, one
     // forecast object per coordinate (a single location stays a flat object).
+    // The fetch window covers both the hourly detail and the daily overview.
     _fetchAll: function (locs, done) {
-        const url = buildUrl(locs);
+        const url = buildUrl(locs, this._fetchHours());
         this._fetchJson(url, (err, data) => {
             if (err) {
                 done(locs.map((loc) => ({ loc: loc, parsed: null, error: err })));
@@ -1340,15 +1478,21 @@ SlipperyApplet.prototype = {
         }
     },
 
-    // Per-location block: compact status row (extra points only — the
-    // primary point's full status is already in the above section), then a
-    // graph button labelled with location name + risk level, then the short
-    // coming-hours summary (or a calm placeholder so every point has one).
+    // Per-location block: graph button (name + risk level), then the short
+    // coming-hours summary (or a calm placeholder so every point has one),
+    // then optionally one row per coming calendar day (forecast-days > 0).
+    // Daily rows aggregate the same hourly risk engine per day: peak risk,
+    // rain/snow totals, ice hours, peak gust and temperature low.
     // A summary whose peak coming risk reaches SLIGHT is highlighted with
     // the risk background color (same settings as the panel chip); the calm
     // placeholder stays plain. Warning glyphs inside the summary text (from
     // comingSummary) carry the alert even when colors are off.
-    _addLocationBlock: function (r, idx, th, hours, opts) {
+    _addLocationBlock: function (r, idx, th, hours, days, opts) {
+        if (!r.parsed) {
+            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
+            return;
+        }
         if (!r.parsed) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
                 r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
@@ -1385,6 +1529,28 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
                 "Next " + n + "h: calm", { reactive: false }));
         }
+        // Daily overview: same metrics, aggregated per calendar day.
+        let nDays = parseInt(days, 10);
+        if (isNaN(nDays) || nDays < 0) nDays = 0;
+        if (nDays > 14) nDays = 14;
+        if (nDays > 0) {
+            const groups = (r.daily && r.daily.length) ? r.daily :
+                groupComingByDay(r.fullProfile || r.profile, nDays);
+            const iceT = (th && th.ice !== undefined) ? th.ice : 3.0;
+            for (let di = 0; di < groups.length; di++) {
+                const g = groups[di];
+                if (!g.hours || g.hours.length === 0) continue;
+                const ds = summarizeDay(g.hours, iceT);
+                const row = formatDailyRow(g.label, ds, th);
+                if (ds.maxLvl >= RiskLevel.SLIGHT) {
+                    if (!this._addRiskRow(row, ds.maxLvl, ds.maxName, opts)) {
+                        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                    }
+                } else {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                }
+            }
+        }
     },
 
     _showAll: function (results, isDemo) {
@@ -1396,6 +1562,8 @@ SlipperyApplet.prototype = {
         const th = this._thresholds();
         const iceT = th.ice;
         const hours = this._forecastHours();
+        const days = this._forecastDays();
+        const fetchH = this._fetchHours();
         const colorMode = String(this.s["color-mode"] || "bright");
         const colorMin = String(this.s["color-min-level"] || "always");
         const useHsp = !!this.s["use-hsp-text"];
@@ -1404,33 +1572,39 @@ SlipperyApplet.prototype = {
         const showAdv = this.s["show-advice"] !== false;
         const showPeak = this.s["show-peak-risk"] !== false;
 
-        // Enrich every location: forecast profile + ICE flags.
+        // Enrich every location: hourly profile (popup summary, chip peak,
+        // graph) + full profile (daily overview, ICE scan) with ICE flags.
+        // The hourly profile is the first hours+1 entries of the full fetch
+        // so both windows share the same engine run.
         let iceAnywhere = false;
         let worstLevel = primary.parsed.risk.level;
         let worstName = primary.parsed.risk.name;
         for (let i = 0; i < results.length; i++) {
             const r = results[i];
             if (!r.parsed) continue;
-            r.profile = calculateProfile(r.parsed, hours);
+            r.fullProfile = calculateProfile(r.parsed, fetchH);
+            r.profile = r.fullProfile.slice(0, Math.min(r.fullProfile.length, hours + 1));
+            r.daily = groupComingByDay(r.fullProfile, days);
             r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= iceT;
             r.iceAhead = false;
-            for (let h = 1; h < r.profile.length; h++) {
+            for (let h = 1; h < r.fullProfile.length; h++) {
                 // Hazard-based ICE hour, or surface-temp margin (<= ice threshold)
-                // in a coming hour — same rule as iceNow, projected forward.
-                if (r.profile[h].ice) { r.iceAhead = true; break; }
-                const stH = r.profile[h].surfaceTemp;
+                // in a coming hour — same rule as iceNow, projected forward
+                // over the whole fetch window (hours + daily overview).
+                if (r.fullProfile[h].ice) { r.iceAhead = true; break; }
+                const stH = r.fullProfile[h].surfaceTemp;
                 if (stH !== undefined && stH !== null && stH <= iceT) { r.iceAhead = true; break; }
             }
             // Fallback for profiles without surface temps (should not happen
             // anymore): scan the raw hourly array directly.
-            if (!r.iceAhead && r.profile.length === 0 && r.parsed._data && r.parsed._data.hourly) {
+            if (!r.iceAhead && r.fullProfile.length === 0 && r.parsed._data && r.parsed._data.hourly) {
                 const st = pickHourly(r.parsed._data.hourly, ["surface_temperature"], 0);
                 for (let h = r.parsed._targetIdx + 1;
-                     h < Math.min(st.length, r.parsed._targetIdx + 1 + hours); h++) {
+                     h < Math.min(st.length, r.parsed._targetIdx + 1 + fetchH); h++) {
                     if (st[h] != null && st[h] <= iceT) { r.iceAhead = true; break; }
                 }
             }
-            r.lows = forecastLows(r.profile);
+            r.lows = forecastLows(r.fullProfile);
             if (r.iceNow || r.iceAhead) iceAnywhere = true;
             if (r.parsed.risk.level > worstLevel) {
                 worstLevel = r.parsed.risk.level;
@@ -1668,10 +1842,10 @@ SlipperyApplet.prototype = {
         }
 
         // --- Per active location: graph button (name + risk level) -------
-        // followed by the short coming-hours summary.
+        // followed by the short coming-hours summary plus the daily overview.
         // (The per-hour rows were removed; the full graph covers them.)
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._addLocationBlock(primary, 0, th, hours,
+        this._addLocationBlock(primary, 0, th, hours, days,
             { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
 
         // Remaining points, one block each (results[0] is the primary
@@ -1679,7 +1853,7 @@ SlipperyApplet.prototype = {
         if (results.length > 1) {
             for (let i = 1; i < results.length; i++) {
                 this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-                this._addLocationBlock(results[i], i, th, hours,
+                this._addLocationBlock(results[i], i, th, hours, days,
                     { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
             }
         }
