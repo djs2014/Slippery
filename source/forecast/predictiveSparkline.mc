@@ -136,7 +136,11 @@ class PredictiveSparkline {
         showForecastHour as ShowForecastHour,
         simplifyWind as Boolean,
         showRiskBackground as Boolean,
-        edgeField as EdgeField
+        edgeField as EdgeField,
+        showSun as Boolean,
+        showPrecipProb as Boolean,
+        showWind as Boolean,
+        showTemp as Boolean
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
         if (numHours == 0) {
@@ -200,6 +204,10 @@ class PredictiveSparkline {
             :firstRainIdx => ranges[:firstRainIdx],
             :simplifyWind => simplifyWind,
             :showRiskBackground => showRiskBackground,
+            :showSun => showSun,
+            :showPrecipProb => showPrecipProb,
+            :showWind => showWind,
+            :showTemp => showTemp,
         };
 
         // Baseline Line
@@ -593,6 +601,9 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         ctx as Dictionary
     ) as Void {
+        if (!(ctx[:showPrecipProb] as Boolean)) {
+            return;
+        }
         var precipProbForecast = metrics.precipProbForecast;
         if (precipProbForecast.size() == 0) {
             return;
@@ -682,6 +693,9 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showTemp] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var surfaceTempForecast = metrics.surfaceTempForecast;
         var hasTempData = ctx[:hasTempData] as Boolean;
@@ -765,6 +779,9 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showSun] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var sunshineDurationForecast = metrics.sunshineDurationForecast;
         var hasSunshineData = ctx[:hasSunshineData] as Boolean;
@@ -832,6 +849,9 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showWind] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var windForecast = metrics.windForecast;
         var windDirForecast = metrics.windDirForecast;

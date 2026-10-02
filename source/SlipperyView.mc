@@ -65,6 +65,10 @@ class SlipperyView extends WatchUi.DataField {
     private var mUseEffectiveCrossGust as Boolean = true;
     private var mUseFeelsLikeTemperature as Boolean = true;
     private var mUseWinddataAsDefault as Boolean = true;
+    private var mShowSun as Boolean = true;
+    private var mShowPrecipProb as Boolean = true;
+    private var mShowWind as Boolean = true;
+    private var mShowTemp as Boolean = true;
 
     function initialize() {
         DataField.initialize();
@@ -200,6 +204,24 @@ class SlipperyView extends WatchUi.DataField {
         mUseEffectiveCrossGust = arrShowField[5] == true;
         mUseFeelsLikeTemperature = arrShowField[6] == true;
         mUseWinddataAsDefault = arrShowField[7] == true;
+        // Sparkline layers (indexes 8-11): missing entries (pre-upgrade
+        // storage) default to on; migration pads the arrays on load.
+        mShowSun = getFieldFlag(arrShowField, 8, true);
+        mShowPrecipProb = getFieldFlag(arrShowField, 9, true);
+        mShowWind = getFieldFlag(arrShowField, 10, true);
+        mShowTemp = getFieldFlag(arrShowField, 11, true);
+    }
+
+    // Bounds-safe read of a per-field boolean flag.
+    private function getFieldFlag(
+        arr as Array<Numeric or Boolean>,
+        index as Number,
+        dflt as Boolean
+    ) as Boolean {
+        if (index >= arr.size()) {
+            return dflt;
+        }
+        return arr[index] == true;
     }
 
     var demoCounter as Number = 0;
@@ -573,7 +595,11 @@ class SlipperyView extends WatchUi.DataField {
             ForecastHourNone,
             mSimplifyWind,
             !mShowRiskFooter,
-            mEdgeField
+            mEdgeField,
+            mShowSun,
+            mShowPrecipProb,
+            mShowWind,
+            mShowTemp
         );
         drawRiskFooter(
             dc,
@@ -661,7 +687,11 @@ class SlipperyView extends WatchUi.DataField {
             showLb ? $.gShowForecastHour : ForecastHourNone,
             mSimplifyWind,
             !mShowRiskFooter,
-            mEdgeField
+            mEdgeField,
+            mShowSun,
+            mShowPrecipProb,
+            mShowWind,
+            mShowTemp
         );
         drawRiskFooter(
             dc,
@@ -748,7 +778,11 @@ class SlipperyView extends WatchUi.DataField {
             showLb ? $.gShowForecastHour : ForecastHourNone,
             mSimplifyWind,
             !mShowRiskFooter,
-            mEdgeField
+            mEdgeField,
+            mShowSun,
+            mShowPrecipProb,
+            mShowWind,
+            mShowTemp
         );
 
         linePos += drawH;
@@ -904,7 +938,11 @@ class SlipperyView extends WatchUi.DataField {
             ForecastHourNone,
             mSimplifyWind,
             !mShowRiskFooter,
-            mEdgeField
+            mEdgeField,
+            mShowSun,
+            mShowPrecipProb,
+            mShowWind,
+            mShowTemp
         );
         linePos += drawH;
         drawRiskFooter(dc, rightX, linePos, remainingWidth, footerH, isDark);

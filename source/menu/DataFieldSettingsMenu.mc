@@ -326,6 +326,42 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         array[index] == true
       );
 
+      index = 8;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show sun",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 9;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show precip probability",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 10;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show wind",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 11;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show temperature",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
       // $.addMenuItem(
       //   fieldMenu,
       //   "Hours forecast|0~24",
@@ -454,7 +490,9 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     if (id instanceof String && item instanceof ToggleMenuItem) {
-      Storage.setValue(id as String, item.isEnabled());
+      // Array-backed per-field items ("show_small_field|8") update the array;
+      // plain keys fall through to a direct setValue (see setStorageValueOrArray).
+      $.setStorageValueOrArray(id as String, item.isEnabled());
       return;
     }
 

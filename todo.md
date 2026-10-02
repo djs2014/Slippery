@@ -18,4 +18,5 @@ panel chip locations
 primare or high risk 
 
 sparkline arrows larger
-optio bigger arrow
+option bigger arrow
+one field - no hazards -> higher forecast..

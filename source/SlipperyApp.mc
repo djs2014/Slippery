@@ -84,6 +84,9 @@ class SlipperyApp extends Application.AppBase {
                 removeObsolete();
                 resetDisplayFields();
             }
+            // Upgraders have 8-item field arrays; pad to the current size
+            // so new sparkline layer flags default to on.
+            migrateFieldArrays();
 
             $.g_bg_timeout_seconds =
                 $.getStorageValue(
@@ -230,6 +233,10 @@ class SlipperyApp extends Application.AppBase {
             true, // effective crossgust
             true, // show feelslike temperature
             true, // show winddata as default
+            true, // show sun line
+            true, // show precip probability line
+            true, // show wind line
+            true, // show temperature line
         ]);
 
         Storage.setValue("show_large_field", [
@@ -241,6 +248,10 @@ class SlipperyApp extends Application.AppBase {
             true, // effective crossgust
             true, // show feelslike temperature
             true, // show winddata as default
+            true, // show sun line
+            true, // show precip probability line
+            true, // show wind line
+            true, // show temperature line
         ]);
 
         Storage.setValue("show_wide_field", [
@@ -252,6 +263,10 @@ class SlipperyApp extends Application.AppBase {
             true, // effective crossgust
             true, // show feelslike temperature
             true, // show winddata as default
+            true, // show sun line
+            true, // show precip probability line
+            true, // show wind line
+            true, // show temperature line
         ]);
 
         Storage.setValue("show_small_field", [
@@ -263,7 +278,31 @@ class SlipperyApp extends Application.AppBase {
             true, // effective crossgust
             true, // show feelslike temperature
             true, // show winddata as default
+            true, // show sun line
+            true, // show precip probability line
+            true, // show wind line
+            true, // show temperature line
         ]);
+    }
+
+    //! Pads stored per-field arrays with `true` up to gSizeArrFieldItems.
+    //! Existing user values are never overwritten; fresh installs use resetDisplayFields.
+    (:typecheck(disableBackgroundCheck))
+    function migrateFieldArrays() {
+        var keys = [
+            "show_one_field",
+            "show_large_field",
+            "show_wide_field",
+            "show_small_field",
+        ];
+        for (var k = 0; k < keys.size(); k++) {
+            var arr =
+                $.getStorageValue(keys[k], []) as
+                Array<Application.PropertyValueType>;
+            if ($.ensureArraySize(arr, $.gSizeArrFieldItems, true)) {
+                Storage.setValue(keys[k], arr);
+            }
+        }
     }
 }
 
@@ -284,4 +323,4 @@ var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
 var gHideUnitsWhenActive as Boolean = true;
 
 (:typecheck(disableBackgroundCheck))
-var gSizeArrFieldItems = 8; // Included the 0 index
+var gSizeArrFieldItems = 12; // Included the 0 index
