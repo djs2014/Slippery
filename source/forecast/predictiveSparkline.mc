@@ -212,6 +212,7 @@ class PredictiveSparkline {
         // previous-point state internally.
         drawRiskLayer(dc, metrics, riskProfile, ctx);
         drawPrecipLayer(dc, metrics, ctx);
+        drawProbLayer(dc, metrics, ctx);
         var firstStY = drawTempLayer(dc, metrics, riskProfile, ctx);
         var firstSunY = drawSunLayer(dc, metrics, ctx);
         var firstWindY = drawWindLayer(dc, metrics, riskProfile, ctx);
@@ -431,7 +432,6 @@ class PredictiveSparkline {
         var rainForecast = metrics.rainForecast;
         var showersForecast = metrics.showersForecast;
         var snowForecast = metrics.snowForecast;
-        var precipProbForecast = metrics.precipProbForecast;
         var x = ctx[:x] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
         var barGap = ctx[:barGap] as Number;
@@ -439,15 +439,12 @@ class PredictiveSparkline {
         var leftShift = ctx[:leftShift] as Number;
         var baselineY = ctx[:baselineY] as Number;
         var chartHeight = ctx[:chartHeight] as Number;
-        var isDark = ctx[:isDark] as Boolean;
         var maxPrecip = ctx[:maxPrecip] as Float;
         var firstShowerIdx = ctx[:firstShowerIdx] as Number;
         var firstRainIdx = ctx[:firstRainIdx] as Number;
         // Significant precip floor shared with AlertStateAnalyzer
         // (threshPrecipAhead setting): drives badges, outlines, segment floor.
         var precipHlThreshold = AlertStateAnalyzer.threshPrecipAhead;
-        // Confidence floor (%): hours below render hollow (uncertain) bars.
-        var probFloor = 30;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -468,12 +465,6 @@ class PredictiveSparkline {
                 if (barH < 3) {
                     barH = 3;
                 }
-
-                // Confidence: below-floor hours render hollow (outline)
-                // segments in the same colors instead of solid fills.
-                var prob =
-                    i < precipProbForecast.size() ? precipProbForecast[i] : 100;
-                var highProb = prob >= probFloor;
 
                 // Proportional split; snow cap never exceeds the column.
                 var snowH = 0;
@@ -528,21 +519,6 @@ class PredictiveSparkline {
                                     );
                         dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
                         dc.fillRectangle(colX, precipY - rainH, colW, rainH);
-
-                        if (!highProb) {
-                            dc.setColor(
-                                AppState.getColor(
-                                    ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
-                                ),
-                                Graphics.COLOR_TRANSPARENT
-                            );
-                            dc.drawRectangle(
-                                colX,
-                                precipY - rainH,
-                                colW,
-                                rainH
-                            );
-                        }
                         precipY -= rainH;
                     }
                     if (showerH > 0) {
@@ -557,21 +533,6 @@ class PredictiveSparkline {
                             colW,
                             showerH
                         );
-
-                        if (!highProb) {
-                            // Uncertain hours: light fill for visibility plus
-                            // solid outline so the segment is not lost.
-                            dc.setColor(
-                                AppState.getColor(ThemeManager.COLOR_SHOWERS),
-                                Graphics.COLOR_TRANSPARENT
-                            );
-                            dc.drawRectangle(
-                                colX,
-                                precipY - showerH,
-                                colW,
-                                showerH
-                            );
-                        }
                         precipY -= showerH;
                     }
                 }
@@ -620,6 +581,96 @@ class PredictiveSparkline {
                     dc.drawRectangle(colX, baselineY - barH, colW, barH);
                 }
             }
+        }
+    }
+
+    // PASS 2 layer C2 of draw(): precipitation-probability dotted line
+    // (0-100% mapped to the full chart height). Replaces the old hollow
+    // low-confidence bar outlines: confidence now reads as its own series.
+    // Own frame (see draw() note).
+    private static function drawProbLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        ctx as Dictionary
+    ) as Void {
+        var precipProbForecast = metrics.precipProbForecast;
+        if (precipProbForecast.size() == 0) {
+            return;
+        }
+        var numHours = metrics.timeStampsForeCast.size();
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var isDark = ctx[:isDark] as Boolean;
+        // Blueish, theme-aware: light blue on dark, deep blue on light.
+        var probColor = isDark
+            ? AppState.getColor(ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE)
+            : AppState.getColor(ThemeManager.COLOR_ELECTRIC_BLUE);
+        var prevX = -1;
+        var prevY = -1;
+        for (var i = 0; i < numHours; i++) {
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2;
+            var prob = i < precipProbForecast.size()
+                ? precipProbForecast[i]
+                : 0;
+            if (prob < 0) {
+                prob = 0;
+            }
+            if (prob > 100) {
+                prob = 100;
+            }
+            var py =
+                baselineY -
+                ((prob.toFloat() / 100.0f) * chartHeight).toNumber();
+            if (prevX != -1) {
+                // Solid halo underlay so the dots stay readable over bars.
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawLine(prevX, prevY, px, py);
+                drawProbDotted(dc, prevX, prevY, px, py, probColor);
+            }
+            // Node dot anchors each hour (halo + 1px core).
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(px, py, 2);
+            dc.setColor(probColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(px, py, 1);
+            prevX = px;
+            prevY = py;
+        }
+    }
+
+    // Dotted segment helper for drawProbLayer: one dot every 3px along
+    // the segment. Own frame to keep drawProbLayer's stack small.
+    private static function drawProbDotted(
+        dc as Graphics.Dc,
+        x0 as Number,
+        y0 as Number,
+        x1 as Number,
+        y1 as Number,
+        color as Graphics.ColorType
+    ) as Void {
+        var dx = (x1 - x0).toFloat();
+        var dy = (y1 - y0).toFloat();
+        var len = Math.sqrt(dx * dx + dy * dy);
+        var steps = len.toNumber();
+        if (steps < 3) {
+            return;
+        }
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        var s = 0;
+        while (s <= steps) {
+            var t = s.toFloat() / steps.toFloat();
+            var px = (x0.toFloat() + dx * t).toNumber();
+            var py = (y0.toFloat() + dy * t).toNumber();
+            dc.drawPoint(px, py);
+            s += 3;
         }
     }
 
