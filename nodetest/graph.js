@@ -7,13 +7,16 @@
  *   node graph.js --fixture ./moderaterisk --at 12   # local fixture, hour index 12 = "now"
  *   node graph.js --demo                 # canned demo values (cold snap + ICE), no network
  *   node graph.js --out risk.svg
+ *   node graph.js --demo --no-daynight   # single background (see --day-bg)
+ *   node graph.js --demo --day-bg '#111111' --night-bg '#1e2733'
  *
  * Output: SVG with the 13-hour risk profile (current hour + 12 forecast hours):
  * one column per hour (bars close together), rain (blue) + snow (pale) as a
  * stacked column, risk-color strip directly under each column, then the hour
  * label; overlaid traces: temp red solid, dewpoint grey solid, sun yellow
- * solid, wind white dotted, humidity cyan dashed; top W row with blow-to
- * arrow + speed per hour; ICE hours get a ❄ marker.
+ * solid, wind+gust max white dotted, humidity cyan dashed, precipitation
+ * probability blue dotted (0-100% shares the humidity scale, labels right);
+ * top W row with blow-to arrow + speed per hour; ICE hours get a ❄ marker.
  */
 const fs = require('fs');
 const sc = require('./slipperycheck.js');
@@ -74,6 +77,20 @@ function windArrow(deg) {
   return ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'][Math.round(norm / 45) % 8];
 }
 
+// Day/night test for one graph hour (mirrors applet.js graphIsDay):
+// sunshine (>0s) always means day, otherwise 07:00-19:00 local = day.
+function isDayHour(hh) {
+  if (!hh) return true;
+  const sun = Number(hh.sun);
+  if (!isNaN(sun) && sun > 0) return true;
+  const t = hh.time;
+  if (t instanceof Date && !isNaN(t)) {
+    const h = t.getHours();
+    return h >= 7 && h < 19;
+  }
+  return true;
+}
+
 // Greedy wrap of advice items ("a; b; c") into lines of at most max chars.
 function wrapAdvice(items, max) {
   const lines = [];
@@ -127,6 +144,12 @@ async function main() {
   const lat = parseFloat(a.lat || '52.18895');
   const lon = parseFloat(a.lon || '4.549666');
   const outFile = a.out || 'slippery-graph.svg';
+  // Day/night background (mirrors the Cinnamon "Graph image" settings page).
+  const dayNightOff = a['no-daynight'] === true || a.daynight === false ||
+    a.daynight === 'false' || a.daynight === '0';
+  const dayBg = typeof a['day-bg'] === 'string' && a['day-bg'] ? a['day-bg'] : '#111111';
+  const nightBg = typeof a['night-bg'] === 'string' && a['night-bg'] ? a['night-bg'] : '#1e2733';
+  const dnEnabled = !dayNightOff;
 
   let data;
   let nowSec;
@@ -169,6 +192,7 @@ async function main() {
   const hums = pickHourly(h, ['relativehumidity_2m', 'relative_humidity_2m']);
   const surfT = pickHourly(h, ['surface_temperature']);
   const suns = pickHourly(h, ['sunshine_duration']);
+  const probs = pickHourly(h, ['precipitation_probability']);
   const times = h.time || [];
 
   const ICE_NAMES = ['Black Ice / Freezing Wet Road', 'Road Surface Frost', 'Ice On Bridges'];
@@ -209,14 +233,17 @@ async function main() {
       time: d, name: parsed.hourlyRiskProfile[i],
       rain: rainCur, snow: snowCur,
       wind: at(winds, j), gust: at(gusts, j), wdir: at(wdirs, j),
-      sun: at(suns, j), temp: airTemp, dew: dew, humidity: hum, ice: ice,
+      sun: at(suns, j), temp: airTemp, dew: dew, humidity: hum,
+      prob: (j < probs.length && probs[j] != null) ? probs[j] : null,
+      ice: ice,
     });
   }
 
   // --- layout: columns close together, precip column, risk strip, hour ---
   // (each hour label has a thin connector line up to its risk strip).
   // Traces: temp red solid, dewpoint grey solid, sun yellow solid,
-  // wind white dotted, humidity cyan dashed. ICE hours get a ❄ marker.
+  // wind+gust max white dotted, humidity cyan dashed, precip probability
+  // blue dotted (shares the 0-100% humidity scale). ICE hours get a ❄ marker.
   const H = 446;
   const padL = 46;
   const padR = 14;
@@ -245,6 +272,8 @@ async function main() {
   else { tMin -= 1; tMax += 1; }
   const tempY = (t) => padT + (1 - (t - tMin) / (tMax - tMin)) * plotH;
   const humY = (x) => padT + (1 - Math.max(0, Math.min(100, x)) / 100) * plotH;
+  // Precipitation probability shares the 0-100% humidity scale.
+  const probY = (p) => padT + (1 - Math.max(0, Math.min(100, p || 0)) / 100) * plotH;
   const windY = (w) => padT + (1 - w / maxWind) * plotH;
   const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec)) / 3600) * plotH;
   const cxOf = (i) => padL + slot * i + slot / 2;
@@ -252,13 +281,31 @@ async function main() {
 
   let s = '';
   s += `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="sans-serif">\n`;
-  s += `<rect width="${W}" height="${H}" fill="#111"/>\n`;
+  s += `<rect width="${W}" height="${H}" fill="${esc(dayBg)}"/>\n`;
+  if (dnEnabled) {
+    for (let bi = 0; bi < n; bi++) {
+      if (!isDayHour(hours[bi])) {
+        const bx = (padL + slot * bi).toFixed(1);
+        s += `<rect x="${bx}" y="${padT}" width="${slot.toFixed(1)}" height="${plotH}" fill="${esc(nightBg)}"/>\n`;
+      }
+    }
+  }
   s += `<text x="${padL}" y="24" fill="#fff" font-size="17" font-weight="bold">${esc(parsed.riskLevel)} — ${esc(parsed.hazards.join(' + ') || 'No hazards')}</text>\n`;
   s += `<text x="${padL}" y="44" fill="#bbb" font-size="12">${esc(parsed.timestamp)} · lat ${lat}, lon ${lon} · season ${esc(parsed.season)} · wind ${parsed.weatherSummary.windKmh} km/h, gust ${parsed.weatherSummary.gustKmh} km/h</text>\n`;
   s += `<text x="${padL - 5}" y="${tempY(tMax) + 4}" fill="#999" font-size="10" text-anchor="end">${tMax.toFixed(0)}°</text>\n`;
   s += `<text x="${padL - 5}" y="${tempY((tMin + tMax) / 2) + 4}" fill="#999" font-size="10" text-anchor="end">${((tMin + tMax) / 2).toFixed(0)}°</text>\n`;
   s += `<text x="${padL - 5}" y="${tempY(tMin) + 4}" fill="#999" font-size="10" text-anchor="end">${tMin.toFixed(0)}°</text>\n`;
   s += `<text x="${W - padR}" y="${padT + 10}" fill="#3377ff" font-size="10" text-anchor="end">${maxRain.toFixed(0)}mm</text>\n`;
+  // Right-side % axis for humidity + precipitation probability (shared
+  // 0-100% scale, full plot height). The top 100% tick is skipped so it
+  // never collides with the rain max label above.
+  const hasHumTrace = hours.some((hh) => hh.humidity !== null && hh.humidity !== undefined);
+  const hasProbTrace = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
+  const PROB_COLOR = '#5b9bff';
+  if (hasHumTrace || hasProbTrace) {
+    s += `<text x="${W - padR}" y="${(humY(50) + 4).toFixed(1)}" fill="${PROB_COLOR}" font-size="10" text-anchor="end">50%</text>\n`;
+    s += `<text x="${W - padR}" y="${(humY(0) + 4).toFixed(1)}" fill="${PROB_COLOR}" font-size="10" text-anchor="end">0%</text>\n`;
+  }
 
   // Hour labels (mirrors the Cinnamon applet): every hour while the window
   // is short, thinned to ~12 grid labels for long windows. Displayed hour
@@ -345,17 +392,39 @@ async function main() {
     s += `<text x="${cx.toFixed(1)}" y="${padT - 28}" fill="#fff" font-size="${wSize}" text-anchor="middle">${esc(windArrow(hh.wdir) + Math.round(hh.wind))}</text>\n`;
   }
   s += `<path d="${linePath((i) => humY(hours[i].humidity))}" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n`;
+  if (hasProbTrace) s += `<path d="${linePath((i) => probY(hours[i].prob))}" fill="none" stroke="${PROB_COLOR}" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n`;
   s += `<path d="${linePath((i) => windY(Math.max(hours[i].wind, hours[i].gust)))}" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n`;
   s += `<path d="${linePath((i) => sunY(hours[i].sun))}" fill="none" stroke="#ffd24a" stroke-width="2"/>\n`;
   s += `<path d="${linePath((i) => tempY(hours[i].dew))}" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n`;
   s += `<path d="${linePath((i) => tempY(hours[i].temp))}" fill="none" stroke="#ff5252" stroke-width="2"/>\n`;
 
-  // legend in its own rows below the hour numbers, so it never covers them
+  // Legend in its own rows below the hour numbers, so it never covers
+  // them. Line 1 = every overlaid trace (only what is actually drawn),
+  // line 2 = columns, risk strip, markers, top wind row, background.
+  const hasSunTrace = hours.some((hh) => (hh.sun || 0) > 0);
   const ly1 = hourY + 28;
-  s += `<text x="${padL}" y="${ly1}" fill="#bbb" font-size="11">— temp (red) · — dewpoint (grey) · — sun (yellow) · ┄ wind (white) · ┄ humidity (cyan) · <tspan fill="#3377ff">blue = rain mm/h</tspan> · <tspan fill="#b3e5fc">pale = snow cm/h</tspan> · strip = risk · ❄ = ICE · W row = wind arrow + speed</text>\n`;
+  const traceSegs = [
+    '<tspan fill="#ff5252">— temp air °C</tspan>',
+    '<tspan fill="#9e9e9e">— dewpoint</tspan>',
+  ];
+  if (hasSunTrace) traceSegs.push('<tspan fill="#ffd24a">— sun</tspan>');
+  traceSegs.push('<tspan fill="#fff">┄ wind+gust max</tspan>');
+  if (hasHumTrace) traceSegs.push('<tspan fill="#4dd0e1">┄ humidity %</tspan>');
+  if (hasProbTrace) traceSegs.push(`<tspan fill="${PROB_COLOR}">… precip prob %</tspan>`);
+  s += `<text x="${padL}" y="${ly1}" fill="#bbb" font-size="11">${traceSegs.join(' · ')}<tspan fill="#bbb"> (left °C temp scale · right % humidity/prob scale)</tspan></text>\n`;
+  const colSegs = [
+    '<tspan fill="#3377ff">blue column = rain mm/h</tspan>',
+    '<tspan fill="#b3e5fc">pale column = snow cm/h</tspan>',
+    'strip = risk level',
+    '❄ = ICE hour + cyan strip outline',
+    'W row = wind arrow + speed',
+  ];
+  if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
+  const ly2 = ly1 + 14;
+  s += `<text x="${padL}" y="${ly2}" fill="#bbb" font-size="11">${colSegs.join(' · ')}</text>\n`;
   const advItems = (parsed.advice && parsed.advice.length) ? parsed.advice : ['—'];
   wrapAdvice(advItems, 100).forEach((ln, k) => {
-    s += `<text x="${padL}" y="${ly1 + 15 + k * 13}" fill="#888" font-size="10">${k === 0 ? 'advice: ' : ''}${esc(ln)}</text>\n`;
+    s += `<text x="${padL}" y="${ly2 + 15 + k * 13}" fill="#888" font-size="10">${k === 0 ? 'advice: ' : ''}${esc(ln)}</text>\n`;
   });
   s += '</svg>\n';
 

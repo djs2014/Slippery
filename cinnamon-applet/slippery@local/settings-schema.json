@@ -1,7 +1,7 @@
 {
     "layout": {
         "type": "layout",
-        "pages": ["page-locations", "page-display", "page-thresholds"],
+        "pages": ["page-locations", "page-display", "page-graph", "page-thresholds"],
         "page-locations": {
             "type": "page",
             "title": "Locations",
@@ -11,6 +11,11 @@
             "type": "page",
             "title": "Panel & popup",
             "sections": ["section-fetch", "section-panel", "section-popup"]
+        },
+        "page-graph": {
+            "type": "page",
+            "title": "Graph image",
+            "sections": ["section-graph-daynight"]
         },
         "page-thresholds": {
             "type": "page",
@@ -41,6 +46,11 @@
             "type": "section",
             "title": "Popup",
             "keys": ["show-advice", "demo-mode"]
+        },
+        "section-graph-daynight": {
+            "type": "section",
+            "title": "Day / night background",
+            "keys": ["graph-daynight", "graph-day-bg", "graph-night-bg"]
         },
         "section-thresh": {
             "type": "section",
@@ -218,6 +228,24 @@
         "default": true,
         "description": "Show peak risk of coming hours on panel",
         "tooltip": "When on, the panel chip shows the highest risk level over the coming forecast hours instead of the current risk (uses the Coming hours count above, not the daily overview)."
+    },
+    "graph-daynight": {
+        "type": "switch",
+        "default": true,
+        "description": "Shade night hours in the graph",
+        "tooltip": "When on, night hour columns get a slightly different background so day and night are easy to tell apart. Colors below."
+    },
+    "graph-day-bg": {
+        "type": "colorchooser",
+        "default": "#111111",
+        "description": "Graph day background",
+        "tooltip": "Background color for day hour columns in the hourly graph image."
+    },
+    "graph-night-bg": {
+        "type": "colorchooser",
+        "default": "#1e2733",
+        "description": "Graph night background",
+        "tooltip": "Background color for night hour columns in the hourly graph image (only when shading above is on)."
     },
     "panel-chip-locations": {
         "type": "combobox",

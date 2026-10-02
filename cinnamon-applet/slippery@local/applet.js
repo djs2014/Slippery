@@ -527,6 +527,7 @@ function calculateProfile(parsed, maxHours) {
     const windG = pickHourly(hourly, ["wind_gusts_10m"], n);
     const windD = pickHourly(hourly, ["wind_direction_10m"], n);
     const sun = pickHourly(hourly, ["sunshine_duration"], n);
+    const prob = pickHourly(hourly, ["precipitation_probability"], n);
     const start = parsed._targetIdx;
     const count = Math.min(n, start + 1 + Math.max(0, maxHours));
     for (let h = start; h < count; h++) {
@@ -589,6 +590,7 @@ function calculateProfile(parsed, maxHours) {
             dewPoint: dewV,
             humidity: humV,
             sun: at(sun, h),
+            prob: at(prob, h),
         });
     }
     return out;
@@ -823,15 +825,35 @@ function wrapAdviceLines(items, max) {
     return lines;
 }
 
+// Day/night test for one graph hour. Sunshine (>0s in the hour) always
+// means day; otherwise fall back to the local hour (07:00-19:00 = day).
+// The sun fallback matters because sunshine_duration is 0 on overcast
+// days even at noon, while the hour rule alone would miss long summer
+// evenings with real sun outside 07-19.
+function graphIsDay(hh) {
+    if (!hh) return true;
+    const sun = Number(hh.sun);
+    if (!isNaN(sun) && sun > 0) return true;
+    const t = hh.time;
+    if (t instanceof Date && !isNaN(t)) {
+        const h = t.getHours();
+        return h >= 7 && h < 19;
+    }
+    return true;
+}
+
 // o: { title, subtitle, hours: [{time, name, rain, snow, wind, gust, wdir,
-//      sun (sec), temp, dew, humidity, ice}], advice: [...] }.
+//      sun (sec), temp, dew, humidity, prob (%), ice}], advice: [...],
+//      dayNight: { enabled, dayBg, nightBg } }.
 // Layout: one column per hour, bars close together; rain (blue) + snow
 // (pale) as a stacked column from the bottom; a risk-color strip directly
 // under each column, then the hour label with a thin connector line up to
 // its strip; overlaid traces: temp = red
-// solid, dewpoint = grey solid, sun = yellow solid, wind = white dotted,
-// humidity = cyan dashed. ICE hours get a snowflake marker above the
-// column plus a cyan outline around the risk strip.
+// solid, dewpoint = grey solid, sun = yellow solid, wind(+gust max) = white
+// dotted, humidity = cyan dashed, precipitation probability = blue dotted
+// (0-100% shares the humidity scale, labels on the right). ICE hours get a
+// snowflake marker above the column plus a cyan outline around the risk
+// strip. Night hours get a shaded background when dayNight.enabled.
 function buildGraphSvg(o) {
     const hours = (o && o.hours) || [];
     const n = hours.length;
@@ -867,6 +889,8 @@ function buildGraphSvg(o) {
     const barMaxH = plotH * 0.55;
     const tempY = (t) => padT + (1 - (t - tMin) / (tMax - tMin)) * plotH;
     const humY = (h) => padT + (1 - Math.max(0, Math.min(100, h || 0)) / 100) * plotH;
+    // Precipitation probability shares the 0-100% humidity scale.
+    const probY = (p) => padT + (1 - Math.max(0, Math.min(100, p || 0)) / 100) * plotH;
     const windY = (w) => padT + (1 - (w || 0) / maxWind) * plotH;
     const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec || 0)) / 3600) * plotH;
     const cxOf = (i) => padL + slot * i + slot / 2;
@@ -882,15 +906,40 @@ function buildGraphSvg(o) {
     const hasDew = hours.some((hh) => hh.dew !== null && hh.dew !== undefined);
     const hasHum = hours.some((hh) => hh.humidity !== null && hh.humidity !== undefined);
     const hasSun = hours.some((hh) => (hh.sun || 0) > 0);
+    const hasProb = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
+    const PROB_COLOR = "#5b9bff";
+    // Day/night background (Graph image settings page). When enabled, day
+    // columns use dayBg and night columns use nightBg; when off, the whole
+    // image uses dayBg as the single background. Defaults keep the old look.
+    const dn = (o && o.dayNight) || {};
+    const dnEnabled = dn.enabled === undefined || dn.enabled === null ? true : !!dn.enabled;
+    const dayBg = (typeof dn.dayBg === "string" && dn.dayBg) ? dn.dayBg : "#111";
+    const nightBg = (typeof dn.nightBg === "string" && dn.nightBg) ? dn.nightBg : "#1e2733";
     let s = "";
     s += '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" font-family="sans-serif">\n';
-    s += '<rect width="' + W + '" height="' + H + '" fill="#111"/>\n';
+    s += '<rect width="' + W + '" height="' + H + '" fill="' + escXml(dayBg) + '"/>\n';
+    if (dnEnabled) {
+        for (let bi = 0; bi < n; bi++) {
+            if (!graphIsDay(hours[bi])) {
+                const bx = (padL + slot * bi).toFixed(1);
+                s += '<rect x="' + bx + '" y="' + padT + '" width="' + slot.toFixed(1) +
+                    '" height="' + plotH + '" fill="' + escXml(nightBg) + '"/>\n';
+            }
+        }
+    }
     s += '<text x="' + padL + '" y="24" fill="#fff" font-size="17" font-weight="bold">' + escXml(o.title || "") + '</text>\n';
     s += '<text x="' + padL + '" y="44" fill="#bbb" font-size="12">' + escXml(o.subtitle || "") + '</text>\n';
     s += '<text x="' + (padL - 5) + '" y="' + (tempY(tMax) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + tMax.toFixed(0) + '°</text>\n';
     s += '<text x="' + (padL - 5) + '" y="' + (tempY((tMin + tMax) / 2) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + ((tMin + tMax) / 2).toFixed(0) + '°</text>\n';
     s += '<text x="' + (padL - 5) + '" y="' + (tempY(tMin) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + tMin.toFixed(0) + '°</text>\n';
     s += '<text x="' + (W - padR) + '" y="' + (padT + 10) + '" fill="#3377ff" font-size="10" text-anchor="end">' + maxRain.toFixed(0) + 'mm</text>\n';
+    // Right-side % axis for humidity + precipitation probability (shared
+    // 0-100% scale, full plot height). The top 100% tick is skipped so it
+    // never collides with the rain max label above.
+    if (hasHum || hasProb) {
+        s += '<text x="' + (W - padR) + '" y="' + (humY(50) + 4).toFixed(1) + '" fill="' + PROB_COLOR + '" font-size="10" text-anchor="end">50%</text>\n';
+        s += '<text x="' + (W - padR) + '" y="' + (humY(0) + 4).toFixed(1) + '" fill="' + PROB_COLOR + '" font-size="10" text-anchor="end">0%</text>\n';
+    }
     // With long windows (up to 336h) label only every Nth hour so the
     // hour row stays readable; the first column always keeps "now".
     // When the coming hours cross midnight, the first hour of the new
@@ -998,20 +1047,40 @@ function buildGraphSvg(o) {
             escXml(wArr + wSpd) + '</text>\n';
     }
     if (hasHum) s += '<path d="' + linePath((i) => humY(hours[i].humidity)) + '" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n';
+    if (hasProb) s += '<path d="' + linePath((i) => probY(hours[i].prob)) + '" fill="none" stroke="' + PROB_COLOR + '" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n';
     s += '<path d="' + linePath((i) => windY(Math.max(hours[i].wind || 0, hours[i].gust || 0))) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n';
     if (hasSun) s += '<path d="' + linePath((i) => sunY(hours[i].sun)) + '" fill="none" stroke="#ffd24a" stroke-width="2"/>\n';
     if (hasDew) s += '<path d="' + linePath((i) => tempY(hours[i].dew)) + '" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n';
     if (hasTemp) s += '<path d="' + linePath((i) => tempY(hours[i].temp)) + '" fill="none" stroke="#ff5252" stroke-width="2"/>\n';
     const ly1 = hourY + 28;
+    // Legend line 1: every overlaid trace with its color + line style.
+    // Segments for absent data (sun/humidity/prob) are left out so the
+    // legend only explains what is actually drawn.
+    const traceSegs = [];
+    if (hasTemp) traceSegs.push('<tspan fill="#ff5252">— temp air °C</tspan>');
+    if (hasDew) traceSegs.push('<tspan fill="#9e9e9e">— dewpoint</tspan>');
+    if (hasSun) traceSegs.push('<tspan fill="#ffd24a">— sun</tspan>');
+    traceSegs.push('<tspan fill="#fff">┄ wind+gust max</tspan>');
+    if (hasHum) traceSegs.push('<tspan fill="#4dd0e1">┄ humidity %</tspan>');
+    if (hasProb) traceSegs.push('<tspan fill="' + PROB_COLOR + '">… precip prob %</tspan>');
     s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">' +
-        '<tspan fill="#ff5252">— temp</tspan> · <tspan fill="#9e9e9e">— dewpoint</tspan> · ' +
-        '<tspan fill="#ffd24a">— sun</tspan> · <tspan fill="#fff">┄ wind</tspan> · ' +
-        '<tspan fill="#4dd0e1">┄ humidity</tspan> · <tspan fill="#3377ff">blue = rain mm/h</tspan> · ' +
-        '<tspan fill="#b3e5fc">pale = snow cm/h</tspan> · strip = risk · ❄ = ICE · W row = wind arrow + speed</text>\n';
+        traceSegs.join(' · ') +
+        '<tspan fill="#bbb"> (left °C temp scale · right % humidity/prob scale)</tspan></text>\n';
+    // Legend line 2: columns, risk strip, markers, top wind row, background.
+    const colSegs = [];
+    colSegs.push('<tspan fill="#3377ff">blue column = rain mm/h</tspan>');
+    colSegs.push('<tspan fill="#b3e5fc">pale column = snow cm/h</tspan>');
+    colSegs.push('strip = risk level');
+    colSegs.push('❄ = ICE hour + cyan strip outline');
+    colSegs.push('W row = wind arrow + speed');
+    if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
+    const ly2 = ly1 + 14;
+    s += '<text x="' + padL + '" y="' + ly2 + '" fill="#bbb" font-size="11">' +
+        colSegs.join(' · ') + '</text>\n';
     const advItems = (o.advice && o.advice.length) ? o.advice : ["—"];
     const advLines = wrapAdviceLines(advItems, 100);
     for (let k = 0; k < advLines.length; k++) {
-        s += '<text x="' + padL + '" y="' + (ly1 + 15 + k * 13) + '" fill="#888" font-size="10">' +
+        s += '<text x="' + padL + '" y="' + (ly2 + 15 + k * 13) + '" fill="#888" font-size="10">' +
             (k === 0 ? "advice: " : "") + escXml(advLines[k]) + '</text>\n';
     }
     s += "</svg>\n";
@@ -1132,6 +1201,7 @@ SlipperyApplet.prototype = {
             "use-hsp-text", "hsp-threshold",
             "show-advice", "show-peak-risk", "panel-chip-locations",
             "panel-chip-alert-level", "demo-mode",
+            "graph-daynight", "graph-day-bg", "graph-night-bg",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -1386,6 +1456,19 @@ SlipperyApplet.prototype = {
         this.menu.addMenuItem(item);
     },
 
+    // Day/night background choice for the graph image (Graph image
+    // settings page). Missing keys (old installs) fall back to the
+    // buildGraphSvg defaults so the graph still renders.
+    _graphDayNightOpts: function () {
+        let enabled = this.s["graph-daynight"];
+        if (enabled === undefined || enabled === null) enabled = true;
+        return {
+            enabled: !!enabled,
+            dayBg: String(this.s["graph-day-bg"] || "#111111"),
+            nightBg: String(this.s["graph-night-bg"] || "#1e2733"),
+        };
+    },
+
     // Renders the full-size SVG graph (same layout as nodetest/graph.js) from
     // the already-fetched forecast, writes it to the temp dir and opens it
     // in the default image viewer. No network, no npm, no extra packages.
@@ -1402,6 +1485,7 @@ SlipperyApplet.prototype = {
                 temp: (h.airTemp === undefined) ? null : h.airTemp,
                 dew: (h.dewPoint === undefined) ? null : h.dewPoint,
                 humidity: (h.humidity === undefined) ? null : h.humidity,
+                prob: (h.prob === undefined || h.prob === null) ? null : h.prob,
                 ice: !!h.ice,
             }));
             const svg = buildGraphSvg({
@@ -1412,6 +1496,7 @@ SlipperyApplet.prototype = {
                     " · wind " + Math.round(parsed.windSpeed) + " km/h, gust " + Math.round(parsed.windGust) + " km/h",
                 hours: hours,
                 advice: parsed.risk.advice,
+                dayNight: this._graphDayNightOpts(),
             });
             if (!svg || !ByteArray) return;
             const path = GLib.build_filenamev([GLib.get_tmp_dir(), "slippery-graph.svg"]);
