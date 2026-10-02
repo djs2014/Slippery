@@ -645,12 +645,33 @@ class SlipperyView extends WatchUi.DataField {
             topGridHeight = height - sparklineHeight;
         }
 
+        // When the hazard/advice footer is empty, the space below the metrics
+        // grid stays blank: move the divider up so the comfort/sparkline/risk
+        // footer block grows and the sparkline chart itself gains height.
+        // Grid metrics mirror drawEdgeOneField (the 4th NET WIND/CROSS GUST
+        // row is always drawn when the footer is empty).
+        var dividerY = topGridHeight;
+        var footerHazards = mShortHazards
+            ? mHazardStringsShortened
+            : mHazardStrings;
+        var hasFooterContent =
+            (mShowHazards && footerHazards.size() > 0) ||
+            (mShowAdvice && mAdviceStrings.size() > 0);
+        if (!hasFooterContent) {
+            var topHdrH = (topGridHeight * 0.15).toNumber();
+            var topRowH = ((topGridHeight * 0.46).toNumber()) / 3;
+            var contentEnd = topHdrH + 4 + 4 * topRowH;
+            if (topGridHeight - contentEnd >= 16) {
+                dividerY = contentEnd + 2;
+            }
+        }
+
         // 3. Draw Divider Line
         var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
         dc.setColor(dividerColor, Graphics.COLOR_TRANSPARENT);
-        dc.drawLine(4, topGridHeight, width - 4, topGridHeight);
+        dc.drawLine(4, dividerY, width - 4, dividerY);
 
-        // 4. Draw Bottom Sparkline Section (y = topGridHeight to h)
+        // 4. Draw Bottom Sparkline Section (y = dividerY to h)
         // Add 15px horizontal padding on left/right so edges don't touch screen bezels
         var paddingX = 15;
 
@@ -659,13 +680,13 @@ class SlipperyView extends WatchUi.DataField {
         // (Kept inline: a helper frame here deepened the onUpdate call chain.)
         // Risk footer bar under the forecast (0 = off): forecast slot shrinks.
         var footerH = mShowRiskFooter ? 14 : 0;
-        var slotH = sparklineHeight - footerH;
+        var slotH = height - dividerY - footerH;
         var drawH = slotH - 10 - 2;
         var showLb = drawH >= 42;
         PredictiveSparkline.drawComfort(
             dc,
             paddingX,
-            topGridHeight,
+            dividerY,
             width - paddingX * 2,
             10,
             mWeatherMetrics,
@@ -676,7 +697,7 @@ class SlipperyView extends WatchUi.DataField {
         PredictiveSparkline.draw(
             dc,
             paddingX,
-            topGridHeight + 10,
+            dividerY + 10,
             width - paddingX * 2,
             drawH,
             mWeatherMetrics,
@@ -696,14 +717,14 @@ class SlipperyView extends WatchUi.DataField {
         drawRiskFooter(
             dc,
             paddingX,
-            topGridHeight + slotH,
+            dividerY + slotH,
             width - paddingX * 2,
             footerH,
             isDark
         );
 
-        // 2. Draw Top Metrics Section (y = 0 to topGridHeight)
-        drawEdgeOneField(dc, 0, 0, width, topGridHeight, isDark);
+        // 2. Draw Top Metrics Section (y = 0 to dividerY)
+        drawEdgeOneField(dc, 0, 0, width, dividerY, isDark);
     }
     private function drawEdgeLargeFieldWithSparkline(
         dc as Graphics.Dc,
