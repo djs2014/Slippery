@@ -10,12 +10,12 @@
         "page-display": {
             "type": "page",
             "title": "Panel & popup",
-            "sections": ["section-fetch", "section-panel", "section-popup"]
+            "sections": ["section-fetch", "section-units", "section-panel", "section-popup"]
         },
         "page-graph": {
             "type": "page",
             "title": "Graph image",
-            "sections": ["section-graph-daynight"]
+            "sections": ["section-graph-daynight", "section-graph-traces", "section-graph-values"]
         },
         "page-thresholds": {
             "type": "page",
@@ -37,6 +37,11 @@
             "title": "Fetching",
             "keys": ["refresh-minutes", "startup-delay-sec", "forecast-hours", "forecast-days"]
         },
+        "section-units": {
+            "type": "section",
+            "title": "Units",
+            "keys": ["units"]
+        },
         "section-panel": {
             "type": "section",
             "title": "Panel chip",
@@ -45,12 +50,22 @@
         "section-popup": {
             "type": "section",
             "title": "Popup",
-            "keys": ["show-advice", "demo-mode"]
+            "keys": ["show-advice", "show-best-hour"]
         },
         "section-graph-daynight": {
             "type": "section",
             "title": "Day / night background",
-            "keys": ["graph-daynight", "graph-day-bg", "graph-night-bg"]
+            "keys": ["graph-daynight", "graph-day-bg", "graph-night-bg", "graph-colors-reset"]
+        },
+        "section-graph-traces": {
+            "type": "section",
+            "title": "Graph metrics (show / hide)",
+            "keys": ["graph-show-temp", "graph-show-dew", "graph-show-sun", "graph-show-wind", "graph-show-humidity", "graph-show-prob", "graph-show-precip"]
+        },
+        "section-graph-values": {
+            "type": "section",
+            "title": "Graph value labels",
+            "keys": ["graph-values"]
         },
         "section-thresh": {
             "type": "section",
@@ -168,6 +183,16 @@
         "description": "Coming days overview in popup",
         "tooltip": "Per location, one summary row per coming calendar day (0 = off). Each day aggregates the same hourly risk engine: peak risk, rain/snow totals, ice hours, peak gust and temperature low. The fetch window is extended automatically (days x 24h) up to 14 days / 336h."
     },
+    "units": {
+        "type": "combobox",
+        "default": "metric",
+        "description": "Display units",
+        "tooltip": "Metric: °C, km/h, mm/cm. Imperial: °F, mph, inches. Only labels convert — the risk engine and the alert thresholds below stay metric.",
+        "options": {
+            "Metric (°C, km/h, mm)": "metric",
+            "Imperial (°F, mph, in)": "imperial"
+        }
+    },
     "show-temperature": {
         "type": "switch",
         "default": true,
@@ -217,11 +242,11 @@
         "default": true,
         "description": "Show advice in popup"
     },
-    "demo-mode": {
+    "show-best-hour": {
         "type": "switch",
-        "default": false,
-        "description": "Demo: canned scenario once",
-        "tooltip": "When ON, the next refresh uses built-in demo values (cold snap + rain + snow + gusts, with ICE hours) for layout testing, then switches itself back OFF automatically."
+        "default": true,
+        "description": "Show calmest departure hour per location",
+        "tooltip": "One row per location naming the calmest hour to ride in the coming forecast window (lowest risk, then lowest gust)."
     },
     "show-peak-risk": {
         "type": "switch",
@@ -246,6 +271,58 @@
         "default": "#1e2733",
         "description": "Graph night background",
         "tooltip": "Background color for night hour columns in the hourly graph image (only when shading above is on)."
+    },
+    "graph-colors-reset": {
+        "type": "switch",
+        "default": false,
+        "description": "Reset graph day/night colors",
+        "tooltip": "When ON, the graph day/night backgrounds reset to defaults (#111111 / #1e2733) on the next refresh, then this switches itself back OFF automatically (one-shot)."
+    },
+    "graph-show-temp": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: air temperature trace"
+    },
+    "graph-show-dew": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: dewpoint trace"
+    },
+    "graph-show-sun": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: sunshine trace"
+    },
+    "graph-show-wind": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: wind line + wind markers"
+    },
+    "graph-show-humidity": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: humidity trace"
+    },
+    "graph-show-prob": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: precipitation probability trace"
+    },
+    "graph-show-precip": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: rain / snow columns"
+    },
+    "graph-values": {
+        "type": "combobox",
+        "default": "all",
+        "description": "Graph value labels",
+        "tooltip": "All hours: every hour gets its wind + precipitation numbers. Peak hour only: only the strongest wind hour and the wettest rain/snow hours are labeled. None: curves and columns without per-hour numbers (axis scales stay).",
+        "options": {
+            "All hours": "all",
+            "Peak hour only": "peak",
+            "None": "none"
+        }
     },
     "panel-chip-locations": {
         "type": "combobox",
