@@ -39,8 +39,8 @@ const UUID = "slippery@local";
 
 // Defaults for the graph day/night backgrounds (mirror the
 // settings-schema.json defaults for graph-day-bg / graph-night-bg).
-const GRAPH_DAY_BG_DEFAULT = "#111111";
-const GRAPH_NIGHT_BG_DEFAULT = "#1e2733";
+const GRAPH_DAY_BG_DEFAULT = "#1e2733";
+const GRAPH_NIGHT_BG_DEFAULT = "#111111";
 
 // ---------------------------------------------------------------------------
 // Pure risk engine (no Cinnamon dependencies — kept identical to
@@ -908,6 +908,20 @@ function escXml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// Day-row label under the first hour of a new day. Mode "date" is the
+// historical "D/M", "weekday" shows the full weekday name ("Monday"),
+// "both" shows both ("Monday 30/9"). Unknown/missing modes fall back to
+// "date" so old installs keep the current look.
+const GRAPH_WD_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function dayRowLabel(d, mode) {
+    const m = String(mode || "date");
+    const date = d.getDate() + "/" + (d.getMonth() + 1);
+    if (m === "weekday") return GRAPH_WD_FULL[d.getDay()];
+    if (m === "both") return GRAPH_WD_FULL[d.getDay()] + " " + date;
+    return date;
+}
+
 // Greedy wrap of advice items into at most 2 lines of max chars.
 function wrapAdviceLines(items, max) {
     const lines = [];
@@ -943,12 +957,14 @@ function graphIsDay(hh) {
     return true;
 }
 
-//      sun (sec), temp, dew, humidity, prob (%), ice}], advice: [...],
+//      sun (sec), temp, dew, sfc (surface temp), humidity, prob (%),
+//      ice}], advice: [...],
 //      dayNight: { enabled, dayBg, nightBg }, units: "metric"|"imperial",
-//      traces: { temp, dew, sun, wind, hum, prob, precip } (each false
+//      traces: { temp, dew, sfc, sun, wind, hum, prob, precip } (each false
 //        hides that metric; missing = shown),
 //      values: "all"|"peak"|"none" (per-hour value labels: every hour,
-//        only the highest hour(s), or curves/columns only) }.
+//        the highest hour(s) plus the coldest temp hour(s),
+//        or curves/columns only) }.
 // Units only relabel the graph (temps, winds, precipitation); stored data
 // stays metric.
 // Layout: one column per hour, bars close together; rain (blue) + snow
@@ -957,11 +973,15 @@ function graphIsDay(hh) {
 // its strip; wind markers (blow-to arrow + speed) ride just above the
 // white dotted wind+gust-max curve so their height shows the strength;
 // overlaid traces: temp = red
-// solid, dewpoint = grey solid, sun = yellow solid, wind(+gust max) = white
+// solid, surface temp = orange solid, dewpoint = grey solid,
+// sun = yellow solid, wind(+gust max) = white
 // dotted, humidity = cyan dashed, precipitation probability = blue dotted
 // (0-100% shares the humidity scale, labels on the right). ICE hours get a
 // snowflake marker above the column plus a cyan outline around the risk
-// strip. Night hours get a shaded background when dayNight.enabled.
+// strip. The first ICE hour additionally gets a cyan dashed start line at
+// its left edge plus a top banner ("ice in Xh @ HH:00", or "ICE now") so
+// the moment ice comes is visible even in long windows.
+// Night hours get a shaded background when dayNight.enabled.
 function buildGraphSvg(o) {
     const hours = (o && o.hours) || [];
     const n = hours.length;
@@ -984,7 +1004,7 @@ function buildGraphSvg(o) {
         if ((hh.snow || 0) > maxSnow) maxSnow = hh.snow;
         const g = Math.max(hh.gust || 0, hh.wind || 0);
         if (g > maxWind) maxWind = g;
-        const ts = [hh.temp, hh.dew];
+        const ts = [hh.temp, hh.dew, hh.sfc];
         for (let k = 0; k < ts.length; k++) {
             if (ts[k] === null || ts[k] === undefined || isNaN(ts[k])) continue;
             if (tMin === null || ts[k] < tMin) tMin = ts[k];
@@ -1005,6 +1025,20 @@ function buildGraphSvg(o) {
     const windMarkY = (i) => Math.max(16, windY(Math.max(hours[i].wind || 0, hours[i].gust || 0)) - 16);
     const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec || 0)) / 3600) * plotH;
     const cxOf = (i) => padL + slot * i + slot / 2;
+    // First ICE hour in this window (hours[0] = now). -1 when no ice.
+    // Used to mark where ice starts, so "ice in X hours" is visible.
+    let iceStartIdx = -1;
+    for (let fi = 0; fi < n; fi++) {
+        if (hours[fi] && hours[fi].ice) { iceStartIdx = fi; break; }
+    }
+    const iceStartLabel = () => {
+        if (iceStartIdx < 0) return "";
+        if (iceStartIdx === 0) return "❄ ICE now ▼";
+        const t = hours[iceStartIdx].time;
+        const when = (t instanceof Date && !isNaN(t))
+            ? " @ " + hourLabel(t, false) : "";
+        return "❄ ice in " + iceStartIdx + "h" + when + " ▼";
+    };
     const linePath = (fn) => {
         let d = "";
         for (let i = 0; i < n; i++) {
@@ -1015,10 +1049,12 @@ function buildGraphSvg(o) {
     };
     const hasTemp = hours.some((hh) => hh.temp !== null && hh.temp !== undefined);
     const hasDew = hours.some((hh) => hh.dew !== null && hh.dew !== undefined);
+    const hasSfc = hours.some((hh) => hh.sfc !== null && hh.sfc !== undefined);
     const hasHum = hours.some((hh) => hh.humidity !== null && hh.humidity !== undefined);
     const hasSun = hours.some((hh) => (hh.sun || 0) > 0);
     const hasProb = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
     const PROB_COLOR = "#5b9bff";
+    const SFC_COLOR = "#ffa040";
     // Trace visibility (Graph image settings page): each metric can be
     // hidden via its graph-show-* switch. Missing flags (old installs,
     // standalone node use) default to shown. The draw flags combine data
@@ -1026,25 +1062,35 @@ function buildGraphSvg(o) {
     const tro = (o && o.traces) || {};
     const drawTemp = hasTemp && tro.temp !== false;
     const drawDew = hasDew && tro.dew !== false;
+    const drawSfc = hasSfc && tro.sfc !== false;
     const drawSun = hasSun && tro.sun !== false;
     const drawWind = tro.wind !== false;
     const drawHum = hasHum && tro.hum !== false;
     const drawProb = hasProb && tro.prob !== false;
     const drawPrecip = tro.precip !== false;
     // Value labels: "all" = every hour labeled (default), "peak" = only
-    // the highest hour(s) labeled, "none" = curves/columns without
-    // per-hour numbers. Axis/scale labels are unaffected.
+    // the highest hour(s) labeled plus the coldest air/surface temp
+    // hour(s), "none" = curves/columns without per-hour numbers.
+    // Axis/scale labels are unaffected.
     const valuesMode = String((o && o.values) || "all");
     const showVals = valuesMode !== "none";
     const peakVals = valuesMode === "peak";
+    // Day-row labels under each midnight ("date"|"weekday"|"both",
+    // Graph image settings page; missing = "date").
+    const dayMode = String((o && o.dayLabels) || "date");
     let peakWindIdx = -1, peakRainIdx = -1, peakSnowIdx = -1;
+    let minTempIdx = -1, minSfcIdx = -1;
     if (peakVals) {
-        let pw = -1, pr = -1, ps = -1;
+        let pw = -1, pr = -1, ps = -1, mt = null, ms = null;
         for (let pi = 0; pi < n; pi++) {
             const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
             if (g > pw) { pw = g; peakWindIdx = pi; }
             if ((hours[pi].rain || 0) > pr) { pr = hours[pi].rain || 0; peakRainIdx = pi; }
             if ((hours[pi].snow || 0) > ps) { ps = hours[pi].snow || 0; peakSnowIdx = pi; }
+            const t = hours[pi].temp;
+            if (t !== null && t !== undefined && !isNaN(t) && (mt === null || t < mt)) { mt = t; minTempIdx = pi; }
+            const f = hours[pi].sfc;
+            if (f !== null && f !== undefined && !isNaN(f) && (ms === null || f < ms)) { ms = f; minSfcIdx = pi; }
         }
         if (pw <= 0) peakWindIdx = -1;
         if (pr < 0.1) peakRainIdx = -1;
@@ -1052,11 +1098,12 @@ function buildGraphSvg(o) {
     }
     // Day/night background (Graph image settings page). When enabled, day
     // columns use dayBg and night columns use nightBg; when off, the whole
-    // image uses dayBg as the single background. Defaults keep the old look.
+    // image uses dayBg as the single background. Night defaults to the
+    // darker shade so nights read as nights.
     const dn = (o && o.dayNight) || {};
     const dnEnabled = dn.enabled === undefined || dn.enabled === null ? true : !!dn.enabled;
-    const dayBg = (typeof dn.dayBg === "string" && dn.dayBg) ? dn.dayBg : "#111";
-    const nightBg = (typeof dn.nightBg === "string" && dn.nightBg) ? dn.nightBg : "#1e2733";
+    const dayBg = (typeof dn.dayBg === "string" && dn.dayBg) ? dn.dayBg : "#1e2733";
+    const nightBg = (typeof dn.nightBg === "string" && dn.nightBg) ? dn.nightBg : "#111111";
     // Display units for labels only (axis scaling stays metric-linear).
     const u = (o && o.units) || "metric";
     const axTemp = (v) => {
@@ -1092,8 +1139,9 @@ function buildGraphSvg(o) {
     // With long windows (up to 336h) label only every Nth hour so the
     // hour row stays readable; the first column always keeps "now".
     // When the coming hours cross midnight, the first hour of the new
-    // day keeps its plain "HH:00" label and gets the day number
-    // ("D/M") on its own row underneath, plus a vertical separator —
+    // day keeps its plain "HH:00" label and gets the day label
+    // (date "D/M", weekday "Monday", or both — setting graph-day-labels)
+    // on its own row underneath, plus a vertical separator —
     // so dates never mix into the hour strings.
     // Grid labels keep at least ~50px between centers. Displayed hour
     // texts are placed by priority ("now", then midnights, then grid) so
@@ -1153,15 +1201,22 @@ function buildGraphSvg(o) {
                 '" height="' + sh.toFixed(1) + '" fill="#b3e5fc"/>\n';
         }
         const rc = GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA;
+        const isIceStart = (i === iceStartIdx);
         s += '<rect x="' + x + '" y="' + stripY + '" width="' + barW.toFixed(1) + '" height="' + stripH + '" fill="' + rc + '"' +
-            (hh.ice ? ' stroke="#4dd0e1" stroke-width="1.5"' : '') + '/>\n';
+            (hh.ice ? ' stroke="#4dd0e1" stroke-width="' + (isIceStart ? "2.5" : "1.5") + '"' : '') + '/>\n';
         const isNewDay = isNewDayAt(i);
         if (isNewDay) {
             const sepX = (cx - slot / 2).toFixed(1);
             s += '<line x1="' + sepX + '" y1="' + padT + '" x2="' + sepX + '" y2="' + base + '" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n';
         }
+        // Cyan start line at the left edge of the first ICE hour, so the
+        // moment ice comes stands out from later ICE hours.
+        if (isIceStart && iceStartIdx > 0) {
+            const ix = (cx - slot / 2).toFixed(1);
+            s += '<line x1="' + ix + '" y1="' + padT + '" x2="' + ix + '" y2="' + base + '" stroke="#4dd0e1" stroke-width="2" stroke-dasharray="6,3"/>\n';
+        }
         // Hour text + connector only for placed labels; every midnight
-        // still gets its separator + date row below.
+        // still gets its separator + day-label row below.
         const showLabel = isShownLabel(i);
         // Connector from each displayed hour label up to its risk strip, so
         // sparse labels (long windows) unambiguously point at their block.
@@ -1171,7 +1226,7 @@ function buildGraphSvg(o) {
         s += '<text x="' + cx.toFixed(1) + '" y="' + hourY + '" fill="#999" font-size="10" text-anchor="middle">' + (showLabel ? escXml(hourLabel(hh.time, i === 0)) : "") + '</text>\n';
         if (isNewDay && i !== 0 && hh.time instanceof Date && !isNaN(hh.time)) {
             s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
-                escXml(hh.time.getDate() + "/" + (hh.time.getMonth() + 1)) + '</text>\n';
+                escXml(dayRowLabel(hh.time, dayMode)) + '</text>\n';
         }
         if (showVals && drawPrecip && ((hh.rain || 0) >= 0.1 || (hh.snow || 0) >= 0.1)) {
             let pv = "";
@@ -1197,18 +1252,44 @@ function buildGraphSvg(o) {
                 escXml(wArr + wSpd) + '</text>\n';
         }
     }
+    // Top banner for the ice start ("ice in Xh @ HH:00" / "ICE now"),
+    // clamped inside the canvas so it stays readable in long windows.
+    if (iceStartIdx >= 0) {
+        const iceCx = cxOf(iceStartIdx);
+        const iceTx = Math.min(Math.max(iceCx, padL + 80), W - padR - 80);
+        s += '<text x="' + iceTx.toFixed(1) + '" y="' + (padT - 26) + '" fill="#4dd0e1" font-size="13" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+            escXml(iceStartLabel()) + '</text>\n';
+    }
     if (drawHum) s += '<path d="' + linePath((i) => humY(hours[i].humidity)) + '" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n';
     if (drawProb) s += '<path d="' + linePath((i) => probY(hours[i].prob)) + '" fill="none" stroke="' + PROB_COLOR + '" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n';
     if (drawWind) s += '<path d="' + linePath((i) => windY(Math.max(hours[i].wind || 0, hours[i].gust || 0))) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n';
     if (drawSun) s += '<path d="' + linePath((i) => sunY(hours[i].sun)) + '" fill="none" stroke="#ffd24a" stroke-width="2"/>\n';
     if (drawDew) s += '<path d="' + linePath((i) => tempY(hours[i].dew)) + '" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n';
+    if (drawSfc) s += '<path d="' + linePath((i) => tempY(hours[i].sfc)) + '" fill="none" stroke="' + SFC_COLOR + '" stroke-width="2"/>\n';
     if (drawTemp) s += '<path d="' + linePath((i) => tempY(hours[i].temp)) + '" fill="none" stroke="#ff5252" stroke-width="2"/>\n';
+    // Peak mode: label the coldest air/surface temp hour(s) right on their
+    // curves (air above its point, sfc below, so the two never cover each
+    // other when the coldest hour is the same). Only when the trace itself
+    // is drawn; hidden with values "none".
+    if (peakVals && showVals) {
+        if (drawTemp && minTempIdx >= 0) {
+            const tv = hours[minTempIdx].temp;
+            s += '<text x="' + cxOf(minTempIdx).toFixed(1) + '" y="' + (tempY(tv) - 8).toFixed(1) + '" fill="#ff5252" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+                escXml(fmtTemp(tv, u)) + '</text>\n';
+        }
+        if (drawSfc && minSfcIdx >= 0) {
+            const fv = hours[minSfcIdx].sfc;
+            s += '<text x="' + cxOf(minSfcIdx).toFixed(1) + '" y="' + (tempY(fv) + 14).toFixed(1) + '" fill="' + SFC_COLOR + '" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+                escXml(fmtTemp(fv, u)) + '</text>\n';
+        }
+    }
     const ly1 = hourY + 28;
     // Legend line 1: every overlaid trace with its color + line style.
     // Segments for hidden traces are left out so the legend only explains
     // what is actually drawn.
     const traceSegs = [];
     if (drawTemp) traceSegs.push('<tspan fill="#ff5252">— temp air ' + tempScaleUnit(u) + '</tspan>');
+    if (drawSfc) traceSegs.push('<tspan fill="' + SFC_COLOR + '">— temp sfc ' + tempScaleUnit(u) + '</tspan>');
     if (drawDew) traceSegs.push('<tspan fill="#9e9e9e">— dewpoint</tspan>');
     if (drawSun) traceSegs.push('<tspan fill="#ffd24a">— sun</tspan>');
     if (drawWind) traceSegs.push('<tspan fill="#fff">┄ wind+gust max (' + speedUnit(u) + ')</tspan>');
@@ -1226,7 +1307,9 @@ function buildGraphSvg(o) {
     }
     colSegs.push('strip = risk level');
     colSegs.push('❄ = ICE hour + cyan strip outline');
+    colSegs.push('▼ = ice starts');
     if (drawWind && showVals) colSegs.push('wind markers ride dotted line (higher = stronger)');
+    if (peakVals && showVals && (drawTemp || drawSfc)) colSegs.push('coldest temp labeled');
     if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
     const ly2 = ly1 + 14;
     s += '<text x="' + padL + '" y="' + ly2 + '" fill="#bbb" font-size="11">' +
@@ -1286,21 +1369,24 @@ SlipperyApplet.prototype = {
         this.s = {};
         this.settings = new Settings.AppletSettings(this.s, UUID, instanceId);
         const keys = ["location-1-name", "location-1-coords",
-            "location-2-name", "location-2-coords",
-            "location-3-name", "location-3-coords",
-            "location-4-name", "location-4-coords",
-            "location-5-name", "location-5-coords",
+            "location-2-name", "location-2-coords", "location-2-enabled",
+            "location-3-name", "location-3-coords", "location-3-enabled",
+            "location-4-name", "location-4-coords", "location-4-enabled",
+            "location-5-name", "location-5-coords", "location-5-enabled",
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
             "forecast-days", "units",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
             "show-advice", "show-peak-risk", "panel-chip-locations",
-            "panel-chip-alert-level", "show-best-hour",
+            "panel-chip-alert-level", "panel-alert-mon", "panel-alert-tue",
+            "panel-alert-wed", "panel-alert-thu", "panel-alert-fri",
+            "panel-alert-sat", "panel-alert-sun", "panel-alert-current-day",
+            "show-best-hour",
             "graph-daynight", "graph-day-bg", "graph-night-bg",
-            "graph-colors-reset",
-            "graph-show-temp", "graph-show-dew", "graph-show-sun",
-            "graph-show-wind", "graph-show-humidity", "graph-show-prob",
-            "graph-show-precip", "graph-values",
+            "graph-colors-reset", "graph-day-labels",
+            "graph-show-temp", "graph-show-surface", "graph-show-dew",
+            "graph-show-sun", "graph-show-wind", "graph-show-humidity",
+            "graph-show-prob", "graph-show-precip", "graph-values",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -1407,10 +1493,14 @@ SlipperyApplet.prototype = {
     },
 
     // todo.md: one paste-friendly "lat, lon" field per point (max 5).
-    // Empty/invalid coordinates = slot disabled.
+    // Empty/invalid coordinates = slot disabled. Points 2-5 additionally
+    // have a quick enable/disable switch (missing key = enabled, so old
+    // installs keep working); point 1 is the panel-chip anchor and stays
+    // switch-free.
     _locations: function () {
         const locs = [];
         for (let n = 1; n <= 5; n++) {
+            if (n > 1 && this.s["location-" + n + "-enabled"] === false) continue;
             let nm = String(this.s["location-" + n + "-name"] || "").trim();
             if (!nm) nm = (n === 1) ? "Home" : ("Point " + n);
             const c = parseCoordField(this.s["location-" + n + "-coords"]);
@@ -1557,6 +1647,17 @@ SlipperyApplet.prototype = {
         };
     },
 
+    // Weekday gate for panel-chip alerts (Panel chip settings page,
+    // panel-alert-mon..sun, all on by default so old installs behave as
+    // before). Only gates the chip; popup and tooltip always show
+    // everything.
+    _panelAlertsToday: function () {
+        const days = ["panel-alert-sun", "panel-alert-mon", "panel-alert-tue",
+                      "panel-alert-wed", "panel-alert-thu", "panel-alert-fri",
+                      "panel-alert-sat"];
+        return this.s[days[new Date().getDay()]] !== false;
+    },
+
     // Trace visibility for the graph image (Graph image settings page).
     // Every metric defaults to shown (missing key = true) so old installs
     // keep the full graph.
@@ -1564,6 +1665,7 @@ SlipperyApplet.prototype = {
         const on = (key) => this.s[key] !== false;
         return {
             temp: on("graph-show-temp"),
+            sfc: on("graph-show-surface"),
             dew: on("graph-show-dew"),
             sun: on("graph-show-sun"),
             wind: on("graph-show-wind"),
@@ -1591,6 +1693,7 @@ SlipperyApplet.prototype = {
                 wdir: (h.windDir === undefined) ? null : h.windDir,
                 sun: h.sun || 0,
                 temp: (h.airTemp === undefined) ? null : h.airTemp,
+                sfc: (h.surfaceTemp === undefined) ? null : h.surfaceTemp,
                 dew: (h.dewPoint === undefined) ? null : h.dewPoint,
                 humidity: (h.humidity === undefined) ? null : h.humidity,
                 prob: (h.prob === undefined || h.prob === null) ? null : h.prob,
@@ -1609,6 +1712,7 @@ SlipperyApplet.prototype = {
                 units: units,
                 traces: this._graphTracesOpts(),
                 values: String(this.s["graph-values"] || "all"),
+                dayLabels: String(this.s["graph-day-labels"] || "date"),
             });
             if (!svg || !ByteArray) return;
             const path = GLib.build_filenamev([GLib.get_tmp_dir(), "slippery-graph.svg"]);
@@ -1832,6 +1936,7 @@ SlipperyApplet.prototype = {
         // The hourly profile is the first hours+1 entries of the full fetch
         // so both windows share the same engine run.
         let iceAnywhere = false;
+        let iceTodayAnywhere = false;
         let worstLevel = primary.parsed.risk.level;
         let worstName = primary.parsed.risk.name;
         for (let i = 0; i < results.length; i++) {
@@ -1859,8 +1964,35 @@ SlipperyApplet.prototype = {
                     if (st[h] != null && st[h] <= iceT) { r.iceAhead = true; break; }
                 }
             }
+            // Same-day scan (current calendar day only, stops at midnight):
+            // iceToday lets the chip keep its snowflake icon even on quiet
+            // (weekday-gated) days; peakTodayLvl (max risk level over
+            // today's hours, current hour included) lets the "Alerts on
+            // current day" switch overrule the weekday gate. iceAhead
+            // above covers the whole fetch window.
+            r.iceToday = !!r.iceNow;
+            r.peakTodayLvl = 0;
+            if (r.fullProfile.length > 0 &&
+                r.fullProfile[0].time instanceof Date && !isNaN(r.fullProfile[0].time)) {
+                const d0 = r.fullProfile[0].time;
+                for (let h = 0; h < r.fullProfile.length; h++) {
+                    const th = r.fullProfile[h].time;
+                    if (!(th instanceof Date) || isNaN(th)) continue;
+                    if (th.getFullYear() !== d0.getFullYear() ||
+                        th.getMonth() !== d0.getMonth() || th.getDate() !== d0.getDate()) break;
+                    if ((r.fullProfile[h].level || 0) > r.peakTodayLvl) {
+                        r.peakTodayLvl = r.fullProfile[h].level;
+                    }
+                    if (!r.iceToday && h > 0) {
+                        if (r.fullProfile[h].ice) { r.iceToday = true; continue; }
+                        const stH = r.fullProfile[h].surfaceTemp;
+                        if (stH !== undefined && stH !== null && stH <= iceT) { r.iceToday = true; }
+                    }
+                }
+            }
             r.lows = forecastLows(r.fullProfile);
             if (r.iceNow || r.iceAhead) iceAnywhere = true;
+            if (r.iceToday) iceTodayAnywhere = true;
             if (r.parsed.risk.level > worstLevel) {
                 worstLevel = r.parsed.risk.level;
                 worstName = r.parsed.risk.name;
@@ -1878,10 +2010,25 @@ SlipperyApplet.prototype = {
         // "all": location 1 plus the highest-risk point, each with its own
         // risk background, e.g. H Ok|I Crt.
         // With show-peak-risk, segments show the peak of the coming hours.
+        // Weekday gate (settings panel-alert-<day>): on unselected days
+        // the chip below renders quiet instead — primary label only, no
+        // colors, no alert segment; same-day ice still adds its snowflake
+        // icon. Popup/tooltip unaffected. The "Alerts on current day"
+        // switch overrules the gate below when today's own hours carry an
+        // alert (at/above the chip alert level, or same-day ice).
         const p = primary.parsed;
         const chipMode = String(this.s["panel-chip-locations"] || "primary");
         const chipOpts = { colorMode: colorMode, minLevel: colorMin,
                            useHsp: useHsp, hspT: hspT };
+        const alertNeed = chipAlertLevelNum(this.s["panel-chip-alert-level"]);
+        let showAlerts = this._panelAlertsToday();
+        if (!showAlerts && this.s["panel-alert-current-day"] !== false) {
+            for (let qi = 0; qi < results.length; qi++) {
+                const qr = results[qi];
+                if (!qr.parsed) continue;
+                if (qr.iceToday || (qr.peakTodayLvl || 0) >= alertNeed) { showAlerts = true; break; }
+            }
+        }
         const chipSegs = [];
         for (let ci = 0; ci < results.length; ci++) {
             const cr = results[ci];
@@ -1898,7 +2045,18 @@ SlipperyApplet.prototype = {
             if (cr.iceNow || cr.iceAhead) tx = "❄ " + tx;
             chipSegs.push({ text: tx, level: lv, name: nm });
         }
-        if (chipMode === "all" && chipSegs.length > 0) {
+        if (!showAlerts) {
+            // Quiet day: plain primary label on the theme background.
+            // Same-day ice still gets its snowflake icon — ice today is
+            // urgent even on a quiet day (colors and alert segment stay off).
+            const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
+            let quiet = locInitial + " " + (SHORT_LABEL[p.risk.name] || p.risk.name);
+            if (this.s["show-temperature"]) quiet += " " + fmtTempInt(p.airTemp, units);
+            if (iceTodayAnywhere) quiet = "❄ " + quiet;
+            this._renderChipSingle(quiet, 0, "NO_DATA",
+                { colorMode: chipOpts.colorMode, minLevel: "never",
+                  useHsp: chipOpts.useHsp, hspT: chipOpts.hspT });
+        } else if (chipMode === "all" && chipSegs.length > 0) {
             // Chip shows the 1st point plus the one other point with the
             // highest risk level (first one wins ties) — never every point,
             // so the chip stays narrow enough for the panel.
@@ -1929,7 +2087,6 @@ SlipperyApplet.prototype = {
             if (this.s["show-temperature"]) label += " " + fmtTempInt(p.airTemp, units);
             if (iceAnywhere) label = "❄ " + label;
             let chipLevel = shownLevel, chipName = shownName;
-            const alertNeed = chipAlertLevelNum(this.s["panel-chip-alert-level"]);
             let alertIdx = -1;
             for (let ai = 1; ai < chipSegs.length; ai++) {
                 if (chipSegs[ai].level >= alertNeed) { alertIdx = ai; break; }

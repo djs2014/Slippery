@@ -8,23 +8,27 @@
  *   node graph.js --demo                 # canned demo values (cold snap + ICE), no network
  *   node graph.js --out risk.svg
  *   node graph.js --demo --no-daynight   # single background (see --day-bg)
- *   node graph.js --demo --day-bg '#111111' --night-bg '#1e2733'
+ *   node graph.js --demo --day-bg '#1e2733' --night-bg '#111111'
  *   node graph.js --demo --reset-colors    # ignore custom --day-bg/--night-bg, use defaults
  *   node graph.js --demo --imperial        # °F, mph, inches (engine stays metric)
- *   node graph.js --demo --no-temp --no-dew --no-sun --no-wind --no-hum --no-prob --no-precip
- *   node graph.js --demo --values=peak     # all|peak|none per-hour value labels
+ *   node graph.js --demo --no-temp --no-sfc --no-dew --no-sun --no-wind --no-hum --no-prob --no-precip
+ *   node graph.js --demo --values=peak     # all|peak(+coldest temp)|none per-hour value labels
+ *   node graph.js --demo --day-labels=weekday   # date|weekday|both day row under each midnight
  *
  * Output: SVG with the 13-hour risk profile (current hour + 12 forecast hours):
  * one column per hour (bars close together), rain (blue) + snow (pale) as a
  * stacked column, risk-color strip directly under each column, then the hour
  * label; wind markers (blow-to arrow + speed) ride just above the white
  * dotted wind+gust-max curve so their height shows the strength;
- * overlaid traces: temp red solid, dewpoint grey solid, sun yellow
- * solid, wind+gust max white dotted, humidity cyan dashed, precipitation
- * probability blue dotted (0-100% shares the humidity scale, labels right);
- * wind markers (blow-to arrow + speed) ride just above the dotted line; ICE hours get a ❄ marker.
+ * overlaid traces: temp red solid, surface temp orange solid, dewpoint grey
+ * solid, sun yellow solid, wind+gust max white dotted, humidity cyan dashed,
+ * precipitation probability blue dotted (0-100% shares the humidity scale,
+ * labels right);
+ * wind markers (blow-to arrow + speed) ride just above the dotted line; ICE hours get a ❄ marker,
+ * plus the first ICE hour gets a cyan start line + top banner (ice in Xh @ HH:00 / ICE now).
  * Every trace/columns can be hidden (--no-*) and per-hour numbers set to
- * all, peak-only or none (--values); the legend lists only what is drawn.
+ * all, peak-only or none (--values); peak mode also labels the coldest
+ * air/surface temp hour on its curve. The legend lists only what is drawn.
  */
 const fs = require('fs');
 const sc = require('./slipperycheck.js');
@@ -85,6 +89,17 @@ function windArrow(deg) {
   return ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'][Math.round(norm / 45) % 8];
 }
 
+// Day-row label under the first hour of a new day (mirrors applet.js
+// dayRowLabel): date = "D/M", weekday = full weekday name, both = both.
+const WD_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+function dayRowLabel(d, mode) {
+  const m = String(mode || 'date');
+  const date = `${d.getDate()}/${d.getMonth() + 1}`;
+  if (m === 'weekday') return WD_FULL[d.getDay()];
+  if (m === 'both') return `${WD_FULL[d.getDay()]} ${date}`;
+  return date;
+}
+
 // Day/night test for one graph hour (mirrors applet.js graphIsDay):
 // sunshine (>0s) always means day, otherwise 07:00-19:00 local = day.
 function isDayHour(hh) {
@@ -112,6 +127,11 @@ function rainRateUnit(u) { return isImperial(u) ? 'in/h' : 'mm/h'; }
 function snowRateUnit(u) { return isImperial(u) ? 'in/h' : 'cm/h'; }
 function tempScaleUnit(u) { return isImperial(u) ? '°F' : '°C'; }
 function tempAxisUnit(u) { return isImperial(u) ? '°F' : '°'; }
+function fmtTemp1(v, u) {
+  const x = parseFloat(v);
+  if (isNaN(x)) return '?';
+  return isImperial(u) ? (x * 9 / 5 + 32).toFixed(1) + '°F' : x.toFixed(1) + '°';
+}
 
 // Greedy wrap of advice items ("a; b; c") into lines of at most max chars.
 function wrapAdvice(items, max) {
@@ -172,21 +192,25 @@ async function main() {
   const dayNightOff = a['no-daynight'] === true || a.daynight === false ||
     a.daynight === 'false' || a.daynight === '0';
   const resetColors = a['reset-colors'] === true || a['reset-colors'] === 'true' || a['reset-colors'] === '1';
-  const dayBg = (resetColors || typeof a['day-bg'] !== 'string' || !a['day-bg']) ? '#111111' : a['day-bg'];
-  const nightBg = (resetColors || typeof a['night-bg'] !== 'string' || !a['night-bg']) ? '#1e2733' : a['night-bg'];
+  const dayBg = (resetColors || typeof a['day-bg'] !== 'string' || !a['day-bg']) ? '#1e2733' : a['day-bg'];
+  const nightBg = (resetColors || typeof a['night-bg'] !== 'string' || !a['night-bg']) ? '#111111' : a['night-bg'];
   if (resetColors) console.log('Resetting graph day/night colors to defaults.');
   const dnEnabled = !dayNightOff;
   const units = (a.imperial === true || a.imperial === 'true' || a.imperial === '1') ? 'imperial' : 'metric';
   if (units === 'imperial') console.log('Imperial units (°F, mph, in).');
   // Trace visibility (mirror the applet's Graph image page — all shown
-  // unless passed as --no-temp/--no-dew/--no-sun/--no-wind/--no-hum/
-  // --no-prob/--no-precip) and value labels (--values=all|peak|none).
+  // unless passed as --no-temp/--no-sfc/--no-dew/--no-sun/--no-wind/
+  // --no-hum/--no-prob/--no-precip) and value labels (--values=all|peak|none).
   const noFlag = (name) => a[name] === true || a[name] === 'true' || a[name] === '1';
-  const showTemp = !noFlag('no-temp'), showDew = !noFlag('no-dew'),
-    showSun = !noFlag('no-sun'), showWind = !noFlag('no-wind'),
-    showHum = !noFlag('no-hum'), showProb = !noFlag('no-prob'),
-    showPrecip = !noFlag('no-precip');
+  const showTemp = !noFlag('no-temp'), showSfc = !noFlag('no-sfc'),
+    showDew = !noFlag('no-dew'), showSun = !noFlag('no-sun'),
+    showWind = !noFlag('no-wind'), showHum = !noFlag('no-hum'),
+    showProb = !noFlag('no-prob'), showPrecip = !noFlag('no-precip');
   const valuesMode = ['all', 'peak', 'none'].includes(a.values) ? a.values : 'all';
+  // Day-row labels under each midnight (mirrors the applet's
+  // graph-day-labels setting): date, weekday or both.
+  const dayLabelsMode = ['date', 'weekday', 'both'].includes(a['day-labels']) ? a['day-labels'] : 'date';
+  if (dayLabelsMode !== 'date') console.log(`Day labels: ${dayLabelsMode}.`);
 
   let data;
   let nowSec;
@@ -270,7 +294,7 @@ async function main() {
       time: d, name: parsed.hourlyRiskProfile[i],
       rain: rainCur, snow: snowCur,
       wind: at(winds, j), gust: at(gusts, j), wdir: at(wdirs, j),
-      sun: at(suns, j), temp: airTemp, dew: dew, humidity: hum,
+      sun: at(suns, j), temp: airTemp, sfc: sfc, dew: dew, humidity: hum,
       prob: (j < probs.length && probs[j] != null) ? probs[j] : null,
       ice: ice,
     });
@@ -280,9 +304,10 @@ async function main() {
   // (each hour label has a thin connector line up to its risk strip).
   // Wind markers ride just above the white dotted wind+gust-max curve so
   // their height shows the strength (strong hours high, calm hours low).
-  // Traces: temp red solid, dewpoint grey solid, sun yellow solid,
-  // wind+gust max white dotted, humidity cyan dashed, precip probability
-  // blue dotted (shares the 0-100% humidity scale). ICE hours get a ❄ marker.
+  // Traces: temp red solid, surface temp orange solid, dewpoint grey solid,
+  // sun yellow solid, wind+gust max white dotted, humidity cyan dashed,
+  // precip probability blue dotted (shares the 0-100% humidity scale).
+  // ICE hours get a ❄ marker.
   const H = 446;
   const padL = 46;
   const padR = 14;
@@ -304,8 +329,8 @@ async function main() {
   const maxRain = Math.max(2.0, ...hours.map((x) => x.rain));
   const maxSnow = Math.max(1.0, ...hours.map((x) => x.snow));
   const maxWind = Math.max(10, ...hours.map((x) => Math.max(x.wind, x.gust)));
-  let tMin = Math.min(...hours.map((x) => Math.min(x.temp, x.dew)));
-  let tMax = Math.max(...hours.map((x) => Math.max(x.temp, x.dew)));
+  let tMin = Math.min(...hours.map((x) => Math.min(x.temp, x.sfc, x.dew)));
+  let tMax = Math.max(...hours.map((x) => Math.max(x.temp, x.sfc, x.dew)));
   if (!isFinite(tMin) || !isFinite(tMax)) { tMin = 0; tMax = 10; }
   if (tMax - tMin < 5) { const m = (tMax + tMin) / 2; tMin = m - 2.5; tMax = m + 2.5; }
   else { tMin -= 1; tMax += 1; }
@@ -319,6 +344,20 @@ async function main() {
   const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec)) / 3600) * plotH;
   const cxOf = (i) => padL + slot * i + slot / 2;
   const linePath = (fn) => hours.map((_, i) => `${i === 0 ? 'M' : 'L'}${cxOf(i).toFixed(1)} ${fn(i).toFixed(1)}`).join('');
+  // First ICE hour in this window (hours[0] = now). -1 when no ice.
+  // Marks where ice starts ("ice in Xh @ HH:00" / "ICE now").
+  let iceStartIdx = -1;
+  for (let fi = 0; fi < n; fi++) {
+    if (hours[fi] && hours[fi].ice) { iceStartIdx = fi; break; }
+  }
+  const iceStartLabel = () => {
+    if (iceStartIdx < 0) return '';
+    if (iceStartIdx === 0) return '❄ ICE now ▼';
+    const t = hours[iceStartIdx].time;
+    const when = (t instanceof Date && !isNaN(t))
+      ? ' @ ' + String(t.getHours()).padStart(2, '0') + ':00' : '';
+    return `❄ ice in ${iceStartIdx}h${when} ▼`;
+  };
 
   let s = '';
   s += `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" font-family="sans-serif">\n`;
@@ -345,7 +384,9 @@ async function main() {
   const hasProbTrace = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
   const PROB_COLOR = '#5b9bff';
   // Trace visibility + value labels (mirror the applet's Graph image page).
+  const SFC_COLOR = '#ffa040';
   const drawTemp = showTemp && hours.some((hh) => hh.temp !== null && hh.temp !== undefined);
+  const drawSfc = showSfc && hours.some((hh) => hh.sfc !== null && hh.sfc !== undefined);
   const drawDew = showDew && hours.some((hh) => hh.dew !== null && hh.dew !== undefined);
   const drawSun = showSun && hours.some((hh) => (hh.sun || 0) > 0);
   const drawWind = showWind;
@@ -355,13 +396,18 @@ async function main() {
   const showVals = valuesMode !== 'none';
   const peakVals = valuesMode === 'peak';
   let peakWindIdx = -1, peakRainIdx = -1, peakSnowIdx = -1;
+  let minTempIdx = -1, minSfcIdx = -1;
   if (peakVals) {
-    let pw = -1, pr = -1, ps = -1;
+    let pw = -1, pr = -1, ps = -1, mt = null, ms = null;
     for (let pi = 0; pi < n; pi++) {
       const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
       if (g > pw) { pw = g; peakWindIdx = pi; }
       if ((hours[pi].rain || 0) > pr) { pr = hours[pi].rain || 0; peakRainIdx = pi; }
       if ((hours[pi].snow || 0) > ps) { ps = hours[pi].snow || 0; peakSnowIdx = pi; }
+      const t = hours[pi].temp;
+      if (t !== null && t !== undefined && !isNaN(t) && (mt === null || t < mt)) { mt = t; minTempIdx = pi; }
+      const f = hours[pi].sfc;
+      if (f !== null && f !== undefined && !isNaN(f) && (ms === null || f < ms)) { ms = f; minSfcIdx = pi; }
     }
     if (pw <= 0) peakWindIdx = -1;
     if (pr < 0.1) peakRainIdx = -1;
@@ -421,14 +467,19 @@ async function main() {
     if (drawPrecip && sh > 0.5) {
       s += `<rect x="${x}" y="${(base - rh - sh).toFixed(1)}" width="${barW.toFixed(1)}" height="${sh.toFixed(1)}" fill="#b3e5fc"/>\n`;
     }
-    s += `<rect x="${x}" y="${stripY}" width="${barW.toFixed(1)}" height="${stripH}" fill="${RISK_FILL[hh.name]}"${hh.ice ? ' stroke="#4dd0e1" stroke-width="1.5"' : ''}/>\n`;
+    s += `<rect x="${x}" y="${stripY}" width="${barW.toFixed(1)}" height="${stripH}" fill="${RISK_FILL[hh.name]}"${hh.ice ? ` stroke="#4dd0e1" stroke-width="${i === iceStartIdx ? '2.5' : '1.5'}"` : ''}/>\n`;
     // When the coming hours cross midnight, the first hour of the new day
-    // gets the day number ("D/M") on its own row underneath, plus a
-    // vertical separator (mirrors the Cinnamon applet time scale).
+    // gets the day label (date/weekday/both, see --day-labels) on its own
+    // row underneath, plus a vertical separator (mirrors the applet).
     const isNewDay = isNewDayAt(i);
     if (isNewDay) {
       const sepX = (cx - slot / 2).toFixed(1);
       s += `<line x1="${sepX}" y1="${padT}" x2="${sepX}" y2="${base}" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n`;
+    }
+    // Cyan start line at the left edge of the first ICE hour.
+    if (i === iceStartIdx && iceStartIdx > 0) {
+      const ix = (cx - slot / 2).toFixed(1);
+      s += `<line x1="${ix}" y1="${padT}" x2="${ix}" y2="${base}" stroke="#4dd0e1" stroke-width="2" stroke-dasharray="6,3"/>\n`;
     }
     const showLabel = isShownLabel(i);
     const lbl = i === 0 ? 'now' : `${String(hh.time.getHours()).padStart(2, '0')}:00`;
@@ -439,7 +490,7 @@ async function main() {
     }
     s += `<text x="${cx.toFixed(1)}" y="${hourY}" fill="#999" font-size="10" text-anchor="middle">${showLabel ? esc(lbl) : ''}</text>\n`;
     if (isNewDay && i !== 0) {
-      s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(`${hh.time.getDate()}/${hh.time.getMonth() + 1}`)}</text>\n`;
+      s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(dayRowLabel(hh.time, dayLabelsMode))}</text>\n`;
     }
     if (showVals && drawPrecip && (hh.rain >= 0.1 || hh.snow >= 0.1)) {
       let pv = '';
@@ -463,12 +514,31 @@ async function main() {
       s += `<text x="${cx.toFixed(1)}" y="${wY.toFixed(1)}" fill="#fff" font-size="${wSize}" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">${esc(windArrow(hh.wdir) + fmtSpeedNum(hh.wind, units))}</text>\n`;
     }
   }
+  // Top banner for the ice start, clamped inside the canvas.
+  if (iceStartIdx >= 0) {
+    const iceCx = cxOf(iceStartIdx);
+    const iceTx = Math.min(Math.max(iceCx, padL + 80), W - padR - 80);
+    s += `<text x="${iceTx.toFixed(1)}" y="${padT - 26}" fill="#4dd0e1" font-size="13" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">${esc(iceStartLabel())}</text>\n`;
+  }
   if (drawHum) s += `<path d="${linePath((i) => humY(hours[i].humidity))}" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n`;
   if (drawProb) s += `<path d="${linePath((i) => probY(hours[i].prob))}" fill="none" stroke="${PROB_COLOR}" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n`;
   if (drawWind) s += `<path d="${linePath((i) => windY(Math.max(hours[i].wind, hours[i].gust)))}" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n`;
   if (drawSun) s += `<path d="${linePath((i) => sunY(hours[i].sun))}" fill="none" stroke="#ffd24a" stroke-width="2"/>\n`;
   if (drawDew) s += `<path d="${linePath((i) => tempY(hours[i].dew))}" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n`;
+  if (drawSfc) s += `<path d="${linePath((i) => tempY(hours[i].sfc))}" fill="none" stroke="${SFC_COLOR}" stroke-width="2"/>\n`;
   if (drawTemp) s += `<path d="${linePath((i) => tempY(hours[i].temp))}" fill="none" stroke="#ff5252" stroke-width="2"/>\n`;
+  // Peak mode: label the coldest air/surface temp hour(s) on their curves
+  // (air above its point, sfc below). Mirrors the Cinnamon applet.
+  if (peakVals && showVals) {
+    if (drawTemp && minTempIdx >= 0) {
+      const tv = hours[minTempIdx].temp;
+      s += `<text x="${cxOf(minTempIdx).toFixed(1)}" y="${(tempY(tv) - 8).toFixed(1)}" fill="#ff5252" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">${esc(fmtTemp1(tv, units))}</text>\n`;
+    }
+    if (drawSfc && minSfcIdx >= 0) {
+      const fv = hours[minSfcIdx].sfc;
+      s += `<text x="${cxOf(minSfcIdx).toFixed(1)}" y="${(tempY(fv) + 14).toFixed(1)}" fill="${SFC_COLOR}" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">${esc(fmtTemp1(fv, units))}</text>\n`;
+    }
+  }
 
   // Legend in its own rows below the hour numbers, so it never covers
   // them. Line 1 = every overlaid trace actually drawn, line 2 =
@@ -476,6 +546,7 @@ async function main() {
   const ly1 = hourY + 28;
   const traceSegs = [];
   if (drawTemp) traceSegs.push(`<tspan fill="#ff5252">— temp air ${tempScaleUnit(units)}</tspan>`);
+  if (drawSfc) traceSegs.push(`<tspan fill="${SFC_COLOR}">— temp sfc ${tempScaleUnit(units)}</tspan>`);
   if (drawDew) traceSegs.push('<tspan fill="#9e9e9e">— dewpoint</tspan>');
   if (drawSun) traceSegs.push('<tspan fill="#ffd24a">— sun</tspan>');
   if (drawWind) traceSegs.push(`<tspan fill="#fff">┄ wind+gust max (${speedUnit(units)})</tspan>`);
@@ -489,7 +560,9 @@ async function main() {
   }
   colSegs.push('strip = risk level');
   colSegs.push('❄ = ICE hour + cyan strip outline');
+  colSegs.push('▼ = ice starts');
   if (drawWind && showVals) colSegs.push('wind markers ride dotted line (higher = stronger)');
+  if (peakVals && showVals && (drawTemp || drawSfc)) colSegs.push('coldest temp labeled');
   if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
   const ly2 = ly1 + 14;
   s += `<text x="${padL}" y="${ly2}" fill="#bbb" font-size="11">${colSegs.join(' · ')}</text>\n`;

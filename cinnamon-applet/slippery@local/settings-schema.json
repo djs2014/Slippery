@@ -1,21 +1,31 @@
 {
     "layout": {
         "type": "layout",
-        "pages": ["page-locations", "page-display", "page-graph", "page-thresholds"],
+        "pages": ["page-locations", "page-general", "page-panel", "page-popup", "page-graph", "page-thresholds"],
         "page-locations": {
             "type": "page",
             "title": "Locations",
             "sections": ["section-loc1", "section-loc-extra"]
         },
-        "page-display": {
+        "page-general": {
             "type": "page",
-            "title": "Panel & popup",
-            "sections": ["section-fetch", "section-units", "section-panel", "section-popup"]
+            "title": "General",
+            "sections": ["section-fetch", "section-units"]
+        },
+        "page-panel": {
+            "type": "page",
+            "title": "Panel chip",
+            "sections": ["section-panel", "section-panel-weekdays"]
+        },
+        "page-popup": {
+            "type": "page",
+            "title": "Popup",
+            "sections": ["section-popup"]
         },
         "page-graph": {
             "type": "page",
             "title": "Graph image",
-            "sections": ["section-graph-daynight", "section-graph-traces", "section-graph-values"]
+            "sections": ["section-graph-daynight", "section-graph-daylabels", "section-graph-traces", "section-graph-values"]
         },
         "page-thresholds": {
             "type": "page",
@@ -29,8 +39,8 @@
         },
         "section-loc-extra": {
             "type": "section",
-            "title": "2-5 (extra commute points — empty coordinates = disabled)",
-            "keys": ["location-2-name", "location-2-coords", "location-3-name", "location-3-coords", "location-4-name", "location-4-coords", "location-5-name", "location-5-coords"]
+            "title": "2-5 (extra commute points — switch off or empty coordinates = disabled)",
+            "keys": ["location-2-name", "location-2-coords", "location-2-enabled", "location-3-name", "location-3-coords", "location-3-enabled", "location-4-name", "location-4-coords", "location-4-enabled", "location-5-name", "location-5-coords", "location-5-enabled"]
         },
         "section-fetch": {
             "type": "section",
@@ -47,6 +57,11 @@
             "title": "Panel chip",
             "keys": ["show-temperature", "show-peak-risk", "panel-chip-locations", "panel-chip-alert-level", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
         },
+        "section-panel-weekdays": {
+            "type": "section",
+            "title": "Panel alerts on weekdays",
+            "keys": ["panel-alert-mon", "panel-alert-tue", "panel-alert-wed", "panel-alert-thu", "panel-alert-fri", "panel-alert-sat", "panel-alert-sun", "panel-alert-current-day"]
+        },
         "section-popup": {
             "type": "section",
             "title": "Popup",
@@ -57,10 +72,15 @@
             "title": "Day / night background",
             "keys": ["graph-daynight", "graph-day-bg", "graph-night-bg", "graph-colors-reset"]
         },
+        "section-graph-daylabels": {
+            "type": "section",
+            "title": "Day labels",
+            "keys": ["graph-day-labels"]
+        },
         "section-graph-traces": {
             "type": "section",
             "title": "Graph metrics (show / hide)",
-            "keys": ["graph-show-temp", "graph-show-dew", "graph-show-sun", "graph-show-wind", "graph-show-humidity", "graph-show-prob", "graph-show-precip"]
+            "keys": ["graph-show-temp", "graph-show-surface", "graph-show-dew", "graph-show-sun", "graph-show-wind", "graph-show-humidity", "graph-show-prob", "graph-show-precip"]
         },
         "section-graph-values": {
             "type": "section",
@@ -101,6 +121,12 @@
         "description": "2 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
+    "location-2-enabled": {
+        "type": "switch",
+        "default": true,
+        "description": "2 enabled",
+        "tooltip": "Quick enable/disable for this point without deleting its coordinates."
+    },
     "location-3-name": {
         "type": "entry",
         "expand-width": true,
@@ -114,6 +140,12 @@
         "default": "",
         "description": "3 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
+    },
+    "location-3-enabled": {
+        "type": "switch",
+        "default": true,
+        "description": "3 enabled",
+        "tooltip": "Quick enable/disable for this point without deleting its coordinates."
     },
     "location-4-name": {
         "type": "entry",
@@ -129,6 +161,12 @@
         "description": "4 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
     },
+    "location-4-enabled": {
+        "type": "switch",
+        "default": true,
+        "description": "4 enabled",
+        "tooltip": "Quick enable/disable for this point without deleting its coordinates."
+    },
     "location-5-name": {
         "type": "entry",
         "expand-width": true,
@@ -142,6 +180,12 @@
         "default": "",
         "description": "5 latitude,longitude",
         "tooltip": "Paste from Google Maps: lat, lon. Leave empty to disable."
+    },
+    "location-5-enabled": {
+        "type": "switch",
+        "default": true,
+        "description": "5 enabled",
+        "tooltip": "Quick enable/disable for this point without deleting its coordinates."
     },
     "refresh-minutes": {
         "type": "spinbutton",
@@ -262,13 +306,13 @@
     },
     "graph-day-bg": {
         "type": "colorchooser",
-        "default": "#111111",
+        "default": "#1e2733",
         "description": "Graph day background",
         "tooltip": "Background color for day hour columns in the hourly graph image."
     },
     "graph-night-bg": {
         "type": "colorchooser",
-        "default": "#1e2733",
+        "default": "#111111",
         "description": "Graph night background",
         "tooltip": "Background color for night hour columns in the hourly graph image (only when shading above is on)."
     },
@@ -276,12 +320,28 @@
         "type": "switch",
         "default": false,
         "description": "Reset graph day/night colors",
-        "tooltip": "When ON, the graph day/night backgrounds reset to defaults (#111111 / #1e2733) on the next refresh, then this switches itself back OFF automatically (one-shot)."
+        "tooltip": "When ON, the graph day/night backgrounds reset to defaults (#1e2733 / #111111) on the next refresh, then this switches itself back OFF automatically (one-shot)."
+    },
+    "graph-day-labels": {
+        "type": "combobox",
+        "default": "date",
+        "description": "Graph day labels",
+        "tooltip": "Day row under the first hour of each new day: date (30/9), weekday (Monday) or both (Monday 30/9).",
+        "options": {
+            "Date (30/9)": "date",
+            "Weekday (Monday)": "weekday",
+            "Both (Monday 30/9)": "both"
+        }
     },
     "graph-show-temp": {
         "type": "switch",
         "default": true,
         "description": "Graph: air temperature trace"
+    },
+    "graph-show-surface": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: surface temperature trace"
     },
     "graph-show-dew": {
         "type": "switch",
@@ -317,7 +377,7 @@
         "type": "combobox",
         "default": "all",
         "description": "Graph value labels",
-        "tooltip": "All hours: every hour gets its wind + precipitation numbers. Peak hour only: only the strongest wind hour and the wettest rain/snow hours are labeled. None: curves and columns without per-hour numbers (axis scales stay).",
+        "tooltip": "All hours: every hour gets its wind + precipitation numbers. Peak hour only: only the strongest wind hour and the wettest rain/snow hours are labeled, plus the coldest air/surface temperature hour. None: curves and columns without per-hour numbers (axis scales stay).",
         "options": {
             "All hours": "all",
             "Peak hour only": "peak",
@@ -345,6 +405,54 @@
             "HIGH and above": "high",
             "CRITICAL only": "critical"
         }
+    },
+    "panel-alert-mon": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Monday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Mondays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-tue": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Tuesday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Tuesdays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-wed": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Wednesday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Wednesdays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-thu": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Thursday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Thursdays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-fri": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Friday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Fridays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-sat": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Saturday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Saturdays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-sun": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on Sunday",
+        "tooltip": "Show panel-chip alerts (risk colors, alert segment, ice markers) on Sundays. Off = quiet plain chip that day (same-day ice still shows its icon); the popup still has full info."
+    },
+    "panel-alert-current-day": {
+        "type": "switch",
+        "default": true,
+        "description": "Alerts on current day overrule weekdays",
+        "tooltip": "When on, alerts within the current day overrule the weekday switches above: if any point reaches the panel chip alert level today (or has same-day ice), the chip shows full alerts even when today's weekday is off."
     },
     "thresh-ice-alert": {
         "type": "spinbutton",

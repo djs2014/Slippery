@@ -20,3 +20,7 @@ primare or high risk
 sparkline arrows larger
 option bigger arrow
 one field - no hazards -> higher forecast..
+
+display best hour in graph
+option what to display in the graph
+- wind/ sun / etc
