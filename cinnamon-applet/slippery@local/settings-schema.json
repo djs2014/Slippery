@@ -65,7 +65,7 @@
         "section-popup": {
             "type": "section",
             "title": "Popup",
-            "keys": ["show-advice", "show-best-hour"]
+            "keys": ["show-advice", "compact-advice", "show-details", "show-best-hour", "hide-calm-days"]
         },
         "section-graph-daynight": {
             "type": "section",
@@ -286,11 +286,29 @@
         "default": true,
         "description": "Show advice in popup"
     },
+    "compact-advice": {
+        "type": "switch",
+        "default": false,
+        "description": "Compact advice into fewer rows",
+        "tooltip": "When on, advice items share up to 2 wrapped rows instead of one row each."
+    },
+    "show-details": {
+        "type": "switch",
+        "default": true,
+        "description": "Show detail rows in popup",
+        "tooltip": "Wind, temperature and precipitation detail rows for the primary point (only shown when near thresholds anyway)."
+    },
     "show-best-hour": {
         "type": "switch",
         "default": true,
         "description": "Show calmest departure hour per location",
         "tooltip": "One row per location naming the calmest hour to ride in the coming forecast window (lowest risk, then lowest gust)."
+    },
+    "hide-calm-days": {
+        "type": "switch",
+        "default": false,
+        "description": "Hide calm days in daily overview",
+        "tooltip": "When on, daily overview rows below SLIGHT risk are skipped."
     },
     "show-peak-risk": {
         "type": "switch",
@@ -377,10 +395,12 @@
         "type": "combobox",
         "default": "all",
         "description": "Graph value labels",
-        "tooltip": "All hours: every hour gets its wind + precipitation numbers. Peak hour only: only the strongest wind hour and the wettest rain/snow hours are labeled, plus the coldest air/surface temperature hour. None: curves and columns without per-hour numbers (axis scales stay).",
+        "tooltip": "All hours: wind + rain/snow numbers every hour. Peak + low: max + min of every trace (temp, dew, sun, wind, humidity, prob, wettest rain/snow) over the whole window. Peak + low per day: the same extremes separately per calendar day. Every other hour: wind + rain/snow numbers on even hours only, odd hours skipped. None: curves and columns without per-hour numbers (axis scales stay).",
         "options": {
             "All hours": "all",
-            "Peak hour only": "peak",
+            "Peak + low": "peak",
+            "Peak + low per day": "peak-day",
+            "Every other hour": "alternate",
             "None": "none"
         }
     },

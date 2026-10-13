@@ -689,6 +689,13 @@ function hourLabel(d, isNow) {
     return (h < 10 ? "0" + h : "" + h) + ":00";
 }
 
+// Day + hour label, e.g. "Wed-14 16:00": the peak hour can fall on the
+// next day in long forecast windows, so the clock time alone would be
+// ambiguous.
+function dayHourLabel(d) {
+    return WD_SHORT[d.getDay()] + "-" + d.getDate() + " " + hourLabel(d, false);
+}
+
 // Coming-hours summary for the popup: totals over the forecast hours after
 // the current one. Each segment is only shown when relevant, i.e. above 80%
 // of its threshold (rain vs precip-ahead, snow vs snow threshold, gust vs the
@@ -699,7 +706,7 @@ function hourLabel(d, isNow) {
 //     threshold — same rule as the ICE-ahead banner),
 //   ⚠ rain when the peak hourly rate reaches the engine HIGH rule (7.5 mm/h),
 //   ⚠ snow when the peak hourly rate reaches 0.5 cm/h,
-//   ⚠ max when the peak coming risk is HIGH or worse,
+//   ⚠ max when the peak coming risk is HIGH or worse (with @ day HH:00),
 //   ⚠ gust when the peak gust reaches the heavy-wind threshold.
 // Returns "" when there are no coming hours or nothing is relevant.
 // u selects display units; all threshold comparisons stay metric.
@@ -713,7 +720,7 @@ function comingSummary(profile, t, u) {
     };
     const iceT = numOr(t && t.ice, 3.0);
     const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
-    let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE";
+    let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE", maxTime = null;
     let maxRainHour = 0, maxSnowHour = 0;
     for (let i = 1; i < profile.length; i++) {
         const hh = profile[i];
@@ -721,7 +728,7 @@ function comingSummary(profile, t, u) {
         snow += hh.snow || 0;
         if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) ice++;
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
-        if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; }
+        if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; maxTime = hh.time || null; }
         if ((hh.rain || 0) > maxRainHour) maxRainHour = hh.rain;
         if ((hh.snow || 0) > maxSnowHour) maxSnowHour = hh.snow;
     }
@@ -731,7 +738,11 @@ function comingSummary(profile, t, u) {
     if (maxRainHour >= precipGate) segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtRain(rain, u));
     if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtSnow(snow, u));
     if (ice > 0) segs.push("❄ ice " + ice + "h");
-    if (maxLvl >= RiskLevel.SLIGHT) segs.push((maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName);
+    if (maxLvl >= RiskLevel.SLIGHT) {
+        let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName;
+        if (maxTime instanceof Date && !isNaN(maxTime)) maxSeg += " @" + dayHourLabel(maxTime);
+        segs.push(maxSeg);
+    }
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
         Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
@@ -785,15 +796,32 @@ function bestComingHour(profile) {
     return best;
 }
 
-// One-line label, e.g. "Best next 12h: SLIGHT @ 15:00 · gust 18 km/h" ("now"
-// when the current hour wins). Gust always shown; rain/snow appended only
-// when relevant (>= 0.1), so calm dry hours stay short.
+// Relative "in Xh Ymin" wait until a future hour (rounded to 5 min;
+// "now" when past/present). Used so the calmest-departure row says how
+// long the wait is, not just the clock time.
+function fmtRelHours(fromMs, toMs) {
+    const mins = Math.round((toMs - fromMs) / 60000 / 5) * 5;
+    if (mins <= 0) return "now";
+    const h = Math.floor(mins / 60), m = mins % 60;
+    if (h <= 0) return "in " + m + "min";
+    return "in " + h + "h" + (m > 0 ? " " + m + "min" : "");
+}
+
+// One-line label, e.g. "Best next 12h: SLIGHT @ 15:00 (in 2h 15min) · gust
+// 18 km/h" ("now" when the current hour wins). Gust always shown;
+// rain/snow appended only when relevant (>= 0.1), so calm dry hours stay
+// short.
 function bestHourText(profile, best, u) {
     if (!best) return "";
     const n = profile.length - 1;
     let at = "now";
     if (best.idx > 0) {
-        at = best.time ? "@ " + hourLabel(best.time, false) : "@ +" + best.idx + "h";
+        if (best.time instanceof Date && !isNaN(best.time)) {
+            at = "@ " + hourLabel(best.time, false) +
+                " (" + fmtRelHours(Date.now(), best.time.getTime()) + ")";
+        } else {
+            at = "@ +" + best.idx + "h";
+        }
     }
     let s = "Best next " + n + "h: " + best.name + " " + at +
         " · gust " + fmtSpeedNum(best.gust, u) + " " + speedUnit(u);
@@ -913,6 +941,7 @@ function escXml(s) {
 // "both" shows both ("Monday 30/9"). Unknown/missing modes fall back to
 // "date" so old installs keep the current look.
 const GRAPH_WD_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function dayRowLabel(d, mode) {
     const m = String(mode || "date");
@@ -962,9 +991,10 @@ function graphIsDay(hh) {
 //      dayNight: { enabled, dayBg, nightBg }, units: "metric"|"imperial",
 //      traces: { temp, dew, sfc, sun, wind, hum, prob, precip } (each false
 //        hides that metric; missing = shown),
-//      values: "all"|"peak"|"none" (per-hour value labels: every hour,
-//        the highest hour(s) plus the coldest temp hour(s),
-//        or curves/columns only) }.
+//      values: "all"|"peak"|"peak-day"|"alternate"|"none" (per-hour value
+//        labels: every hour, max + min of every trace metric over the whole
+//        window, the same extremes per calendar day, every other hour, or
+//        curves/columns only) }.
 // Units only relabel the graph (temps, winds, precipitation); stored data
 // stays metric.
 // Layout: one column per hour, bars close together; rain (blue) + snow
@@ -1068,33 +1098,150 @@ function buildGraphSvg(o) {
     const drawHum = hasHum && tro.hum !== false;
     const drawProb = hasProb && tro.prob !== false;
     const drawPrecip = tro.precip !== false;
-    // Value labels: "all" = every hour labeled (default), "peak" = only
-    // the highest hour(s) labeled plus the coldest air/surface temp
-    // hour(s), "none" = curves/columns without per-hour numbers.
-    // Axis/scale labels are unaffected.
+    // Value labels: "all" = wind + rain/snow numbers every hour (default),
+    // "peak" = max + min of every trace metric over the whole window,
+    // "peak-day" = the same max/min extremes but per calendar day,
+    // "alternate" = wind + rain/snow numbers like "all" but only on every
+    // other hour (even indices), "none" = curves/columns without per-hour
+    // numbers. Rain/snow label only the wettest hour (lows are 0);
+    // sun labels only hours with sunshine. Axis/scale labels are
+    // unaffected.
     const valuesMode = String((o && o.values) || "all");
     const showVals = valuesMode !== "none";
-    const peakVals = valuesMode === "peak";
+    const peakVals = valuesMode === "peak" || valuesMode === "peak-day";
+    const dailyPeakVals = valuesMode === "peak-day";
+    const alternateVals = valuesMode === "alternate";
     // Day-row labels under each midnight ("date"|"weekday"|"both",
     // Graph image settings page; missing = "date").
     const dayMode = String((o && o.dayLabels) || "date");
+    // Calendar-day key for per-day peaks (local day; missing timestamps
+    // share one fallback group so the mode degrades to global peak).
+    const dayKeyOf = (idx) => {
+        const t = hours[idx] && hours[idx].time;
+        if (t instanceof Date && !isNaN(t)) {
+            return t.getFullYear() + "-" + t.getMonth() + "-" + t.getDate();
+        }
+        return "all";
+    };
     let peakWindIdx = -1, peakRainIdx = -1, peakSnowIdx = -1;
     let minTempIdx = -1, minSfcIdx = -1;
-    if (peakVals) {
-        let pw = -1, pr = -1, ps = -1, mt = null, ms = null;
+    const numOrNull = (v) => (v === null || v === undefined || isNaN(v)) ? null : v;
+    // Labeled-hour lookups (idx -> true). "peak" fills them with the global
+    // max+min per metric; "peak-day" with one max+min set per calendar day.
+    // peakWindSet holds the wind max, minWindSet the calmest hour; rain/snow
+    // hold maxima only (minima are 0); sun minima only count hours > 0.
+    let peakWindSet = {}, minWindSet = {}, peakRainSet = {}, peakSnowSet = {};
+    let maxTempSet = {}, minTempSet = {}, maxSfcSet = {}, minSfcSet = {};
+    let maxDewSet = {}, minDewSet = {}, maxSunSet = {}, minSunSet = {};
+    let maxHumSet = {}, minHumSet = {}, maxProbSet = {}, minProbSet = {};
+    if (peakVals && !dailyPeakVals) {
+        let wMax = -1, wMaxIdx = -1, wMin = null, wMinIdx = -1;
+        let pr = -1, prIdx = -1, ps = -1, psIdx = -1;
+        let tMax = null, tMaxIdx = -1, tMin = null, tMinIdx = -1;
+        let fMax = null, fMaxIdx = -1, fMin = null, fMinIdx = -1;
+        let dMax = null, dMaxIdx = -1, dMin = null, dMinIdx = -1;
+        let sunMax = -1, sunMaxIdx = -1, sunMin = null, sunMinIdx = -1;
+        let hMax = null, hMaxIdx = -1, hMin = null, hMinIdx = -1;
+        let pMax = null, pMaxIdx = -1, pMin = null, pMinIdx = -1;
         for (let pi = 0; pi < n; pi++) {
             const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
-            if (g > pw) { pw = g; peakWindIdx = pi; }
-            if ((hours[pi].rain || 0) > pr) { pr = hours[pi].rain || 0; peakRainIdx = pi; }
-            if ((hours[pi].snow || 0) > ps) { ps = hours[pi].snow || 0; peakSnowIdx = pi; }
-            const t = hours[pi].temp;
-            if (t !== null && t !== undefined && !isNaN(t) && (mt === null || t < mt)) { mt = t; minTempIdx = pi; }
-            const f = hours[pi].sfc;
-            if (f !== null && f !== undefined && !isNaN(f) && (ms === null || f < ms)) { ms = f; minSfcIdx = pi; }
+            if (g > wMax) { wMax = g; wMaxIdx = pi; }
+            if (wMin === null || g < wMin) { wMin = g; wMinIdx = pi; }
+            if ((hours[pi].rain || 0) > pr) { pr = hours[pi].rain || 0; prIdx = pi; }
+            if ((hours[pi].snow || 0) > ps) { ps = hours[pi].snow || 0; psIdx = pi; }
+            const t = numOrNull(hours[pi].temp);
+            if (t !== null && (tMax === null || t > tMax)) { tMax = t; tMaxIdx = pi; }
+            if (t !== null && (tMin === null || t < tMin)) { tMin = t; tMinIdx = pi; }
+            const f = numOrNull(hours[pi].sfc);
+            if (f !== null && (fMax === null || f > fMax)) { fMax = f; fMaxIdx = pi; }
+            if (f !== null && (fMin === null || f < fMin)) { fMin = f; fMinIdx = pi; }
+            const dw = numOrNull(hours[pi].dew);
+            if (dw !== null && (dMax === null || dw > dMax)) { dMax = dw; dMaxIdx = pi; }
+            if (dw !== null && (dMin === null || dw < dMin)) { dMin = dw; dMinIdx = pi; }
+            const sv = hours[pi].sun || 0;
+            if (sv > sunMax) { sunMax = sv; sunMaxIdx = pi; }
+            if (sv > 0 && (sunMin === null || sv < sunMin)) { sunMin = sv; sunMinIdx = pi; }
+            const hv = numOrNull(hours[pi].humidity);
+            if (hv !== null && (hMax === null || hv > hMax)) { hMax = hv; hMaxIdx = pi; }
+            if (hv !== null && (hMin === null || hv < hMin)) { hMin = hv; hMinIdx = pi; }
+            const pv = numOrNull(hours[pi].prob);
+            if (pv !== null && (pMax === null || pv > pMax)) { pMax = pv; pMaxIdx = pi; }
+            if (pv !== null && (pMin === null || pv < pMin)) { pMin = pv; pMinIdx = pi; }
         }
-        if (pw <= 0) peakWindIdx = -1;
-        if (pr < 0.1) peakRainIdx = -1;
-        if (ps < 0.1) peakSnowIdx = -1;
+        if (wMaxIdx >= 0 && wMax > 0) { peakWindSet[wMaxIdx] = true; peakWindIdx = wMaxIdx; }
+        if (wMinIdx >= 0) minWindSet[wMinIdx] = true;
+        if (prIdx >= 0 && pr >= 0.1) { peakRainSet[prIdx] = true; peakRainIdx = prIdx; }
+        if (psIdx >= 0 && ps >= 0.1) { peakSnowSet[psIdx] = true; peakSnowIdx = psIdx; }
+        if (tMaxIdx >= 0) maxTempSet[tMaxIdx] = true;
+        if (tMinIdx >= 0) { minTempSet[tMinIdx] = true; minTempIdx = tMinIdx; }
+        if (fMaxIdx >= 0) maxSfcSet[fMaxIdx] = true;
+        if (fMinIdx >= 0) { minSfcSet[fMinIdx] = true; minSfcIdx = fMinIdx; }
+        if (dMaxIdx >= 0) maxDewSet[dMaxIdx] = true;
+        if (dMinIdx >= 0) minDewSet[dMinIdx] = true;
+        if (sunMaxIdx >= 0 && sunMax > 0) maxSunSet[sunMaxIdx] = true;
+        if (sunMinIdx >= 0) minSunSet[sunMinIdx] = true;
+        if (hMaxIdx >= 0) maxHumSet[hMaxIdx] = true;
+        if (hMinIdx >= 0) minHumSet[hMinIdx] = true;
+        if (pMaxIdx >= 0) maxProbSet[pMaxIdx] = true;
+        if (pMinIdx >= 0) minProbSet[pMinIdx] = true;
+    } else if (dailyPeakVals) {
+        const perDay = {};
+        const newDay = () => ({ wMax: -1, wMaxIdx: -1, wMin: null, wMinIdx: -1,
+            pr: -1, prIdx: -1, ps: -1, psIdx: -1,
+            tMax: null, tMaxIdx: -1, tMin: null, tMinIdx: -1,
+            fMax: null, fMaxIdx: -1, fMin: null, fMinIdx: -1,
+            dMax: null, dMaxIdx: -1, dMin: null, dMinIdx: -1,
+            sunMax: -1, sunMaxIdx: -1, sunMin: null, sunMinIdx: -1,
+            hMax: null, hMaxIdx: -1, hMin: null, hMinIdx: -1,
+            pMax: null, pMaxIdx: -1, pMin: null, pMinIdx: -1 });
+        for (let pi = 0; pi < n; pi++) {
+            const key = dayKeyOf(pi);
+            if (!perDay[key]) perDay[key] = newDay();
+            const d = perDay[key];
+            const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
+            if (g > d.wMax) { d.wMax = g; d.wMaxIdx = pi; }
+            if (d.wMin === null || g < d.wMin) { d.wMin = g; d.wMinIdx = pi; }
+            if ((hours[pi].rain || 0) > d.pr) { d.pr = hours[pi].rain || 0; d.prIdx = pi; }
+            if ((hours[pi].snow || 0) > d.ps) { d.ps = hours[pi].snow || 0; d.psIdx = pi; }
+            const t = numOrNull(hours[pi].temp);
+            if (t !== null && (d.tMax === null || t > d.tMax)) { d.tMax = t; d.tMaxIdx = pi; }
+            if (t !== null && (d.tMin === null || t < d.tMin)) { d.tMin = t; d.tMinIdx = pi; }
+            const f = numOrNull(hours[pi].sfc);
+            if (f !== null && (d.fMax === null || f > d.fMax)) { d.fMax = f; d.fMaxIdx = pi; }
+            if (f !== null && (d.fMin === null || f < d.fMin)) { d.fMin = f; d.fMinIdx = pi; }
+            const dw = numOrNull(hours[pi].dew);
+            if (dw !== null && (d.dMax === null || dw > d.dMax)) { d.dMax = dw; d.dMaxIdx = pi; }
+            if (dw !== null && (d.dMin === null || dw < d.dMin)) { d.dMin = dw; d.dMinIdx = pi; }
+            const sv = hours[pi].sun || 0;
+            if (sv > d.sunMax) { d.sunMax = sv; d.sunMaxIdx = pi; }
+            if (sv > 0 && (d.sunMin === null || sv < d.sunMin)) { d.sunMin = sv; d.sunMinIdx = pi; }
+            const hv = numOrNull(hours[pi].humidity);
+            if (hv !== null && (d.hMax === null || hv > d.hMax)) { d.hMax = hv; d.hMaxIdx = pi; }
+            if (hv !== null && (d.hMin === null || hv < d.hMin)) { d.hMin = hv; d.hMinIdx = pi; }
+            const pv = numOrNull(hours[pi].prob);
+            if (pv !== null && (d.pMax === null || pv > d.pMax)) { d.pMax = pv; d.pMaxIdx = pi; }
+            if (pv !== null && (d.pMin === null || pv < d.pMin)) { d.pMin = pv; d.pMinIdx = pi; }
+        }
+        const keys = Object.keys(perDay);
+        for (let k = 0; k < keys.length; k++) {
+            const d = perDay[keys[k]];
+            if (d.wMaxIdx >= 0 && d.wMax > 0) { peakWindSet[d.wMaxIdx] = true; if (peakWindIdx < 0) peakWindIdx = d.wMaxIdx; }
+            if (d.wMinIdx >= 0) minWindSet[d.wMinIdx] = true;
+            if (d.prIdx >= 0 && d.pr >= 0.1) { peakRainSet[d.prIdx] = true; if (peakRainIdx < 0) peakRainIdx = d.prIdx; }
+            if (d.psIdx >= 0 && d.ps >= 0.1) { peakSnowSet[d.psIdx] = true; if (peakSnowIdx < 0) peakSnowIdx = d.psIdx; }
+            if (d.tMaxIdx >= 0) maxTempSet[d.tMaxIdx] = true;
+            if (d.tMinIdx >= 0) { minTempSet[d.tMinIdx] = true; if (minTempIdx < 0) minTempIdx = d.tMinIdx; }
+            if (d.fMaxIdx >= 0) maxSfcSet[d.fMaxIdx] = true;
+            if (d.fMinIdx >= 0) { minSfcSet[d.fMinIdx] = true; if (minSfcIdx < 0) minSfcIdx = d.fMinIdx; }
+            if (d.dMaxIdx >= 0) maxDewSet[d.dMaxIdx] = true;
+            if (d.dMinIdx >= 0) minDewSet[d.dMinIdx] = true;
+            if (d.sunMaxIdx >= 0 && d.sunMax > 0) maxSunSet[d.sunMaxIdx] = true;
+            if (d.sunMinIdx >= 0) minSunSet[d.sunMinIdx] = true;
+            if (d.hMaxIdx >= 0) maxHumSet[d.hMaxIdx] = true;
+            if (d.hMinIdx >= 0) minHumSet[d.hMinIdx] = true;
+            if (d.pMaxIdx >= 0) maxProbSet[d.pMaxIdx] = true;
+            if (d.pMinIdx >= 0) minProbSet[d.pMinIdx] = true;
+        }
     }
     // Day/night background (Graph image settings page). When enabled, day
     // columns use dayBg and night columns use nightBg; when off, the whole
@@ -1230,17 +1377,18 @@ function buildGraphSvg(o) {
         }
         if (showVals && drawPrecip && ((hh.rain || 0) >= 0.1 || (hh.snow || 0) >= 0.1)) {
             let pv = "";
-            if ((hh.rain || 0) >= 0.1 && (!peakVals || i === peakRainIdx)) pv += isImperial(u) ? (hh.rain / 25.4).toFixed(2) : (hh.rain).toFixed(1);
-            if ((hh.snow || 0) >= 0.1 && (!peakVals || i === peakSnowIdx)) pv += (pv ? "+" : "") + (isImperial(u) ? (hh.snow / 2.54).toFixed(2) : (hh.snow).toFixed(1)) + "s";
+            if ((hh.rain || 0) >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakRainSet[i])) pv += isImperial(u) ? (hh.rain / 25.4).toFixed(2) : (hh.rain).toFixed(1);
+            if ((hh.snow || 0) >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakSnowSet[i])) pv += (pv ? "+" : "") + (isImperial(u) ? (hh.snow / 2.54).toFixed(2) : (hh.snow).toFixed(1)) + "s";
             if (pv) s += '<text x="' + cx.toFixed(1) + '" y="' + (base - rh - sh - 5).toFixed(1) + '" fill="#9ec1ff" font-size="9" text-anchor="middle">' + pv + '</text>\n';
         }
         if (hh.ice) {
             s += '<text x="' + cx.toFixed(1) + '" y="' + (padT - 6) + '" fill="#4dd0e1" font-size="13" text-anchor="middle">❄</text>\n';
         }
         // Wind markers (blow-to arrow + speed). Hidden with the wind
-        // toggle, with values "none", or — in "peak" mode — everywhere
-        // except the strongest hour.
-        if (drawWind && showVals && (!peakVals || i === peakWindIdx)) {
+        // toggle, with values "none", or — in "peak"/"peak-day" mode —
+        // everywhere except the labeled max/min hour(s); in "alternate"
+        // mode only on even hours.
+        if (drawWind && showVals && (peakVals ? (peakWindSet[i] || minWindSet[i]) : (!alternateVals || i % 2 === 0))) {
             const wdirV = (hh.wdir === undefined || hh.wdir === null) ? hh.windDir : hh.wdir;
             const wArr = (wdirV === undefined || wdirV === null) ? "" : windArrow(wdirV);
             const wSpd = fmtSpeedNum(hh.wind || 0, u);
@@ -1267,20 +1415,56 @@ function buildGraphSvg(o) {
     if (drawDew) s += '<path d="' + linePath((i) => tempY(hours[i].dew)) + '" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n';
     if (drawSfc) s += '<path d="' + linePath((i) => tempY(hours[i].sfc)) + '" fill="none" stroke="' + SFC_COLOR + '" stroke-width="2"/>\n';
     if (drawTemp) s += '<path d="' + linePath((i) => tempY(hours[i].temp)) + '" fill="none" stroke="#ff5252" stroke-width="2"/>\n';
-    // Peak mode: label the coldest air/surface temp hour(s) right on their
-    // curves (air above its point, sfc below, so the two never cover each
-    // other when the coldest hour is the same). Only when the trace itself
-    // is drawn; hidden with values "none".
+    // Peak modes: label the max + min of every trace metric right on its
+    // curve (max above its point, min below, so the pair never covers
+    // itself when both land on the same hour they stack instead).
+    // "peak" labels the global extremes; "peak-day" labels each day's
+    // extremes. Rain/snow keep only their wettest-hour column numbers
+    // above; sun skips zero hours. Only drawn traces are labeled; hidden
+    // with values "none". Labels are clamped inside the plot.
     if (peakVals && showVals) {
-        if (drawTemp && minTempIdx >= 0) {
-            const tv = hours[minTempIdx].temp;
-            s += '<text x="' + cxOf(minTempIdx).toFixed(1) + '" y="' + (tempY(tv) - 8).toFixed(1) + '" fill="#ff5252" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
-                escXml(fmtTemp(tv, u)) + '</text>\n';
-        }
-        if (drawSfc && minSfcIdx >= 0) {
-            const fv = hours[minSfcIdx].sfc;
-            s += '<text x="' + cxOf(minSfcIdx).toFixed(1) + '" y="' + (tempY(fv) + 14).toFixed(1) + '" fill="' + SFC_COLOR + '" font-size="11" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
-                escXml(fmtTemp(fv, u)) + '</text>\n';
+        const clampY = (y) => Math.min(Math.max(y, 12), base - 2);
+        const extLabel = (idx, y, color, size, txt) => {
+            s += '<text x="' + cxOf(idx).toFixed(1) + '" y="' + clampY(y).toFixed(1) + '" fill="' + color + '" font-size="' + size + '" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+                escXml(txt) + '</text>\n';
+        };
+        const fmtPct = (v) => String(Math.round(v)) + "%";
+        const fmtSun = (v) => String(Math.round(v / 60)) + "m";
+        const extDefs = [
+            { set: maxTempSet, color: "#ff5252", size: 11, dy: -8, need: drawTemp,
+              yOf: (ii) => tempY(hours[ii].temp), vOf: (ii) => hours[ii].temp, f: (vv) => fmtTemp(vv, u) },
+            { set: minTempSet, color: "#ff5252", size: 11, dy: -8, need: drawTemp,
+              yOf: (ii) => tempY(hours[ii].temp), vOf: (ii) => hours[ii].temp, f: (vv) => fmtTemp(vv, u) },
+            { set: maxSfcSet, color: SFC_COLOR, size: 11, dy: 14, need: drawSfc,
+              yOf: (ii) => tempY(hours[ii].sfc), vOf: (ii) => hours[ii].sfc, f: (vv) => fmtTemp(vv, u) },
+            { set: minSfcSet, color: SFC_COLOR, size: 11, dy: 14, need: drawSfc,
+              yOf: (ii) => tempY(hours[ii].sfc), vOf: (ii) => hours[ii].sfc, f: (vv) => fmtTemp(vv, u) },
+            { set: maxDewSet, color: "#9e9e9e", size: 10, dy: -20, need: drawDew,
+              yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u) },
+            { set: minDewSet, color: "#9e9e9e", size: 10, dy: 26, need: drawDew,
+              yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u) },
+            { set: maxSunSet, color: "#ffd24a", size: 10, dy: -8, need: drawSun,
+              yOf: (ii) => sunY(hours[ii].sun), vOf: (ii) => hours[ii].sun, f: (vv) => fmtSun(vv) },
+            { set: minSunSet, color: "#ffd24a", size: 10, dy: 14, need: drawSun,
+              yOf: (ii) => sunY(hours[ii].sun), vOf: (ii) => hours[ii].sun, f: (vv) => fmtSun(vv) },
+            { set: maxHumSet, color: "#4dd0e1", size: 10, dy: -8, need: drawHum,
+              yOf: (ii) => humY(hours[ii].humidity), vOf: (ii) => hours[ii].humidity, f: (vv) => fmtPct(vv) },
+            { set: minHumSet, color: "#4dd0e1", size: 10, dy: 14, need: drawHum,
+              yOf: (ii) => humY(hours[ii].humidity), vOf: (ii) => hours[ii].humidity, f: (vv) => fmtPct(vv) },
+            { set: maxProbSet, color: PROB_COLOR, size: 10, dy: -20, need: drawProb,
+              yOf: (ii) => probY(hours[ii].prob), vOf: (ii) => hours[ii].prob, f: (vv) => fmtPct(vv) },
+            { set: minProbSet, color: PROB_COLOR, size: 10, dy: 26, need: drawProb,
+              yOf: (ii) => probY(hours[ii].prob), vOf: (ii) => hours[ii].prob, f: (vv) => fmtPct(vv) },
+        ];
+        for (let di = 0; di < extDefs.length; di++) {
+            const D = extDefs[di];
+            if (!D.need) continue;
+            for (let ei = 0; ei < n; ei++) {
+                if (!D.set[ei]) continue;
+                const vv = D.vOf(ei);
+                if (vv === null || vv === undefined || isNaN(vv)) continue;
+                extLabel(ei, D.yOf(ei) + D.dy, D.color, D.size, D.f(vv));
+            }
         }
     }
     const ly1 = hourY + 28;
@@ -1309,7 +1493,7 @@ function buildGraphSvg(o) {
     colSegs.push('❄ = ICE hour + cyan strip outline');
     colSegs.push('▼ = ice starts');
     if (drawWind && showVals) colSegs.push('wind markers ride dotted line (higher = stronger)');
-    if (peakVals && showVals && (drawTemp || drawSfc)) colSegs.push('coldest temp labeled');
+    if (peakVals && showVals) colSegs.push(dailyPeakVals ? 'max + min labeled per day' : 'max + min labeled');
     if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
     const ly2 = ly1 + 14;
     s += '<text x="' + padL + '" y="' + ly2 + '" fill="#bbb" font-size="11">' +
@@ -1377,11 +1561,12 @@ SlipperyApplet.prototype = {
             "forecast-days", "units",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
-            "show-advice", "show-peak-risk", "panel-chip-locations",
+            "show-advice", "compact-advice", "show-details",
+            "show-peak-risk", "panel-chip-locations",
             "panel-chip-alert-level", "panel-alert-mon", "panel-alert-tue",
             "panel-alert-wed", "panel-alert-thu", "panel-alert-fri",
             "panel-alert-sat", "panel-alert-sun", "panel-alert-current-day",
-            "show-best-hour",
+            "show-best-hour", "hide-calm-days",
             "graph-daynight", "graph-day-bg", "graph-night-bg",
             "graph-colors-reset", "graph-day-labels",
             "graph-show-temp", "graph-show-surface", "graph-show-dew",
@@ -1829,7 +2014,8 @@ SlipperyApplet.prototype = {
 
     // Per-location block: graph button (name + risk level), then the short
     // coming-hours summary (or a calm placeholder so every point has one),
-    // then optionally one row per coming calendar day (forecast-days > 0).
+    // then optionally one row per coming calendar day (forecast-days > 0;
+    // calm days below SLIGHT can be hidden via hide-calm-days).
     // Daily rows aggregate the same hourly risk engine per day: peak risk,
     // rain/snow totals, ice hours, peak gust and temperature low.
     // A summary whose peak coming risk reaches SLIGHT is highlighted with
@@ -1842,23 +2028,6 @@ SlipperyApplet.prototype = {
                 r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
             return;
         }
-        if (!r.parsed) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
-            return;
-        }
-        // if (idx > 0) {
-        //     let row = r.loc.name + ": " + (SHORT_LABEL[r.parsed.risk.name] || "?") +
-        //         " " + Math.round(r.parsed.airTemp) + "° " +
-        //         r.parsed.rainCurrent.toFixed(1) + "mm";
-        //     if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
-        //     if (r.iceNow) row = "\u2744 " + row + " ICE";
-        //     else if (r.iceAhead) row = row + " (\u2744>)";
-        //     const rowOk = this._addRiskRow(row, r.parsed.risk.level, r.parsed.risk.name, opts);
-        //     if (!rowOk) {
-        //         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
-        //     }
-        // }
         const gi = new PopupMenu.PopupMenuItem(
             r.loc.name + ": " + r.parsed.risk.name + " — Hourly graph");
         gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
@@ -1899,6 +2068,9 @@ SlipperyApplet.prototype = {
                 const g = groups[di];
                 if (!g.hours || g.hours.length === 0) continue;
                 const ds = summarizeDay(g.hours, iceT);
+                // Calm-day filter (setting hide-calm-days): skip days
+                // below SLIGHT so quiet days disappear from the overview.
+                if (this.s["hide-calm-days"] === true && ds.maxLvl < RiskLevel.SLIGHT) continue;
                 const row = formatDailyRow(g.label, ds, th, units);
                 if (ds.maxLvl >= RiskLevel.SLIGHT) {
                     if (!this._addRiskRow(row, ds.maxLvl, ds.maxName, opts)) {
@@ -2195,7 +2367,8 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        const primaryText = primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString();
+        const primaryText = primary.loc.name + ": " + p.risk.name + " — " +
+            p.time.toLocaleDateString() + " " + hourLabel(p.time, false);
         const primaryRowOk = this._addRiskRow(primaryText, p.risk.level, p.risk.name,
             { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
         if (!primaryRowOk) {
@@ -2207,9 +2380,20 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(iceMark + hz, { reactive: false }));
         });
         if (showAdv) {
-            p.risk.advice.forEach((ad) => {
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem("\u2192 " + ad, { reactive: false }));
-            });
+            if (this.s["compact-advice"] === true && p.risk.advice.length > 0) {
+                // Compact mode: advice items share up to 2 wrapped rows
+                // (same greedy wrap as the graph legend) instead of one
+                // row each.
+                const advLines = wrapAdviceLines(p.risk.advice, 70);
+                for (let k = 0; k < advLines.length; k++) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                        (k === 0 ? "\u2192 " : "   ") + advLines[k], { reactive: false }));
+                }
+            } else {
+                p.risk.advice.forEach((ad) => {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem("\u2192 " + ad, { reactive: false }));
+                });
+            }
         }
         if (p.risk.hazards.length === 0 && (!showAdv || p.risk.advice.length === 0)) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem("No hazards — good ride", { reactive: false }));
@@ -2219,31 +2403,34 @@ SlipperyApplet.prototype = {
         // todo.md: short summary, each group only when relevant (near thresholds).
         // Pass the forecast profile so a warm current hour with a cold night
         // ahead still shows the temperature row (with forecast low).
-        const det = relevantDetails(p, th, primary.profile, units);
-        let shownDetail = false;
-        if (det.windRow) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (det.tempRow) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.tempRow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (det.precip) {
-            let prow = "Rain " + fmtRain(p.rainCurrent, units) + " \u00b7 12h " + fmtRain(p.rain12, units);
-            if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
-                prow += " \u00b7 snow " + fmtSnow(p.snowCurrent, units) + "/" + fmtSnow(p.snow12, units);
+        // The whole group can be hidden (setting show-details).
+        if (this.s["show-details"] !== false) {
+            const det = relevantDetails(p, th, primary.profile, units);
+            let shownDetail = false;
+            if (det.windRow) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
+                shownDetail = true;
             }
-            if (p.immRain === 0) prow += " \u00b7 rain NOW";
-            else if (p.immRain > 0) prow += " \u00b7 rain " + p.immRain + "min";
-            if (p.immSnow === 0) prow += " \u00b7 snow NOW";
-            else if (p.immSnow > 0) prow += " \u00b7 snow " + p.immSnow + "min";
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (!shownDetail) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                "Details calm \u2014 nothing near thresholds", { reactive: false }));
+            if (det.tempRow) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.tempRow, { reactive: false }));
+                shownDetail = true;
+            }
+            if (det.precip) {
+                let prow = "Rain " + fmtRain(p.rainCurrent, units) + " \u00b7 12h " + fmtRain(p.rain12, units);
+                if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
+                    prow += " \u00b7 snow " + fmtSnow(p.snowCurrent, units) + "/" + fmtSnow(p.snow12, units);
+                }
+                if (p.immRain === 0) prow += " \u00b7 rain NOW";
+                else if (p.immRain > 0) prow += " \u00b7 rain " + p.immRain + "min";
+                if (p.immSnow === 0) prow += " \u00b7 snow NOW";
+                else if (p.immSnow > 0) prow += " \u00b7 snow " + p.immSnow + "min";
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prow, { reactive: false }));
+                shownDetail = true;
+            }
+            if (!shownDetail) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                    "Details calm \u2014 nothing near thresholds", { reactive: false }));
+            }
         }
 
         // --- Per active location: graph button (name + risk level) -------
