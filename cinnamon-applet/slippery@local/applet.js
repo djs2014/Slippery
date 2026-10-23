@@ -936,10 +936,10 @@ function escXml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Day-row label under the first hour of a new day. Mode "date" is the
-// historical "D/M", "weekday" shows the full weekday name ("Monday"),
-// "both" shows both ("Monday 30/9"). Unknown/missing modes fall back to
-// "date" so old installs keep the current look.
+// Day-row label, centered over the visible hours of its calendar day.
+// Mode "date" is the historical "D/M", "weekday" shows the full weekday
+// name ("Monday"), "both" shows both ("Monday 30/9"). Unknown/missing
+// modes fall back to "date" so old installs keep the current look.
 const GRAPH_WD_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -1286,15 +1286,17 @@ function buildGraphSvg(o) {
     // With long windows (up to 336h) label only every Nth hour so the
     // hour row stays readable; the first column always keeps "now".
     // When the coming hours cross midnight, the first hour of the new
-    // day keeps its plain "HH:00" label and gets the day label
+    // day keeps its plain "HH:00" label, plus a vertical separator —
+    // so dates never mix into the hour strings. The day label itself
     // (date "D/M", weekday "Monday", or both — setting graph-day-labels)
-    // on its own row underneath, plus a vertical separator —
-    // so dates never mix into the hour strings.
+    // sits on its own row underneath, centered over the visible hours
+    // of its calendar day.
     // Grid labels keep at least ~50px between centers. Displayed hour
     // texts are placed by priority ("now", then midnights, then grid) so
     // any two are at least ~40px apart (center to center) — 00:00 always
     // has breathing room on both sides. A midnight that would collide
-    // with "now" keeps its day separator + date but skips the hour text.
+    // with "now" keeps its day separator but skips the hour text (the
+    // day label itself is centered over the day, so it never collides).
     const isNewDayAt = function (idx) {
         if (idx <= 0 || idx >= n) return false;
         const a = hours[idx - 1].time, b = hours[idx].time;
@@ -1363,7 +1365,7 @@ function buildGraphSvg(o) {
             s += '<line x1="' + ix + '" y1="' + padT + '" x2="' + ix + '" y2="' + base + '" stroke="#4dd0e1" stroke-width="2" stroke-dasharray="6,3"/>\n';
         }
         // Hour text + connector only for placed labels; every midnight
-        // still gets its separator + day-label row below.
+        // still gets its separator (day labels are drawn centered below).
         const showLabel = isShownLabel(i);
         // Connector from each displayed hour label up to its risk strip, so
         // sparse labels (long windows) unambiguously point at their block.
@@ -1371,10 +1373,6 @@ function buildGraphSvg(o) {
             s += '<line x1="' + cx.toFixed(1) + '" y1="' + (stripY + stripH) + '" x2="' + cx.toFixed(1) + '" y2="' + (hourY - 3) + '" stroke="#888" stroke-width="1"/>\n';
         }
         s += '<text x="' + cx.toFixed(1) + '" y="' + hourY + '" fill="#999" font-size="10" text-anchor="middle">' + (showLabel ? escXml(hourLabel(hh.time, i === 0)) : "") + '</text>\n';
-        if (isNewDay && i !== 0 && hh.time instanceof Date && !isNaN(hh.time)) {
-            s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
-                escXml(dayRowLabel(hh.time, dayMode)) + '</text>\n';
-        }
         if (showVals && drawPrecip && ((hh.rain || 0) >= 0.1 || (hh.snow || 0) >= 0.1)) {
             let pv = "";
             if ((hh.rain || 0) >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakRainSet[i])) pv += isImperial(u) ? (hh.rain / 25.4).toFixed(2) : (hh.rain).toFixed(1);
@@ -1399,6 +1397,30 @@ function buildGraphSvg(o) {
             s += '<text x="' + cx.toFixed(1) + '" y="' + wY.toFixed(1) + '" fill="#fff" font-size="' + wSize + '" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
                 escXml(wArr + wSpd) + '</text>\n';
         }
+    }
+    // Day-row labels, one per visible calendar-day segment, centered over
+    // that day's columns (middle of the day) so it is obvious which
+    // columns belong to which day. Partial edge days are centered over
+    // their visible hours; days without timestamps are skipped.
+    const daySegs = [];
+    for (let di = 0; di < n; di++) {
+        const key = dayKeyOf(di);
+        const last = daySegs.length ? daySegs[daySegs.length - 1] : null;
+        const t = hours[di] && hours[di].time;
+        const valid = (t instanceof Date && !isNaN(t)) ? t : null;
+        if (last && last.key === key) {
+            last.end = di;
+            if (!last.time && valid) last.time = valid;
+        } else {
+            daySegs.push({ key: key, start: di, end: di, time: valid });
+        }
+    }
+    for (let si = 0; si < daySegs.length; si++) {
+        const seg = daySegs[si];
+        if (!seg.time) continue;
+        const cx = (cxOf(seg.start) + cxOf(seg.end)) / 2;
+        s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
+            escXml(dayRowLabel(seg.time, dayMode)) + '</text>\n';
     }
     // Top banner for the ice start ("ice in Xh @ HH:00" / "ICE now"),
     // clamped inside the canvas so it stays readable in long windows.

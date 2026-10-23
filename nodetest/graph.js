@@ -14,7 +14,7 @@
  *   node graph.js --demo --no-temp --no-sfc --no-dew --no-sun --no-wind --no-hum --no-prob --no-precip
  *   node graph.js --demo --values=peak-day  # max+min per metric, per calendar day
  *   node graph.js --demo --values=alternate  # wind + rain/snow numbers every other hour
- *   node graph.js --demo --day-labels=weekday   # date|weekday|both day row under each midnight
+  *   node graph.js --demo --day-labels=weekday   # date|weekday|both day row, centered over each day
  *
  * Output: SVG with the 13-hour risk profile (current hour + 12 forecast hours):
  * one column per hour (bars close together), rain (blue) + snow (pale) as a
@@ -93,8 +93,9 @@ function windArrow(deg) {
   return ['↓', '↙', '←', '↖', '↑', '↗', '→', '↘'][Math.round(norm / 45) % 8];
 }
 
-// Day-row label under the first hour of a new day (mirrors applet.js
-// dayRowLabel): date = "D/M", weekday = full weekday name, both = both.
+// Day-row label, centered over the visible hours of its calendar day
+// (mirrors applet.js dayRowLabel): date = "D/M", weekday = full weekday
+// name, both = both.
 const WD_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 function dayRowLabel(d, mode) {
   const m = String(mode || 'date');
@@ -578,9 +579,10 @@ async function main() {
       s += `<rect x="${x}" y="${(base - rh - sh).toFixed(1)}" width="${barW.toFixed(1)}" height="${sh.toFixed(1)}" fill="#b3e5fc"/>\n`;
     }
     s += `<rect x="${x}" y="${stripY}" width="${barW.toFixed(1)}" height="${stripH}" fill="${RISK_FILL[hh.name]}"${hh.ice ? ` stroke="#4dd0e1" stroke-width="${i === iceStartIdx ? '2.5' : '1.5'}"` : ''}/>\n`;
-    // When the coming hours cross midnight, the first hour of the new day
-    // gets the day label (date/weekday/both, see --day-labels) on its own
-    // row underneath, plus a vertical separator (mirrors the applet).
+    // When the coming hours cross midnight, a vertical separator marks the
+    // boundary (mirrors the applet). The day label itself
+    // (date/weekday/both, see --day-labels) sits on its own row
+    // underneath, centered over the visible hours of its calendar day.
     const isNewDay = isNewDayAt(i);
     if (isNewDay) {
       const sepX = (cx - slot / 2).toFixed(1);
@@ -599,9 +601,6 @@ async function main() {
       s += `<line x1="${cx.toFixed(1)}" y1="${stripY + stripH}" x2="${cx.toFixed(1)}" y2="${hourY - 3}" stroke="#888" stroke-width="1"/>\n`;
     }
     s += `<text x="${cx.toFixed(1)}" y="${hourY}" fill="#999" font-size="10" text-anchor="middle">${showLabel ? esc(lbl) : ''}</text>\n`;
-    if (isNewDay && i !== 0) {
-      s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(dayRowLabel(hh.time, dayLabelsMode))}</text>\n`;
-    }
     if (showVals && drawPrecip && (hh.rain >= 0.1 || hh.snow >= 0.1)) {
       let pv = '';
       if (hh.rain >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakRainSet[i])) pv += isImperial(units) ? (hh.rain / 25.4).toFixed(2) : hh.rain.toFixed(1);
@@ -624,6 +623,28 @@ async function main() {
     if (drawWind && showVals && (peakVals ? (peakWindSet[i] || minWindSet[i]) : (!alternateVals || i % 2 === 0))) {
       s += `<text x="${cx.toFixed(1)}" y="${wY.toFixed(1)}" fill="#fff" font-size="${wSize}" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">${esc(windArrow(hh.wdir) + fmtSpeedNum(hh.wind, units))}</text>\n`;
     }
+  }
+  // Day-row labels, one per visible calendar-day segment, centered over
+  // that day's columns (middle of the day) so it is obvious which columns
+  // belong to which day. Partial edge days are centered over their visible
+  // hours; days without timestamps are skipped.
+  const daySegs = [];
+  for (let di = 0; di < n; di++) {
+    const key = dayKeyOf(di);
+    const last = daySegs.length ? daySegs[daySegs.length - 1] : null;
+    const t = hours[di] && hours[di].time;
+    const valid = (t instanceof Date && !isNaN(t)) ? t : null;
+    if (last && last.key === key) {
+      last.end = di;
+      if (!last.time && valid) last.time = valid;
+    } else {
+      daySegs.push({ key, start: di, end: di, time: valid });
+    }
+  }
+  for (const seg of daySegs) {
+    if (!seg.time) continue;
+    const cx = (cxOf(seg.start) + cxOf(seg.end)) / 2;
+    s += `<text x="${cx.toFixed(1)}" y="${dayY}" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">${esc(dayRowLabel(seg.time, dayLabelsMode))}</text>\n`;
   }
   // Top banner for the ice start, clamped inside the canvas.
   if (iceStartIdx >= 0) {
