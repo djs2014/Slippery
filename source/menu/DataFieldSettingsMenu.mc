@@ -396,7 +396,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         null
       );
       var value =
-        getStorageValue(mi.getId() as String, $.gShowForecastHour) as Number;
+        getStorageValue(mi.getId() as String, $.gShowForecastHour) as ShowForecastHour;
       mi.setSubLabel($.getShowForecastHourText(value));
       advMenu.addItem(mi);
 
@@ -473,7 +473,7 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
     if (id instanceof String && id.equals("showForecastHour")) {
       var sp = new selectionMenuPicker("Show Forecast Hour", id as String);
       for (var i = 0; i < MaxForecastHourItems; i++) {
-        sp.add($.getShowForecastHourText(i), null, i);
+        sp.add($.getShowForecastHourText(i as ShowForecastHour), null, i);
       }
       sp.setOnSelected(self, :onSelectedSelection, item);
       sp.show();

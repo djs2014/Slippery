@@ -1,3 +1,5 @@
+dark mode - red arrow -> white border
+
 risk footer align large / one / small field
 
 - linux taskbar app for local use
