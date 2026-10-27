@@ -97,7 +97,7 @@ class CurrentWindWidget {
 
         // Highlight crosswinds in red/orange if relative mode is active
         if (isRelative) {
-            var normRel = (windDirDeg - headingDeg).toNumber() % 360;
+            var normRel = (windDirDeg - headingDeg).toNumber() % 360;        
             if (normRel < 0) {
                 normRel += 360;
             }
@@ -106,7 +106,7 @@ class CurrentWindWidget {
                 (normRel >= 225 && normRel <= 315);
 
             if (isCrosswind && gust >= 30.0f) {
-                mainColor = isDark ? 0xff5500 : 0xcc0000; // Warning Orange/Red
+                mainColor = isDark ? 0xff9966 : 0xcc0000; // Warning Orange/Red ff5500
             }
         }
 

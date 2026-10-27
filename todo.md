@@ -1,4 +1,4 @@
-dark mode - red arrow -> white border
+dark mode - red arrow -> white border or light red color
 
 risk footer align large / one / small field
 
