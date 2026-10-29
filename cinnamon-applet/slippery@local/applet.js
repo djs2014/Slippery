@@ -85,7 +85,7 @@ const RISK_TEXT_FIXED = {
 };
 
 // Hazards that count as ICE (big warning, here and in the coming hours).
-const ICE_HAZARDS = ["Black Ice / Freezing Wet Road", "Road Surface Frost", "Ice On Bridges"];
+const ICE_HAZARDS = ["Black Ice / Freezing Wet Road", "Road Surface Frost", "Ice On Bridges", "Snow Or Slush Accumulation"];
 
 const Hazards = {
     BLACK_ICE: "Black Ice / Freezing Wet Road",
@@ -137,7 +137,8 @@ function getSeason(lat, date) {
 }
 
 // Exact port of RiskCalculator.evaluateRisk(). All thresholds match.
-function evaluateRisk(p) {
+function evaluateRisk(p, iceT) {
+    iceT = iceT !== undefined ? iceT : 3.0;
     let riskLevel = RiskLevel.SAFE;
     const hazards = [];
     const advice = [];
@@ -145,22 +146,22 @@ function evaluateRisk(p) {
     const addH = (h) => { if (hazards.indexOf(h) === -1) hazards.push(h); };
     const addA = (a) => { if (advice.indexOf(a) === -1) advice.push(a); };
 
-    if ((p.surfaceTemp <= 0.0 || p.airTemp <= 0.5) &&
+    if ((p.surfaceTemp <= iceT || p.airTemp <= iceT * 0.5 + 0.5) &&
         (p.runningRain12h >= RAIN_THRESHOLD || p.rainCurrent >= RAIN_THRESHOLD ||
          p.runningSnow12h >= SNOW_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.BLACK_ICE); addA(Advice.AVOID_RIDING); addA(Advice.LOWER_TIRE_PRESSURE);
     }
-    if (p.surfaceTemp <= 0.0 && p.surfaceDewSpread <= 2.0 && p.humidity >= 80) {
+    if (p.surfaceTemp <= iceT && p.surfaceDewSpread <= 2.0 && p.humidity >= 80) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.FROST); addA(Advice.WATCH_SHADED); addA(Advice.AVOID_BRAKING);
     }
-    if (p.airTemp >= 0.0 && p.airTemp <= 2.5 &&
+    if (p.airTemp >= iceT - 4.0 && p.airTemp <= iceT + 0.5 &&
         (p.runningRain12h >= RAIN_THRESHOLD || p.humidity > 88 || p.runningSnow12h >= SNOW_THRESHOLD)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.BRIDGE_ICE); addA(Advice.WATCH_SHADED);
     }
-    if (p.runningSnow12h >= SNOW_THRESHOLD && (p.surfaceTemp <= 1.0 || p.airTemp <= 1.5)) {
+    if (p.runningSnow12h >= SNOW_THRESHOLD && (p.surfaceTemp <= iceT - 3.0 || p.airTemp <= iceT - 1.5)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.SNOW_SLUSH); addA(Advice.TRACTION_LOSS_TURNS); addA(Advice.TREAD_REQUIRED);
     }
@@ -537,6 +538,7 @@ function parseResponse(lat, data, nowSec) {
         surfaceDewSpread: surfaceTemp - dewPoint,
         snowCurrent: snowCurrent,
         upcomingRain: upcomingRain,
+        iceT: 3.0,
     });
     return {
         risk: r,
@@ -630,6 +632,7 @@ function calculateProfile(parsed, maxHours) {
             surfaceDewSpread: surfaceTemp - dewPoint,
             snowCurrent: snowCur,
             upcomingRain: h + 1 < n ? at(rain, h + 1) + at(showers, h + 1) : 0,
+            iceT: 3.0,
         });
         const t = hourly.time[h];
         const wS = at(windS, h), wG = at(windG, h), wD = at(windD, h);
@@ -1419,8 +1422,15 @@ function buildGraphSvg(o) {
         const seg = daySegs[si];
         if (!seg.time) continue;
         const cx = (cxOf(seg.start) + cxOf(seg.end)) / 2;
+        let iceMark = "";
+        for (let hi = seg.start; hi <= seg.end; hi++) {
+            if (hours[hi] && hours[hi].ice) {
+                iceMark = "❄";
+                break;
+            }
+        }
         s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
-            escXml(dayRowLabel(seg.time, dayMode)) + '</text>\n';
+            iceMark + " " + escXml(dayRowLabel(seg.time, dayMode)) + '</text>\n';
     }
     // Top banner for the ice start ("ice in Xh @ HH:00" / "ICE now"),
     // clamped inside the canvas so it stays readable in long windows.

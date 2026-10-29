@@ -261,7 +261,7 @@ async function main() {
   const probs = pickHourly(h, ['precipitation_probability']);
   const times = h.time || [];
 
-  const ICE_NAMES = ['Black Ice / Freezing Wet Road', 'Road Surface Frost', 'Ice On Bridges'];
+  const ICE_NAMES = ['Black Ice / Freezing Wet Road', 'Road Surface Frost', 'Ice On Bridges', 'Snow Or Slush Accumulation'];
   const at = (arr, j) => (j < arr.length && arr[j] != null ? arr[j] : 0);
   const hours = [];
   for (let i = 0; i < N; i++) {
@@ -290,6 +290,7 @@ async function main() {
         immediateRainAndShower: immR, immediateSnow: immS,
         surfaceDewSpread: sfc - dew, snowCurrent: snowCur,
         upcomingRainAndShower: at(rains, j + 1) + at(showers, j + 1),
+        iceT: 3.0,
       });
       ice = (r.hazards || []).some((hz) => ICE_NAMES.indexOf(hz) !== -1);
     } catch (e) { ice = false; }
