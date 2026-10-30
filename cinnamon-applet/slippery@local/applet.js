@@ -341,9 +341,9 @@ function relevantDetails(p, t, profile, u) {
         // append the forecast low so the popup explains the warning.
         if (lows && coldAhead) {
             tempRow += " → low air " + fmtTemp(lows.minAir, u) +
-                (lows.minAirTime ? " @" + hourLabel(lows.minAirTime, false) : "") +
+                (lows.minAirTime ? " (" + fmtRelHours(Date.now(), lows.minAirTime.getTime()) + ")" : "") +
                 " · sfc " + fmtTemp(lows.minSfc, u) +
-                (lows.minSfcTime ? " @" + hourLabel(lows.minSfcTime, false) : "");
+                (lows.minSfcTime ? " (" + fmtRelHours(Date.now(), lows.minSfcTime.getTime()) + ")" : "");
         }
     }
     let windRow = null;
@@ -743,7 +743,10 @@ function comingSummary(profile, t, u) {
     if (ice > 0) segs.push("❄ ice " + ice + "h");
     if (maxLvl >= RiskLevel.SLIGHT) {
         let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName;
-        if (maxTime instanceof Date && !isNaN(maxTime)) maxSeg += " @" + dayHourLabel(maxTime);
+        if (maxTime instanceof Date && !isNaN(maxTime)) {
+        const hrs = fmtRelHours(Date.now(), maxTime.getTime());
+        maxSeg += " " + hrs;
+    }
         segs.push(maxSeg);
     }
     const windGate = Math.min(
@@ -774,7 +777,7 @@ function peakComingText(profile, peak) {
     if (!peak) return "";
     const n = profile.length - 1;
     let at = "";
-    if (peak.time) at = " @ " + hourLabel(peak.time, false);
+    if (peak.time) at = " (" + fmtRelHours(Date.now(), peak.time.getTime()) + ")";
     return "Peak next " + n + "h: " + peak.name + at;
 }
 
@@ -806,8 +809,16 @@ function fmtRelHours(fromMs, toMs) {
     const mins = Math.round((toMs - fromMs) / 60000 / 5) * 5;
     if (mins <= 0) return "now";
     const h = Math.floor(mins / 60), m = mins % 60;
-    if (h <= 0) return "in " + m + "min";
-    return "in " + h + "h" + (m > 0 ? " " + m + "min" : "");
+    const d = Math.floor(h / 24);
+    const remainingH = h % 24;
+    if (d > 0) {
+        return "in " + d + "d" + (remainingH > 0 ? " " + remainingH + "h" : "") +
+            (m > 0 ? " " + m + "min" : "");
+    }
+    if (remainingH > 0) {
+        return "in " + remainingH + "h" + (m > 0 ? " " + m + "min" : "");
+    }
+    return "in " + m + "min";
 }
 
 // One-line label, e.g. "Best next 12h: SLIGHT @ 15:00 (in 2h 15min) · gust
@@ -820,8 +831,7 @@ function bestHourText(profile, best, u) {
     let at = "now";
     if (best.idx > 0) {
         if (best.time instanceof Date && !isNaN(best.time)) {
-            at = "@ " + hourLabel(best.time, false) +
-                " (" + fmtRelHours(Date.now(), best.time.getTime()) + ")";
+            at = "(" + fmtRelHours(Date.now(), best.time.getTime()) + ")";
         } else {
             at = "@ +" + best.idx + "h";
         }
@@ -912,11 +922,11 @@ function formatDailyRow(label, s, t, u) {
     if (s.gust >= windGate) segs.push((s.gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(s.gust, u) + " " + speedUnit(u));
     if (s.minSfc !== null && s.minSfc !== undefined) {
         let low = "low " + fmtTemp(s.minSfc, u) + "sfc";
-        if (s.minSfcTime) low += " @" + hourLabel(s.minSfcTime, false);
+        if (s.minSfcTime) low += " (" + fmtRelHours(Date.now(), s.minSfcTime.getTime()) + ")";
         segs.push(low);
     } else if (s.minAir !== null && s.minAir !== undefined) {
         let low = "low " + fmtTemp(s.minAir, u);
-        if (s.minAirTime) low += " @" + hourLabel(s.minAirTime, false);
+        if (s.minAirTime) low += " (" + fmtRelHours(Date.now(), s.minAirTime.getTime()) + ")";
         segs.push(low);
     }
     return label + ": " + segs.join(" · ");
@@ -1064,13 +1074,15 @@ function buildGraphSvg(o) {
     for (let fi = 0; fi < n; fi++) {
         if (hours[fi] && hours[fi].ice) { iceStartIdx = fi; break; }
     }
-    const iceStartLabel = () => {
+const iceStartLabel = () => {
         if (iceStartIdx < 0) return "";
-        if (iceStartIdx === 0) return "❄ ICE now ▼";
-        const t = hours[iceStartIdx].time;
-        const when = (t instanceof Date && !isNaN(t))
-            ? " @ " + hourLabel(t, false) : "";
-        return "❄ ice in " + iceStartIdx + "h" + when + " ▼";
+        if (iceStartIdx === 0) return "❄ ICE now";
+        const d = Math.floor(iceStartIdx / 24);
+        const h = iceStartIdx % 24;
+        if (d > 0) {
+            return "❄ ice in " + d + "d" + (h > 0 ? " " + h + "h" : "");
+        }
+        return "❄ ice in " + iceStartIdx + "h";
     };
     const linePath = (fn) => {
         let d = "";
@@ -1522,8 +1534,7 @@ function buildGraphSvg(o) {
         colSegs.push('<tspan fill="#b3e5fc">pale column = snow ' + snowRateUnit(u) + '</tspan>');
     }
     colSegs.push('strip = risk level');
-    colSegs.push('❄ = ICE hour + cyan strip outline');
-    colSegs.push('▼ = ice starts');
+    colSegs.push('❄ = ICE hour + cyan strip outline');    
     if (drawWind && showVals) colSegs.push('wind markers ride dotted line (higher = stronger)');
     if (peakVals && showVals) colSegs.push(dailyPeakVals ? 'max + min labeled per day' : 'max + min labeled');
     if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
@@ -2387,10 +2398,10 @@ SlipperyApplet.prototype = {
                     (r.lows.minSfc !== null || r.lows.minAir !== null)) {
                     line += (r.iceNow ? "; " : " → ") + "low sfc " +
                         (r.lows.minSfc !== null ? fmtTemp(r.lows.minSfc, units) : "?") +
-                        (r.lows.minSfcTime ? " @" + hourLabel(r.lows.minSfcTime, false) : "") +
+                        (r.lows.minSfcTime ? " (" + fmtRelHours(Date.now(), r.lows.minSfcTime.getTime()) + ")" : "") +
                         " · air " +
                         (r.lows.minAir !== null ? fmtTemp(r.lows.minAir, units) : "?") +
-                        (r.lows.minAirTime ? " @" + hourLabel(r.lows.minAirTime, false) : "");
+                        (r.lows.minAirTime ? " (" + fmtRelHours(Date.now(), r.lows.minAirTime.getTime()) + ")" : "");
                 } else if (r.iceAhead) {
                     line += " → colder coming hours";
                 }

@@ -1,4 +1,5 @@
-dark mode - red arrow -> white border or light red color
+hardcoded risk values or not?
+
 
 risk footer align large / one / small field
 
