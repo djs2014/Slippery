@@ -1,96 +1,200 @@
 {
     "layout": {
         "type": "layout",
-        "pages": ["page-locations", "page-general", "page-panel", "page-popup", "page-graph", "page-thresholds"],
+        "pages": [
+            "page-locations",
+            "page-general",
+            "page-panel",
+            "page-popup",
+            "page-graph",
+            "page-thresholds"
+        ],
         "page-locations": {
             "type": "page",
             "title": "Locations",
-            "sections": ["section-loc1", "section-loc-extra"]
+            "sections": [
+                "section-loc1",
+                "section-loc-extra"
+            ]
         },
         "page-general": {
             "type": "page",
             "title": "General",
-            "sections": ["section-fetch", "section-units"]
+            "sections": [
+                "section-fetch",
+                "section-units"
+            ]
         },
         "page-panel": {
             "type": "page",
             "title": "Panel chip",
-            "sections": ["section-panel", "section-panel-weekdays"]
+            "sections": [
+                "section-panel",
+                "section-panel-weekdays"
+            ]
         },
         "page-popup": {
             "type": "page",
             "title": "Popup",
-            "sections": ["section-popup"]
+            "sections": [
+                "section-popup"
+            ]
         },
         "page-graph": {
             "type": "page",
             "title": "Graph image",
-            "sections": ["section-graph-daynight", "section-graph-daylabels", "section-graph-traces", "section-graph-values"]
+            "sections": [
+                "section-graph-daynight",
+                "section-graph-daylabels",
+                "section-graph-traces",
+                "section-graph-values"
+            ]
         },
         "page-thresholds": {
             "type": "page",
             "title": "Thresholds",
-            "sections": ["section-thresh"]
+            "sections": [
+                "section-thresh"
+            ]
         },
         "section-loc1": {
             "type": "section",
             "title": "1 (primary — panel chip shows this point)",
-            "keys": ["location-1-name", "location-1-coords"]
+            "keys": [
+                "location-1-name",
+                "location-1-coords"
+            ]
         },
         "section-loc-extra": {
             "type": "section",
             "title": "2-5 (extra commute points — switch off or empty coordinates = disabled)",
-            "keys": ["location-2-name", "location-2-coords", "location-2-enabled", "location-3-name", "location-3-coords", "location-3-enabled", "location-4-name", "location-4-coords", "location-4-enabled", "location-5-name", "location-5-coords", "location-5-enabled"]
+            "keys": [
+                "location-2-name",
+                "location-2-coords",
+                "location-2-enabled",
+                "location-3-name",
+                "location-3-coords",
+                "location-3-enabled",
+                "location-4-name",
+                "location-4-coords",
+                "location-4-enabled",
+                "location-5-name",
+                "location-5-coords",
+                "location-5-enabled"
+            ]
         },
         "section-fetch": {
             "type": "section",
             "title": "Fetching",
-            "keys": ["refresh-minutes", "startup-delay-sec", "forecast-hours", "forecast-days"]
+            "keys": [
+                "refresh-minutes",
+                "startup-delay-sec",
+                "forecast-hours",
+                "forecast-days"
+            ]
         },
         "section-units": {
             "type": "section",
             "title": "Units",
-            "keys": ["units"]
+            "keys": [
+                "units"
+            ]
         },
         "section-panel": {
             "type": "section",
             "title": "Panel chip",
-            "keys": ["show-temperature", "show-peak-risk", "panel-chip-locations", "panel-chip-alert-level", "color-mode", "color-min-level", "use-hsp-text", "hsp-threshold"]
+            "keys": [
+                "show-temperature",
+                "show-peak-risk",
+                "panel-chip-locations",
+                "panel-chip-alert-level",
+                "color-mode",
+                "color-min-level",
+                "use-hsp-text",
+                "hsp-threshold",
+                "ice-chip-enabled",
+                "ice-chip-hours",
+                "ice-chip-color",
+                "ice-chip-color-reset"
+            ]
         },
         "section-panel-weekdays": {
             "type": "section",
             "title": "Panel alerts on weekdays",
-            "keys": ["panel-alert-mon", "panel-alert-tue", "panel-alert-wed", "panel-alert-thu", "panel-alert-fri", "panel-alert-sat", "panel-alert-sun", "panel-alert-current-day"]
+            "keys": [
+                "panel-alert-mon",
+                "panel-alert-tue",
+                "panel-alert-wed",
+                "panel-alert-thu",
+                "panel-alert-fri",
+                "panel-alert-sat",
+                "panel-alert-sun",
+                "panel-alert-current-day"
+            ]
         },
         "section-popup": {
             "type": "section",
             "title": "Popup",
-            "keys": ["show-advice", "compact-advice", "show-details", "show-best-hour", "hide-calm-days"]
+            "keys": [
+                "popup-display-mode",
+                "show-advice",
+                "compact-advice",
+                "show-details",
+                "show-best-hour",
+                "hide-calm-days"
+            ]
         },
         "section-graph-daynight": {
             "type": "section",
             "title": "Day / night background",
-            "keys": ["graph-daynight", "graph-day-bg", "graph-night-bg", "graph-colors-reset"]
+            "keys": [
+                "graph-daynight",
+                "graph-day-bg",
+                "graph-night-bg",
+                "graph-colors-reset"
+            ]
         },
         "section-graph-daylabels": {
             "type": "section",
             "title": "Day labels",
-            "keys": ["graph-day-labels"]
+            "keys": [
+                "graph-day-labels"
+            ]
         },
         "section-graph-traces": {
             "type": "section",
             "title": "Graph metrics (show / hide)",
-            "keys": ["graph-show-temp", "graph-show-surface", "graph-show-dew", "graph-show-sun", "graph-show-wind", "graph-show-humidity", "graph-show-prob", "graph-show-precip"]
+            "keys": [
+                "graph-show-temp",
+                "graph-show-surface",
+                "graph-show-dew",
+                "graph-show-sun",
+                "graph-show-wind",
+                "graph-show-humidity",
+                "graph-show-prob",
+                "graph-show-precip"
+            ]
         },
         "section-graph-values": {
             "type": "section",
             "title": "Graph value labels",
-            "keys": ["graph-values"]
+            "keys": [
+                "graph-values"
+            ]
         },
         "section-thresh": {
             "type": "section",
             "title": "Alert thresholds (like the Connect IQ app)",
-            "keys": ["thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust", "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind", "thresh-heat-stress", "thresh-precip-ahead"]
+            "keys": [
+                "thresh-ice-alert",
+                "thresh-high-crosswind",
+                "thresh-cross-gust",
+                "thresh-heavy-wind",
+                "thresh-sustained-wind",
+                "thresh-headwind",
+                "thresh-heat-stress",
+                "thresh-precip-ahead"
+            ]
         }
     },
     "location-1-name": {
@@ -281,6 +385,18 @@
         "description": "HSP dark/light breakpoint",
         "tooltip": "HSP 0 = black, 255 = white. Backgrounds brighter than this get black text."
     },
+    "popup-display-mode": {
+        "type": "combobox",
+        "default": "all",
+        "description": "Popup display mode",
+        "tooltip": "Combine popup settings to filter display items (e.g. show buttons only, warnings only, or all details).",
+        "options": {
+            "Show All Details": "all",
+            "Only Buttons": "buttons-only",
+            "Only Warnings": "warnings-only",
+            "Buttons and Warnings": "buttons-and-warnings"
+        }
+    },
     "show-advice": {
         "type": "switch",
         "default": true,
@@ -425,6 +541,34 @@
             "HIGH and above": "high",
             "CRITICAL only": "critical"
         }
+    },
+    "ice-chip-enabled": {
+        "type": "switch",
+        "default": false,
+        "description": "Show ice chip color",
+        "tooltip": "When on, the panel chip shows ice color when ice is detected within the specified hour range."
+    },
+    "ice-chip-hours": {
+        "type": "spinbutton",
+        "default": 24,
+        "min": 1,
+        "max": 336,
+        "step": 1,
+        "units": "h",
+        "description": "Ice detected within hours",
+        "tooltip": "Number of hours ahead to check for ice hazards. Default 24h covers the coming day."
+    },
+    "ice-chip-color": {
+        "type": "colorchooser",
+        "default": "#add8e6",
+        "description": "Ice chip color",
+        "tooltip": "Background color for the panel chip when ice is detected (light blue by default)."
+    },
+    "ice-chip-color-reset": {
+        "type": "switch",
+        "default": false,
+        "description": "Reset ice chip color to default",
+        "tooltip": "When ON, the ice chip color resets to default (light blue) on the next refresh, then this switches itself back OFF automatically (one-shot)."
     },
     "panel-alert-mon": {
         "type": "switch",
