@@ -2073,6 +2073,13 @@ SlipperyApplet.prototype = {
             if (cr.iceNow || cr.iceAhead) tx = "❄ " + tx;
             chipSegs.push({ text: tx, level: lv, name: nm });
         }
+
+        // Properly scope alertIdx here so it's globally available inside _showAll
+        let alertIdx = -1;
+        for (let ai = 1; ai < chipSegs.length; ai++) {
+            if (chipSegs[ai].level >= alertNeed) { alertIdx = ai; break; }
+        }
+
         if (!showAlerts) {
             const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
             let quiet = locInitial + " " + (SHORT_LABEL[p.risk.name] || p.risk.name);
@@ -2105,10 +2112,7 @@ SlipperyApplet.prototype = {
             if (this.s["show-temperature"]) label += " " + fmtTempInt(p.airTemp, units);
             if (iceAnywhere) label = "❄ " + label;
             let chipLevel = shownLevel, chipName = shownName;
-            let alertIdx = -1;
-            for (let ai = 1; ai < chipSegs.length; ai++) {
-                if (chipSegs[ai].level >= alertNeed) { alertIdx = ai; break; }
-            }
+            
             if (alertIdx === -1) {
                 this._renderChipSingle(label, chipLevel, chipName, chipOpts);
             } else {
@@ -2134,37 +2138,37 @@ SlipperyApplet.prototype = {
             }
         }
 
-        let tip = "Slippery: " + p.risk.name + " @ " + primary.loc.name +
-            (p.risk.hazards.length > 0 ? "\n" + p.risk.hazards.join("\n") : "\nNo hazards") +
-            "\nWind " + windArrow(p.windDir) + " " + fmtSpeedNum(p.windSpeed, units) + " " + speedUnit(units) + " " + compass16(p.windDir) +
-            ", gust " + fmtSpeedNum(p.windGust, units) + " " + speedUnit(units) +
-            " · rain 12h " + fmtRain(p.rain12, units);
-        if (showPeak) {
-            const peakPrimary = peakComingRisk(primary.profile);
-            if (peakPrimary) tip += "\n" + peakComingText(primary.profile, peakPrimary);
-        }
-        if (results.length > 1) tip += "\nWorst of " + results.length + " points: " + worstName;
-        if (iceAnywhere) tip += "\n\u2744 ICE WARNING — check popup";
-        for (let ti = 1; ti < results.length; ti++) {
-            const tr = results[ti];
-            if (!tr.parsed) {
-                tip += "\n" + tr.loc.name + ": " + (tr.error || "no data");
-                continue;
+        // Simplified tooltip restricted to primary and chip/alert locations
+        let tipParts = [];
+        const primaryPeak = showPeak ? peakComingRisk(primary.profile) : null;
+        const primarySummary = comingSummary(primary.profile, th, units);
+        let primaryTipText = primary.loc.name + ": " + (primaryPeak ? primaryPeak.name : p.risk.name);
+        if (primarySummary) primaryTipText += " — " + primarySummary;
+        tipParts.push(primaryTipText);
+
+        if (alertIdx !== -1 && alertIdx < results.length) {
+            const alertRes = results[alertIdx];
+            const alertPeak = showPeak ? peakComingRisk(alertRes.profile) : null;
+            const alertSummary = comingSummary(alertRes.profile, th, units);
+            let alertTipText = alertRes.loc.name + ": " + (alertPeak ? alertPeak.name : alertRes.parsed.risk.name);
+            if (alertSummary) alertTipText += " — " + alertSummary;
+            tipParts.push(alertTipText);
+        } else if (results.length > 1 && chipMode === "all") {
+            const secondaryRes = results[1];
+            if (secondaryRes && secondaryRes.parsed) {
+                const secPeak = showPeak ? peakComingRisk(secondaryRes.profile) : null;
+                const secSummary = comingSummary(secondaryRes.profile, th, units);
+                let secTipText = secondaryRes.loc.name + ": " + (secPeak ? secPeak.name : secondaryRes.parsed.risk.name);
+                if (secSummary) secTipText += " — " + secSummary;
+                tipParts.push(secTipText);
             }
-            const tipPeak = showPeak ? peakComingRisk(tr.profile) : null;
-            const tipLevel = tipPeak ? tipPeak.level : tr.parsed.risk.level;
-            if (!colorPassesMinLevel(colorMin, tipLevel)) continue;
-            tip += "\n" + tr.loc.name + ": " + tr.parsed.risk.name +
-                " — air " + fmtTemp(tr.parsed.airTemp, units) + " sfc " +
-                fmtTemp(tr.parsed.surfaceTemp, units) +
-                " · gust " + fmtSpeedNum(tr.parsed.windGust, units) + " " + speedUnit(units) +
-                " · rain 12h " + fmtRain(tr.parsed.rain12, units);
-            if (tr.parsed.risk.hazards.length > 0) {
-                tip += "\n  " + tr.parsed.risk.hazards.join("; ");
-            }
-            if (tr.iceNow || tr.iceAhead) tip += " ❄";
         }
-        this.set_applet_tooltip(tip);
+
+        if (iceAnywhere) {
+            tipParts.unshift("❄ ICE WARNING — check popup");
+        }
+
+        this.set_applet_tooltip("Slippery:\n" + tipParts.join("\n"));
 
         this.menu.removeAll();
 
@@ -2288,7 +2292,7 @@ SlipperyApplet.prototype = {
         const item = new PopupMenu.PopupMenuItem("Refresh now");
         item.connect("activate", () => this.refresh());
         this.menu.addMenuItem(item);
-    },
+    }
 };
 
 function main(metadata, orientation, panelHeight, instanceId) {
