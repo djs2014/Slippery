@@ -679,36 +679,75 @@ function comingSummary(profile, t, u) {
     };
     const iceT = numOr(t && t.ice, 3.0);
     const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
-    let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE", maxTime = null;
+    
+    let rainTotal = 0, snowTotal = 0, gust = 0, maxLvl = 0, maxName = "SAFE", maxTime = null;
     let maxRainHour = 0, maxSnowHour = 0;
+    let firstIceIdx = -1;
+    let firstRainIdx = -1;
+    let firstSnowIdx = -1;
+    let maxLvlIdx = -1;
+
     for (let i = 1; i < profile.length; i++) {
         const hh = profile[i];
-        rain += hh.rain || 0;
-        snow += hh.snow || 0;
-        if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) ice++;
+        const r = hh.rain || 0;
+        const s = hh.snow || 0;
+        const isIce = hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT);
+        
+        rainTotal += r;
+        snowTotal += s;
+
+        if (isIce && firstIceIdx === -1) firstIceIdx = i;
+        if (r >= RAIN_THRESHOLD && firstRainIdx === -1) firstRainIdx = i;
+        if (s >= SNOW_THRESHOLD && firstSnowIdx === -1) firstSnowIdx = i;
+
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
-        if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; maxTime = hh.time || null; }
-        if ((hh.rain || 0) > maxRainHour) maxRainHour = hh.rain;
-        if ((hh.snow || 0) > maxSnowHour) maxSnowHour = hh.snow;
+        
+        const lvl = hh.level || 0;
+        if (lvl > maxLvl) { 
+            maxLvl = lvl; 
+            maxName = hh.name; 
+            maxTime = hh.time || null; 
+            maxLvlIdx = i;
+        }
+        if (r > maxRainHour) maxRainHour = r;
+        if (s > maxSnowHour) maxSnowHour = s;
     }
+
     const n = profile.length - 1;
     const segs = [];
     const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
-    if (maxRainHour >= precipGate) segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtRain(rain, u));
-    if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtSnow(snow, u));
-    if (ice > 0) segs.push("❄ ice " + ice + "h");
-    if (maxLvl >= RiskLevel.SLIGHT) {
-        let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName;
-        if (maxTime instanceof Date && !isNaN(maxTime)) {
-            const hrs = fmtRelHours(Date.now(), maxTime.getTime());
-            maxSeg += " " + hrs;
+
+    // Format time helper relative to now or hours out
+    const fmtOnset = (idx) => {
+        if (idx === 0) return "now";
+        const hh = profile[idx];
+        if (hh && hh.time instanceof Date && !isNaN(hh.time)) {
+            return fmtRelHours(Date.now(), hh.time.getTime());
         }
+        return "in " + idx + "h";
+    };
+
+    if (firstIceIdx !== -1) {
+        segs.push("❄ ice " + fmtOnset(firstIceIdx));
+    }
+    if (firstRainIdx !== -1 && rainTotal >= precipGate) {
+        segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtOnset(firstRainIdx) + " (tot " + fmtRain(rainTotal, u) + ")");
+    }
+    if (firstSnowIdx !== -1 && snowTotal >= SNOW_THRESHOLD * 0.8) {
+        segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtOnset(firstSnowIdx) + " (tot " + fmtSnow(snowTotal, u) + ")");
+    }
+    if (maxLvl >= RiskLevel.SLIGHT && maxLvlIdx !== -1) {
+        let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName + " " + fmtOnset(maxLvlIdx);
         segs.push(maxSeg);
     }
+
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
         Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
-    if (gust >= windGate) segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(gust, u) + " " + speedUnit(u));
+    if (gust >= windGate) {
+        segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(gust, u) + " " + speedUnit(u));
+    }
+
     if (segs.length === 0) return "";
     return "Next " + n + "h: " + segs.join(" | ");
 }
@@ -766,6 +805,16 @@ function fmtRelHours(fromMs, toMs) {
         return "in " + remainingH + "h" + (m > 0 ? " " + m + "min" : "");
     }
     return "in " + m + "min";
+}
+
+
+function fmtHoursToDaysHours(hours) {
+    const d = Math.floor(hours / 24);
+    const h = hours % 24;
+    let s = "";
+    if (d > 0) s += d + "d";
+    if (h > 0) s += (s ? " " : "") + h + "h";
+    return s || "0h";
 }
 
 function bestHourText(profile, best, u) {
@@ -1860,9 +1909,8 @@ SlipperyApplet.prototype = {
         const sum = comingSummary(r.profile, th, units) || "calm";
 
         const col1 = r.loc.name + " (" + currentRisk + ")";
-        const col2 = sum;
-        const col3 = "Max: " + maxWarn;
-        const buttonText = col1 + "  |  " + col2 + "  |  " + col3;
+        const col2 = sum;        
+        const buttonText = col1 + " | " + col2;
 
         const gi = new PopupMenu.PopupMenuItem(buttonText);
         gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
