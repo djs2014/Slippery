@@ -1,23 +1,5 @@
 /*
- * Slippery — Cinnamon panel applet.
- *
- * Same data + same checks as the Slippery Connect IQ data field:
- *  - Open-Meteo request mirrors source/background/BackgroundService.mc
- *    (hourly vars + apparent_temperature, past_hours=12,
-  *     forecast_hours=configurable 1..336h, unixtime, minutely_15)
- *  - evaluateRisk() is a direct port of source/weatherrisks/riskCalculator.mc
- *  - seasons mirror source/weatherrisks/helpers.mc
- *  - user thresholds mirror SlipperyApp.mc / AlertStateAnalyzer.mc
- *    (ice, winds, heat, precip-ahead); the ice threshold drives the big
- *    ICE banner, the rest stay configurable without cluttering the popup.
- *    The core risk engine itself stays stock so node tests
- *    (nodetest/slipperycheck.js) keep covering this logic.
- *  - HSP text-color check mirrors source/utils/color_utils.mc
- *    (sqrt(0.299 R^2 + 0.587 G^2 + 0.114 B^2), configurable breakpoint).
- *
- * Node has no role here: Cinnamon applets run on GJS, so HTTP goes through
- * `curl` (preinstalled on Mint) via Gio.Subprocess — this also avoids the
- * Soup 2 vs 3 API split between Cinnamon versions.
+ * Slippery — Cinnamon panel applet with Cycling Score system.
  */
 
 const Applet = imports.ui.applet;
@@ -124,6 +106,36 @@ function getSeason(lat, date) {
         season = inv[season];
     }
     return season;
+}
+
+function rateCyclingHour(hh, iceT) {
+    let score = 10.0;
+    const isIcy = hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT);
+    if (isIcy) return 0.0;
+
+    const temp = hh.airTemp;
+    if (temp !== undefined && temp !== null) {
+        if (temp < 10) score -= Math.min(4.0, (10 - temp) * 0.4);
+        else if (temp < 18) score -= (18 - temp) * 0.15;
+        else if (temp > 30) score -= Math.min(5.0, (temp - 30) * 0.5);
+        else if (temp > 24) score -= (temp - 24) * 0.05;
+    }
+
+    const precip = (hh.rain || 0) + (hh.snow || 0);
+    if (precip >= 7.5) score -= 5.0;
+    else if (precip >= 2.5) score -= 3.0;
+    else if (precip > 0) score -= 1.5;
+
+    if (hh.dewPoint > 18) score -= 1.5;
+    else if (hh.dewPoint > 15) score -= 0.7;
+
+    const wind = Math.max(hh.windSpeed || 0, hh.windGust || 0);
+    if (wind >= 45) score -= 5.0;
+    else if (wind >= 35) score -= 3.0;
+    else if (wind >= 25) score -= 1.5;
+    else if (wind >= 18) score -= 0.5;
+
+    return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
 }
 
 function evaluateRisk(p, iceT) {
@@ -614,7 +626,8 @@ function calculateProfile(parsed, maxHours) {
         const t = hourly.time[h];
         const wS = at(windS, h), wG = at(windG, h), wD = at(windD, h);
         const dewV = at(dewP, h), humV = at(hum, h);
-        out.push({
+        
+        const hhData = {
             time: (typeof t === "number") ? new Date(t * 1000) : null,
             name: r.name,
             level: r.level,
@@ -632,7 +645,9 @@ function calculateProfile(parsed, maxHours) {
             humidity: humV,
             sun: at(sun, h),
             prob: at(prob, h),
-        });
+        };
+        hhData.score = rateCyclingHour(hhData, 3.0);
+        out.push(hhData);
     }
     return out;
 }
@@ -717,7 +732,6 @@ function comingSummary(profile, t, u) {
     const segs = [];
     const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
 
-    // Format time helper relative to now or hours out
     const fmtOnset = (idx) => {
         if (idx === 0) return "now";
         const hh = profile[idx];
@@ -806,7 +820,6 @@ function fmtRelHours(fromMs, toMs) {
     }
     return "in " + m + "min";
 }
-
 
 function fmtHoursToDaysHours(hours) {
     const d = Math.floor(hours / 24);
@@ -1002,6 +1015,7 @@ function buildGraphSvg(o) {
     const tempY = (t) => padT + (1 - (t - tMin) / (tMax - tMin)) * plotH;
     const humY = (h) => padT + (1 - Math.max(0, Math.min(100, h || 0)) / 100) * plotH;
     const probY = (p) => padT + (1 - Math.max(0, Math.min(100, p || 0)) / 100) * plotH;
+    const scoreY = (sc) => padT + (1 - Math.max(0, Math.min(10, sc || 0)) / 10) * plotH;
     const windY = (w) => padT + (1 - (w || 0) / maxWind) * plotH;
     const windMarkY = (i) => Math.max(16, windY(Math.max(hours[i].wind || 0, hours[i].gust || 0)) - 16);
     const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec || 0)) / 3600) * plotH;
@@ -1298,6 +1312,14 @@ function buildGraphSvg(o) {
             s += '<text x="' + cx.toFixed(1) + '" y="' + wY.toFixed(1) + '" fill="#fff" font-size="' + wSize + '" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
                 escXml(wArr + wSpd) + '</text>\n';
         }
+
+        // Display Score Badges per Hour on Graph
+        if (showVals && hh.score !== undefined) {
+            const scoreColor = hh.score >= 7.5 ? "#4caf50" : (hh.score >= 5.0 ? "#ffeb3b" : "#ff5252");
+            s += '<text x="' + cx.toFixed(1) + '" y="' + (scoreY(hh.score) - 6).toFixed(1) + 
+                 '" fill="' + scoreColor + '" font-size="10" font-weight="bold" text-anchor="middle">' + 
+                 hh.score.toFixed(1) + '</text>\n';
+        }
     }
     const daySegs = [];
     for (let di = 0; di < n; di++) {
@@ -1332,6 +1354,18 @@ function buildGraphSvg(o) {
         s += '<text x="' + iceTx.toFixed(1) + '" y="' + (padT - 26) + '" fill="#4dd0e1" font-size="13" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
             escXml(iceStartLabel()) + '</text>\n';
     }
+
+    // Dynamic Color-Coded Cycling Score Line Trace
+    for (let i = 0; i < n - 1; i++) {
+        const x1 = cxOf(i).toFixed(1);
+        const y1 = scoreY(hours[i].score).toFixed(1);
+        const x2 = cxOf(i + 1).toFixed(1);
+        const y2 = scoreY(hours[i + 1].score).toFixed(1);
+        const avgScore = (hours[i].score + hours[i + 1].score) / 2;
+        const segColor = avgScore >= 7.5 ? "#4caf50" : (avgScore >= 5.0 ? "#ffeb3b" : "#ff5252");
+        s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + segColor + '" stroke-width="2.5"/>\n';
+    }
+
     if (drawHum) s += '<path d="' + linePath((i) => humY(hours[i].humidity)) + '" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n';
     if (drawProb) s += '<path d="' + linePath((i) => probY(hours[i].prob)) + '" fill="none" stroke="' + PROB_COLOR + '" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n';
     if (drawWind) s += '<path d="' + linePath((i) => windY(Math.max(hours[i].wind || 0, hours[i].gust || 0))) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n';
@@ -1410,6 +1444,7 @@ function buildGraphSvg(o) {
     }
     const ly1 = hourY + 28;
     const traceSegs = [];
+    traceSegs.push('<tspan fill="#4caf50">— ride score (0–10)</tspan>');
     if (drawTemp) traceSegs.push('<tspan fill="#ff5252">— temp air ' + tempScaleUnit(u) + '</tspan>');
     if (drawSfc) traceSegs.push('<tspan fill="' + SFC_COLOR + '">— temp sfc ' + tempScaleUnit(u) + '</tspan>');
     if (drawDew) traceSegs.push('<tspan fill="#9e9e9e">— dewpoint</tspan>');
@@ -1783,6 +1818,7 @@ SlipperyApplet.prototype = {
                 humidity: (h.humidity === undefined) ? null : h.humidity,
                 prob: (h.prob === undefined || h.prob === null) ? null : h.prob,
                 ice: !!h.ice,
+                score: h.score !== undefined ? h.score : 10.0,
             }));
             const svg = buildGraphSvg({
                 title: entry.loc.name + ": " + parsed.risk.name + " — " +
@@ -2074,7 +2110,6 @@ SlipperyApplet.prototype = {
             chipSegs.push({ text: tx, level: lv, name: nm });
         }
 
-        // Properly scope alertIdx here so it's globally available inside _showAll
         let alertIdx = -1;
         for (let ai = 1; ai < chipSegs.length; ai++) {
             if (chipSegs[ai].level >= alertNeed) { alertIdx = ai; break; }
@@ -2138,7 +2173,6 @@ SlipperyApplet.prototype = {
             }
         }
 
-        // Simplified tooltip restricted to primary and chip/alert locations
         let tipParts = [];
         const primaryPeak = showPeak ? peakComingRisk(primary.profile) : null;
         const primarySummary = comingSummary(primary.profile, th, units);
@@ -2292,7 +2326,7 @@ SlipperyApplet.prototype = {
         const item = new PopupMenu.PopupMenuItem("Refresh now");
         item.connect("activate", () => this.refresh());
         this.menu.addMenuItem(item);
-    }
+    },
 };
 
 function main(metadata, orientation, panelHeight, instanceId) {
