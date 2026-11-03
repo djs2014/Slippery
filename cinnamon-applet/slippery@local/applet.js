@@ -986,13 +986,19 @@ function buildGraphSvg(o) {
     const hours = (o && o.hours) || [];
     const n = hours.length;
     if (n === 0) return "";
-    const H = 892, padL = 46, padR = 14, padT = 88, padB = 96;
+    const tro = (o && o.traces) || {};
+    const drawScoreBadges = tro.scoreBadges !== false && o.scoreBadgePosition !== "hidden";
+    const valuesMode = String((o && o.values) || "all");
+    const showVals = valuesMode !== "none";
+    const scoreInStrip = drawScoreBadges && o.scoreBadgePosition === "risk-strip";
+    const extraStripH = scoreInStrip ? 10 : 0;
+    const H = 892 + extraStripH, padL = 46, padR = 126, padT = 88, padB = 96 + extraStripH;
     const MIN_SLOT = 8;
-    const W = Math.max(1800, padL + padR + n * MIN_SLOT);
+    const W = Math.max(1912, padL + padR + n * MIN_SLOT);
     const plotW = W - padL - padR, plotH = H - padT - padB;
     const base = padT + plotH;
     const slot = plotW / n, barW = Math.min(52, slot * 0.85);
-    const stripH = 8, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
+    const stripH = 8 + extraStripH, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
     let maxRain = 2.0, maxSnow = 1.0, maxWind = 10;
     let tMin = null, tMax = null;
     for (let i = 0; i < n; i++) {
@@ -1050,7 +1056,6 @@ function buildGraphSvg(o) {
     const hasProb = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
     const PROB_COLOR = "#5b9bff";
     const SFC_COLOR = "#ffa040";
-    const tro = (o && o.traces) || {};
     const drawTemp = hasTemp && tro.temp !== false;
     const drawDew = hasDew && tro.dew !== false;
     const drawSfc = hasSfc && tro.sfc !== false;
@@ -1059,8 +1064,6 @@ function buildGraphSvg(o) {
     const drawHum = hasHum && tro.hum !== false;
     const drawProb = hasProb && tro.prob !== false;
     const drawPrecip = tro.precip !== false;
-    const valuesMode = String((o && o.values) || "all");
-    const showVals = valuesMode !== "none";
     const peakVals = valuesMode === "peak" || valuesMode === "peak-day";
     const dailyPeakVals = valuesMode === "peak-day";
     const alternateVals = valuesMode === "alternate";
@@ -1079,6 +1082,7 @@ function buildGraphSvg(o) {
     let maxTempSet = {}, minTempSet = {}, maxSfcSet = {}, minSfcSet = {};
     let maxDewSet = {}, minDewSet = {}, maxSunSet = {}, minSunSet = {};
     let maxHumSet = {}, minHumSet = {}, maxProbSet = {}, minProbSet = {};
+    let maxScoreSet = {}, minScoreSet = {};
     if (peakVals && !dailyPeakVals) {
         let wMax = -1, wMaxIdx = -1, wMin = null, wMinIdx = -1;
         let pr = -1, prIdx = -1, ps = -1, psIdx = -1;
@@ -1088,6 +1092,7 @@ function buildGraphSvg(o) {
         let sunMax = -1, sunMaxIdx = -1, sunMin = null, sunMinIdx = -1;
         let hMax = null, hMaxIdx = -1, hMin = null, hMinIdx = -1;
         let pMax = null, pMaxIdx = -1, pMin = null, pMinIdx = -1;
+        let scMax = null, scMaxIdx = -1, scMin = null, scMinIdx = -1;
         for (let pi = 0; pi < n; pi++) {
             const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
             if (g > wMax) { wMax = g; wMaxIdx = pi; }
@@ -1112,6 +1117,9 @@ function buildGraphSvg(o) {
             const pv = numOrNull(hours[pi].prob);
             if (pv !== null && (pMax === null || pv > pMax)) { pMax = pv; pMaxIdx = pi; }
             if (pv !== null && (pMin === null || pv < pMin)) { pMin = pv; pMinIdx = pi; }
+            const sc = numOrNull(hours[pi].score);
+            if (sc !== null && (scMax === null || sc > scMax)) { scMax = sc; scMaxIdx = pi; }
+            if (sc !== null && (scMin === null || sc < scMin)) { scMin = sc; scMinIdx = pi; }
         }
         if (wMaxIdx >= 0 && wMax > 0) { peakWindSet[wMaxIdx] = true; peakWindIdx = wMaxIdx; }
         if (wMinIdx >= 0) minWindSet[wMinIdx] = true;
@@ -1129,6 +1137,8 @@ function buildGraphSvg(o) {
         if (hMinIdx >= 0) minHumSet[hMinIdx] = true;
         if (pMaxIdx >= 0) maxProbSet[pMaxIdx] = true;
         if (pMinIdx >= 0) minProbSet[pMinIdx] = true;
+        if (scMaxIdx >= 0) maxScoreSet[scMaxIdx] = true;
+        if (scMinIdx >= 0) minScoreSet[scMinIdx] = true;
     } else if (dailyPeakVals) {
         const perDay = {};
         const newDay = () => ({
@@ -1139,7 +1149,8 @@ function buildGraphSvg(o) {
             dMax: null, dMaxIdx: -1, dMin: null, dMinIdx: -1,
             sunMax: -1, sunMaxIdx: -1, sunMin: null, sunMinIdx: -1,
             hMax: null, hMaxIdx: -1, hMin: null, hMinIdx: -1,
-            pMax: null, pMaxIdx: -1, pMin: null, pMinIdx: -1
+            pMax: null, pMaxIdx: -1, pMin: null, pMinIdx: -1,
+            scMax: null, scMaxIdx: -1, scMin: null, scMinIdx: -1
         });
         for (let pi = 0; pi < n; pi++) {
             const key = dayKeyOf(pi);
@@ -1168,6 +1179,9 @@ function buildGraphSvg(o) {
             const pv = numOrNull(hours[pi].prob);
             if (pv !== null && (d.pMax === null || pv > d.pMax)) { d.pMax = pv; d.pMaxIdx = pi; }
             if (pv !== null && (d.pMin === null || pv < d.pMin)) { d.pMin = pv; d.pMinIdx = pi; }
+            const sc = numOrNull(hours[pi].score);
+            if (sc !== null && (d.scMax === null || sc > d.scMax)) { d.scMax = sc; d.scMaxIdx = pi; }
+            if (sc !== null && (d.scMin === null || sc < d.scMin)) { d.scMin = sc; d.scMinIdx = pi; }
         }
         const keys = Object.keys(perDay);
         for (let k = 0; k < keys.length; k++) {
@@ -1188,6 +1202,8 @@ function buildGraphSvg(o) {
             if (d.hMinIdx >= 0) minHumSet[d.hMinIdx] = true;
             if (d.pMaxIdx >= 0) maxProbSet[d.pMaxIdx] = true;
             if (d.pMinIdx >= 0) minProbSet[d.pMinIdx] = true;
+            if (d.scMaxIdx >= 0) maxScoreSet[d.scMaxIdx] = true;
+            if (d.scMinIdx >= 0) minScoreSet[d.scMinIdx] = true;
         }
     }
     const dn = (o && o.dayNight) || {};
@@ -1313,11 +1329,16 @@ function buildGraphSvg(o) {
                 escXml(wArr + wSpd) + '</text>\n';
         }
 
-        // Display Score Badges per Hour on Graph
-        if (showVals && hh.score !== undefined) {
-            const scoreColor = hh.score >= 7.5 ? "#4caf50" : (hh.score >= 5.0 ? "#ffeb3b" : "#ff5252");
-            s += '<text x="' + cx.toFixed(1) + '" y="' + (scoreY(hh.score) - 6).toFixed(1) + 
-                 '" fill="' + scoreColor + '" font-size="10" font-weight="bold" text-anchor="middle">' + 
+        if (drawScoreBadges && numOrNull(hh.score) !== null &&
+            (scoreInStrip || (showVals &&
+                (peakVals ? (maxScoreSet[i] || minScoreSet[i]) : (!alternateVals || i % 2 === 0))))) {
+            const scoreColor = scoreInStrip ? "#000" :
+                (hh.score >= 7.5 ? "#4caf50" : (hh.score >= 5.0 ? "#ffeb3b" : "#ff5252"));
+            const badgeY = scoreInStrip ? stripY + stripH / 2 + 3.5 : scoreY(hh.score) - 6;
+            const fitWidth = scoreInStrip && barW < 28 ?
+                ' textLength="' + (barW - 2).toFixed(1) + '" lengthAdjust="spacingAndGlyphs"' : "";
+            s += '<text x="' + cx.toFixed(1) + '" y="' + badgeY.toFixed(1) +
+                 '" fill="' + scoreColor + '"' + fitWidth + ' font-size="10" font-weight="bold" text-anchor="middle">' +
                  hh.score.toFixed(1) + '</text>\n';
         }
     }
@@ -1355,7 +1376,6 @@ function buildGraphSvg(o) {
             escXml(iceStartLabel()) + '</text>\n';
     }
 
-    // Dynamic Color-Coded Cycling Score Line Trace
     for (let i = 0; i < n - 1; i++) {
         const x1 = cxOf(i).toFixed(1);
         const y1 = scoreY(hours[i].score).toFixed(1);
@@ -1363,16 +1383,72 @@ function buildGraphSvg(o) {
         const y2 = scoreY(hours[i + 1].score).toFixed(1);
         const avgScore = (hours[i].score + hours[i + 1].score) / 2;
         const segColor = avgScore >= 7.5 ? "#4caf50" : (avgScore >= 5.0 ? "#ffeb3b" : "#ff5252");
-        s += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + segColor + '" stroke-width="2.5"/>\n';
+        s += '<line data-trace="score" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + segColor + '" stroke-width="3.5" stroke-linecap="round"/>\n';
     }
 
-    if (drawHum) s += '<path d="' + linePath((i) => humY(hours[i].humidity)) + '" fill="none" stroke="#4dd0e1" stroke-width="1.5" stroke-dasharray="6,3"/>\n';
-    if (drawProb) s += '<path d="' + linePath((i) => probY(hours[i].prob)) + '" fill="none" stroke="' + PROB_COLOR + '" stroke-width="1.5" stroke-dasharray="1,3" stroke-linecap="round"/>\n';
-    if (drawWind) s += '<path d="' + linePath((i) => windY(Math.max(hours[i].wind || 0, hours[i].gust || 0))) + '" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="2,3"/>\n';
-    if (drawSun) s += '<path d="' + linePath((i) => sunY(hours[i].sun)) + '" fill="none" stroke="#ffd24a" stroke-width="2"/>\n';
-    if (drawDew) s += '<path d="' + linePath((i) => tempY(hours[i].dew)) + '" fill="none" stroke="#9e9e9e" stroke-width="2"/>\n';
-    if (drawSfc) s += '<path d="' + linePath((i) => tempY(hours[i].sfc)) + '" fill="none" stroke="' + SFC_COLOR + '" stroke-width="2"/>\n';
-    if (drawTemp) s += '<path d="' + linePath((i) => tempY(hours[i].temp)) + '" fill="none" stroke="#ff5252" stroke-width="2"/>\n';
+    const traceDefs = [
+        { key: "temp", label: "Air temp", legend: "air temp " + tempScaleUnit(u), enabled: drawTemp,
+            color: "#ff5252", width: 2, dash: "", value: (i) => hours[i].temp, y: tempY },
+        { key: "sfc", label: "Surface temp", legend: "surface temp " + tempScaleUnit(u), enabled: drawSfc,
+            color: SFC_COLOR, width: 2, dash: "12,5", value: (i) => hours[i].sfc, y: tempY },
+        { key: "dew", label: "Dewpoint", legend: "dewpoint", enabled: drawDew,
+            color: "#bdbdbd", width: 2, dash: "4,4", value: (i) => hours[i].dew, y: tempY },
+        { key: "sun", label: "Sunshine", legend: "sunshine", enabled: drawSun,
+            color: "#ffd24a", width: 1.5, dash: "", marker: "circle", value: (i) => hours[i].sun, y: sunY },
+        { key: "wind", label: "Wind", legend: "wind+gust max (" + speedUnit(u) + ")", enabled: drawWind,
+            color: "#fff", width: 1.5, dash: "10,4,2,4",
+            value: (i) => Math.max(hours[i].wind || 0, hours[i].gust || 0), y: windY },
+        { key: "hum", label: "Humidity", legend: "humidity %", enabled: drawHum,
+            color: "#4dd0e1", width: 1.5, dash: "12,6", marker: "square", value: (i) => hours[i].humidity, y: humY },
+        { key: "prob", label: "Precip prob", legend: "precip prob %", enabled: drawProb,
+            color: PROB_COLOR, width: 1.5, dash: "0.1,5", value: (i) => hours[i].prob, y: probY },
+    ];
+    const traceStyle = (D) => ' fill="none" stroke="' + D.color + '" stroke-width="' + D.width +
+        '" stroke-linecap="round"' + (D.dash ? ' stroke-dasharray="' + D.dash + '"' : "");
+    const traceMarker = (D, x, y) => {
+        if (D.marker === "circle") {
+            return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3"' + traceStyle(D) + '/>\n';
+        }
+        if (D.marker === "square") {
+            return '<rect x="' + (x - 3).toFixed(1) + '" y="' + (y - 3).toFixed(1) +
+                '" width="6" height="6" fill="' + D.color + '"/>\n';
+        }
+        return "";
+    };
+    const markerEvery = Math.max(1, Math.ceil(n / 12), Math.ceil(90 / slot));
+    for (let di = traceDefs.length - 1; di >= 0; di--) {
+        const D = traceDefs[di];
+        if (!D.enabled) continue;
+        s += '<path data-trace="' + D.key + '" d="' + linePath((i) => D.y(D.value(i))) + '"' + traceStyle(D) + '/>\n';
+        if (!D.marker) continue;
+        for (let mi = 0; mi < n; mi += markerEvery) {
+            const v = numOrNull(D.value(mi));
+            if (v !== null && isFinite(v)) s += traceMarker(D, cxOf(mi), D.y(v));
+        }
+    }
+    const endpointLabels = [];
+    for (let di = 0; di < traceDefs.length; di++) {
+        const D = traceDefs[di];
+        const v = numOrNull(D.value(n - 1));
+        if (!D.enabled || v === null || !isFinite(v)) continue;
+        const y = D.y(v);
+        if (y < padT || y > base) continue;
+        endpointLabels.push({ def: D, y: y });
+    }
+    endpointLabels.sort((a, b) => a.y - b.y);
+    let lastEndpointY = padT - 16;
+    const endpointX = W - padR + 10;
+    for (let ei = 0; ei < endpointLabels.length; ei++) {
+        const E = endpointLabels[ei];
+        const y = Math.max(padT + 6, Math.min(base - 6, E.y));
+        if (y - lastEndpointY < 16) continue;
+        s += '<line x1="' + (cxOf(n - 1) + 4).toFixed(1) + '" y1="' + E.y.toFixed(1) +
+            '" x2="' + (endpointX - 4) + '" y2="' + y.toFixed(1) +
+            '" stroke="' + E.def.color + '" stroke-width="0.75" stroke-opacity="0.6"/>\n';
+        s += '<text data-endpoint="' + E.def.key + '" x="' + endpointX + '" y="' + (y + 3.5).toFixed(1) +
+            '" fill="' + E.def.color + '" font-size="11">' + escXml(E.def.label) + '</text>\n';
+        lastEndpointY = y;
+    }
     if (peakVals && showVals) {
         const clampY = (y) => Math.min(Math.max(y, 12), base - 2);
         const extLabel = (idx, y, color, size, txt) => {
@@ -1399,11 +1475,11 @@ function buildGraphSvg(o) {
                 yOf: (ii) => tempY(hours[ii].sfc), vOf: (ii) => hours[ii].sfc, f: (vv) => fmtTemp(vv, u)
             },
             {
-                set: maxDewSet, color: "#9e9e9e", size: 10, dy: -20, need: drawDew,
+                set: maxDewSet, color: "#bdbdbd", size: 10, dy: -20, need: drawDew,
                 yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u)
             },
             {
-                set: minDewSet, color: "#9e9e9e", size: 10, dy: 26, need: drawDew,
+                set: minDewSet, color: "#bdbdbd", size: 10, dy: 26, need: drawDew,
                 yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u)
             },
             {
@@ -1443,18 +1519,26 @@ function buildGraphSvg(o) {
         }
     }
     const ly1 = hourY + 28;
-    const traceSegs = [];
-    traceSegs.push('<tspan fill="#4caf50">— ride score (0–10)</tspan>');
-    if (drawTemp) traceSegs.push('<tspan fill="#ff5252">— temp air ' + tempScaleUnit(u) + '</tspan>');
-    if (drawSfc) traceSegs.push('<tspan fill="' + SFC_COLOR + '">— temp sfc ' + tempScaleUnit(u) + '</tspan>');
-    if (drawDew) traceSegs.push('<tspan fill="#9e9e9e">— dewpoint</tspan>');
-    if (drawSun) traceSegs.push('<tspan fill="#ffd24a">— sun</tspan>');
-    if (drawWind) traceSegs.push('<tspan fill="#fff">┄ wind+gust max (' + speedUnit(u) + ')</tspan>');
-    if (drawHum) traceSegs.push('<tspan fill="#4dd0e1">┄ humidity %</tspan>');
-    if (drawProb) traceSegs.push('<tspan fill="' + PROB_COLOR + '">… precip prob %</tspan>');
-    s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">' +
-        traceSegs.join(' · ') +
-        '<tspan fill="#bbb"> (left ' + tempScaleUnit(u) + ' temp scale · right % humidity/prob scale)</tspan></text>\n';
+    const legendY = ly1 - 4;
+    for (let si = 0; si < 3; si++) {
+        s += '<line x1="' + (padL + si * 10) + '" y1="' + legendY + '" x2="' + (padL + (si + 1) * 10) +
+            '" y2="' + legendY + '" stroke="' + ["#4caf50", "#ffeb3b", "#ff5252"][si] +
+            '" stroke-width="3.5" stroke-linecap="round"/>\n';
+    }
+    s += '<text x="' + (padL + 38) + '" y="' + ly1 + '" fill="#bbb" font-size="11">ride score (0–10)</text>\n';
+    let legendX = padL + 170;
+    for (let di = 0; di < traceDefs.length; di++) {
+        const D = traceDefs[di];
+        if (!D.enabled) continue;
+        s += '<g data-legend="' + D.key + '">\n<line x1="' + legendX + '" y1="' + legendY +
+            '" x2="' + (legendX + 30) + '" y2="' + legendY + '"' + traceStyle(D) + '/>\n';
+        s += traceMarker(D, legendX + 15, legendY);
+        s += '<text x="' + (legendX + 38) + '" y="' + ly1 + '" fill="' + D.color +
+            '" font-size="11">' + escXml(D.legend) + '</text>\n</g>\n';
+        legendX += 52 + D.legend.length * 7;
+    }
+    s += '<text x="' + legendX + '" y="' + ly1 + '" fill="#bbb" font-size="11">left ' +
+        escXml(tempScaleUnit(u)) + ' temp scale · right % humidity/prob scale</text>\n';
     const colSegs = [];
     if (drawPrecip) {
         colSegs.push('<tspan fill="#3377ff">blue column = rain ' + rainRateUnit(u) + '</tspan>');
@@ -1462,7 +1546,7 @@ function buildGraphSvg(o) {
     }
     colSegs.push('strip = risk level');
     colSegs.push('❄ = ICE hour + cyan strip outline');
-    if (drawWind && showVals) colSegs.push('wind markers ride dotted line (higher = stronger)');
+    if (drawWind && showVals) colSegs.push('wind markers ride dash-dot line (higher = stronger)');
     if (peakVals && showVals) colSegs.push(dailyPeakVals ? 'max + min labeled per day' : 'max + min labeled');
     if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
     const ly2 = ly1 + 14;
@@ -1533,6 +1617,7 @@ SlipperyApplet.prototype = {
             "ice-chip-enabled", "ice-chip-hours", "ice-chip-color", "ice-chip-color-reset",
             "graph-daynight", "graph-day-bg", "graph-night-bg",
             "graph-colors-reset", "graph-day-labels",
+            "graph-show-score-badges", "graph-score-badge-position",
             "graph-show-temp", "graph-show-surface", "graph-show-dew",
             "graph-show-sun", "graph-show-wind", "graph-show-humidity",
             "graph-show-prob", "graph-show-precip", "graph-values",
@@ -1788,6 +1873,7 @@ SlipperyApplet.prototype = {
     _graphTracesOpts: function () {
         const on = (key) => this.s[key] !== false;
         return {
+            scoreBadges: on("graph-show-score-badges"),
             temp: on("graph-show-temp"),
             sfc: on("graph-show-surface"),
             dew: on("graph-show-dew"),
@@ -1832,6 +1918,7 @@ SlipperyApplet.prototype = {
                 dayNight: this._graphDayNightOpts(),
                 units: units,
                 traces: this._graphTracesOpts(),
+                scoreBadgePosition: String(this.s["graph-score-badge-position"] || "curve"),
                 values: String(this.s["graph-values"] || "all"),
                 dayLabels: String(this.s["graph-day-labels"] || "date"),
             });

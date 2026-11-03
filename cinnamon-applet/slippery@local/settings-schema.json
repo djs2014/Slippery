@@ -165,6 +165,8 @@
             "type": "section",
             "title": "Graph metrics (show / hide)",
             "keys": [
+                "graph-show-score-badges",
+                "graph-score-badge-position",
                 "graph-show-temp",
                 "graph-show-surface",
                 "graph-show-dew",
@@ -467,6 +469,23 @@
             "Both (Monday 30/9)": "both"
         }
     },
+    "graph-show-score-badges": {
+        "type": "switch",
+        "default": true,
+        "description": "Graph: hourly score badges",
+        "tooltip": "Show ride score numbers. Above the curve, badges use the Graph value labels mode; inside bottom risk rectangles, every hour is shown regardless of that mode. The ride score curve stays visible when badges are hidden."
+    },
+    "graph-score-badge-position": {
+        "type": "combobox",
+        "default": "curve",
+        "description": "Graph: score badge position",
+        "tooltip": "Hide score badges, place them above the ride score curve, or inside the risk level rectangles at the bottom of the graph. Inside rectangles, every hour is shown regardless of Graph value labels (including None). The hourly score badges switch still controls visibility. The score curve stays visible.",
+        "options": {
+            "Above score curve": "curve",
+            "Inside bottom risk rectangles": "risk-strip",
+            "Hidden": "hidden"
+        }
+    },
     "graph-show-temp": {
         "type": "switch",
         "default": true,
@@ -511,7 +530,7 @@
         "type": "combobox",
         "default": "all",
         "description": "Graph value labels",
-        "tooltip": "All hours: wind + rain/snow numbers every hour. Peak + low: max + min of every trace (temp, dew, sun, wind, humidity, prob, wettest rain/snow) over the whole window. Peak + low per day: the same extremes separately per calendar day. Every other hour: wind + rain/snow numbers on even hours only, odd hours skipped. None: curves and columns without per-hour numbers (axis scales stay).",
+        "tooltip": "All hours: score badges + wind + rain/snow numbers every hour. Peak + low: max + min of every trace (score, temp, dew, sun, wind, humidity, prob, wettest rain/snow) over the whole window. Peak + low per day: the same extremes separately per calendar day. Every other hour: score badges + wind + rain/snow numbers on even hours only, odd hours skipped. None: curves and columns without per-hour numbers (axis scales stay).",
         "options": {
             "All hours": "all",
             "Peak + low": "peak",

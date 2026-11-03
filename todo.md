@@ -1,3 +1,5 @@
+graph lines differnce
+
 hardcoded risk values or not?
 
 
