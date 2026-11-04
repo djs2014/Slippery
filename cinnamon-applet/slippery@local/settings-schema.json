@@ -565,7 +565,7 @@
         "type": "switch",
         "default": false,
         "description": "Show ice chip color",
-        "tooltip": "When on, the panel chip shows ice color when ice is detected within the specified hour range."
+        "tooltip": "When on, each displayed location chip shows ice color when ice is detected for that location within the specified hour range."
     },
     "ice-chip-hours": {
         "type": "spinbutton",

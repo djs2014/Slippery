@@ -2003,8 +2003,13 @@ SlipperyApplet.prototype = {
                 if (segments[i].plain) {
                     css = "padding: 0 4px;";
                 } else {
+                    const iceChip = opts.iceChip && {
+                        enabled: opts.iceChip.enabled,
+                        color: opts.iceChip.color,
+                        hasIce: !!segments[i].hasIceInWindow
+                    };
                     css = chipStyle(opts.colorMode, opts.minLevel,
-                        segments[i].level, segments[i].name, opts.useHsp, opts.hspT, opts.iceChip);
+                        segments[i].level, segments[i].name, opts.useHsp, opts.hspT, iceChip);
                     css += (css && css.charAt(css.length - 1) !== ";" ? ";" : "") + "padding: 0 4px;";
                 }
                 box.add_actor(new St.Label({ text: segments[i].text, style: css }));
@@ -2165,11 +2170,10 @@ SlipperyApplet.prototype = {
 
         const p = primary.parsed;
         const chipMode = String(this.s["panel-chip-locations"] || "primary");
-        const hasIceInWindow = primary.hasIceInWindow || false;
         const chipOpts = {
             colorMode: colorMode, minLevel: colorMin,
             useHsp: useHsp, hspT: hspT,
-            iceChip: { enabled: iceChipEnabled, color: iceChipColor, hasIce: hasIceInWindow }
+            iceChip: { enabled: iceChipEnabled, color: iceChipColor, hasIce: !!primary.hasIceInWindow }
         };
         const alertNeed = chipAlertLevelNum(this.s["panel-chip-alert-level"]);
         let showAlerts = this._panelAlertsToday();
@@ -2194,7 +2198,8 @@ SlipperyApplet.prototype = {
             let tx = initial + " " + (SHORT_LABEL[nm] || nm);
             if (this.s["show-temperature"]) tx += " " + fmtTempInt(cr.parsed.airTemp, units);
             if (cr.iceNow || cr.iceAhead) tx = "❄ " + tx;
-            chipSegs.push({ text: tx, level: lv, name: nm });
+            chipSegs.push({ text: tx, level: lv, name: nm,
+                hasIceInWindow: !!cr.hasIceInWindow });
         }
 
         let alertIdx = -1;
@@ -2223,7 +2228,10 @@ SlipperyApplet.prototype = {
             const multiOk = this._renderChipMulti(topSegs, chipOpts);
             if (!multiOk) {
                 const joined = topSegs.map((s) => s.text).join("|");
-                this._renderChipSingle(joined, worstLevel, worstName, chipOpts);
+                this._renderChipSingle(joined, worstLevel, worstName, {
+                    ...chipOpts,
+                    iceChip: { ...chipOpts.iceChip, hasIce: topSegs.some((s) => s.hasIceInWindow) }
+                });
             }
         } else {
             const peakPrimary = showPeak ? peakComingRisk(primary.profile) : null;
@@ -2247,15 +2255,20 @@ SlipperyApplet.prototype = {
                     {
                         text: chipSegs[0].text, level: chipSegs[0].level,
                         name: chipSegs[0].name,
+                        hasIceInWindow: chipSegs[0].hasIceInWindow,
                         plain: chipSegs[0].level < alertNeed
                     },
                     {
                         text: chipSegs[alertIdx].text, level: chipSegs[alertIdx].level,
-                        name: chipSegs[alertIdx].name, plain: false
+                        name: chipSegs[alertIdx].name,
+                        hasIceInWindow: chipSegs[alertIdx].hasIceInWindow, plain: false
                     },
                 ];
                 if (!this._renderChipMulti(alertSegs, chipOpts)) {
-                    this._renderChipSingle(label, chipLevel, chipName, chipOpts);
+                    this._renderChipSingle(label, chipLevel, chipName, {
+                        ...chipOpts,
+                        iceChip: { ...chipOpts.iceChip, hasIce: alertSegs.some((s) => s.hasIceInWindow) }
+                    });
                 }
             }
         }
