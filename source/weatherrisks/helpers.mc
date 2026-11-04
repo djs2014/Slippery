@@ -8,6 +8,7 @@ class RiskAssessment {
     var hazards = [] as Array<WeatherHazard>;
     var advice = [] as Array<WeatherAdvice>;
     var hourlyRisksLevels = [] as Array<RiskLevel>;
+    var hourlyIceHazards = [] as Array<Boolean>;
 
     public function toString() as String {
         return (
@@ -20,6 +21,8 @@ class RiskAssessment {
             advice +
             ", hourlyRisksLevels=" +
             hourlyRisksLevels +
+            ", hourlyIceHazards=" +
+            hourlyIceHazards +
             "}"
         );
     }
@@ -499,4 +502,3 @@ public function getHumidityColor(
         return isDark ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
     }
 }
-

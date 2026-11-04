@@ -129,7 +129,7 @@ class PredictiveSparkline {
         width as Number,
         height as Number,
         metrics as WeatherMetrics,
-        riskProfile as Array<RiskLevel>,
+        assessment as RiskAssessment,
         isDark as Boolean,
         showLabels as Boolean,
         showBadges as Boolean,
@@ -163,7 +163,9 @@ class PredictiveSparkline {
         var chartHeight = baselineY - y; //  - (showLabels ? 14 : 0);
 
         // PASS 1 range scan in its own frame (locals freed before PASS 2).
-        var ranges = computePrecipRanges(metrics, numHours);
+        var ranges = computePrecipRanges(
+            metrics, numHours, assessment.hourlyIceHazards
+        );
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
@@ -198,6 +200,7 @@ class PredictiveSparkline {
             :minSt => ranges[:minSt],
             :maxSt => ranges[:maxSt],
             :hasIceAhead => ranges[:hasIceAhead],
+            :iceHazards => assessment.hourlyIceHazards,
             :hasTempData => ranges[:hasTempData],
             :hasSunshineData => ranges[:hasSunshineData],
             :firstShowerIdx => ranges[:firstShowerIdx],
@@ -218,12 +221,16 @@ class PredictiveSparkline {
         // Same order as the old combined loop (background > risk > precip >
         // temp/sun/wind lines); layers are independent and track their own
         // previous-point state internally.
-        drawRiskLayer(dc, metrics, riskProfile, ctx);
+        drawRiskLayer(dc, metrics, assessment.hourlyRisksLevels, ctx);
         drawPrecipLayer(dc, metrics, ctx);
         drawProbLayer(dc, metrics, ctx);
-        var firstStY = drawTempLayer(dc, metrics, riskProfile, ctx);
+        var firstStY = drawTempLayer(
+            dc, metrics, assessment.hourlyRisksLevels, ctx
+        );
         var firstSunY = drawSunLayer(dc, metrics, ctx);
-        var firstWindY = drawWindLayer(dc, metrics, riskProfile, ctx);
+        var firstWindY = drawWindLayer(
+            dc, metrics, assessment.hourlyRisksLevels, ctx
+        );
         drawMinutelyOverlay(dc, metrics, ctx);
 
         // --- LINE UNDER THE SPARKLINE ---
@@ -241,7 +248,8 @@ class PredictiveSparkline {
     // keeping the peak VM stack small (see draw() note).
     private static function computePrecipRanges(
         metrics as WeatherMetrics,
-        numHours as Number
+        numHours as Number,
+        iceHazards as Array<Boolean>
     ) as Dictionary {
         var rainForecast = metrics.rainForecast;
         var showersForecast = metrics.showersForecast;
@@ -295,12 +303,13 @@ class PredictiveSparkline {
                 firstRainIdx = i;
             }
 
-            // 4. Temp Range & Ice check
+            if (i < iceHazards.size() && iceHazards[i]) {
+                hasIceAhead = true;
+            }
+
+            // 4. Temp Range
             if (hasTempData && i < surfaceTempForecast.size()) {
                 var st = surfaceTempForecast[i];
-                if (st <= 0.0f) {
-                    hasIceAhead = true;
-                }
                 if (st < minSt) {
                     minSt = st;
                 }
@@ -332,7 +341,7 @@ class PredictiveSparkline {
         };
     }
 
-    // PASS 2 layer A+B of draw(): freezing-temp background + risk heatmap
+    // PASS 2 layer A+B of draw(): ice-hazard background + risk heatmap
     // with hour labels. Own frame (see draw() note).
     private static function drawRiskLayer(
         dc as Graphics.Dc,
@@ -342,8 +351,7 @@ class PredictiveSparkline {
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
         var currentHour = metrics.currentHour;
-        var surfaceTempForecast = metrics.surfaceTempForecast;
-        var hasTempData = ctx[:hasTempData] as Boolean;
+        var iceHazards = ctx[:iceHazards] as Array<Boolean>;
         var x = ctx[:x] as Number;
         var y = ctx[:y] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
@@ -368,14 +376,10 @@ class PredictiveSparkline {
             var currentRisk =
                 i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
 
-            // --- LAYER A: FREEZING TEMP BACKGROUND ---
+            // --- LAYER A: ICE HAZARD BACKGROUND ---
             // Height ends exactly at the chart bottom (no slot overflow now
             // that chartHeight spans the full slot height).
-            if (
-                hasTempData &&
-                i < surfaceTempForecast.size() &&
-                surfaceTempForecast[i] <= 0.0f
-            ) {
+            if (i < iceHazards.size() && iceHazards[i]) {
                 dc.setColor(
                     AppState.getColor(
                         ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND

@@ -467,20 +467,20 @@ class WeatherService {
         var risks = calculateCurrentRiskAssessment();
 
         // Calculate X-hour risk projection
-        risks.hourlyRisksLevels =
-            RiskProjectionEngine.calculate12HourRiskProfile(
-                _metrics,
-                targetIdx, // startIndex is current hour
-                airTemps,
-                surfTemps,
-                dewPoints,
-                humidities,
-                rains,
-                showers,
-                snows,
-                windSpeeds,
-                windGusts
-            );
+        RiskProjectionEngine.calculate12HourRiskProfile(
+            _metrics,
+            targetIdx, // startIndex is current hour
+            airTemps,
+            surfTemps,
+            dewPoints,
+            humidities,
+            rains,
+            showers,
+            snows,
+            windSpeeds,
+            windGusts,
+            risks
+        );
         _risks = risks;
 
         _lastRecalculationHour = System.getClockTime().hour;

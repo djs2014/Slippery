@@ -4,8 +4,8 @@ import Toybox.Graphics;
 import Toybox.Time;
 (:extendedCode) 
 class RiskProjectionEngine {
-    // Reconstructs per-hour derived metrics and evaluates risk for the current
-    // hour plus the next 12 forecast hours (max 13 entries).
+    // Populates risk levels and ice flags for the current hour plus the next
+    // 12 forecast hours (max 13 entries).
     public static function calculate12HourRiskProfile(
         currentMetrics as WeatherMetrics,
         startIndex as Number, // Start index of the current/next hour to project
@@ -17,8 +17,11 @@ class RiskProjectionEngine {
         showers as Array<Float>, // Contains full series (-12h up to +12h)
         snows as Array<Float>, // Contains full series (-12h up to +12h)
         windSpeeds as Array<Float>,
-        windGusts as Array<Float>
-    ) as Array<RiskLevel> {
+        windGusts as Array<Float>,
+        assessment as RiskAssessment
+    ) as Void {
+        assessment.hourlyRisksLevels = [] as Array<RiskLevel>;
+        assessment.hourlyIceHazards = [] as Array<Boolean>;
         // Guard against ragged API arrays: work on the common prefix length so
         // no input array is ever indexed out of bounds.
         var count = airTemps.size();
@@ -47,13 +50,13 @@ class RiskProjectionEngine {
             count = windGusts.size();
         }
         if (count <= 0) {
-            return [];
+            return;
         }
         if (startIndex < 0) {
             startIndex = 0;
         }
         if (startIndex >= count) {
-            return [];
+            return;
         }
 
         // Current hour + 12 forecast hours. Caps the profile when the API
@@ -64,14 +67,14 @@ class RiskProjectionEngine {
         }
         var maxProfileLength = endIndex - startIndex + 1;
         var riskProfile = new [maxProfileLength] as Array<RiskLevel>;
+        var iceProfile = new [maxProfileLength] as Array<Boolean>;
         var season = currentMetrics.currentSeason;
 
         // Rain/showers are mm/h, snowfall is cm/h (Open-Meteo unit).
         var RAIN_THRESHOLD = 0.1f;
         var SNOW_THRESHOLD = 0.1f;
 
-        // Projection only needs risk levels; keep the shared static
-        // hazards/advice of the live assessment untouched.
+        // Retain ice flags without building forecast hazard/advice lists.
         var prevRiskOnly = RiskCalculator.getRiskOnly();
         RiskCalculator.setRiskOnly(true);
         try {
@@ -168,11 +171,13 @@ class RiskProjectionEngine {
                     snowCurrent,
                     upcomingRainAndShower
                 );
+                iceProfile[profileIndex] = RiskCalculator.hasIceHazard();
             }
         } finally {
             RiskCalculator.setRiskOnly(prevRiskOnly);
         }
 
-        return riskProfile;
+        assessment.hourlyRisksLevels = riskProfile;
+        assessment.hourlyIceHazards = iceProfile;
     }
 }

@@ -8,6 +8,7 @@ public class RiskCalculator {
     static var _riskLevel as RiskLevel = RiskLevelNoData;
     static var _hazards = [] as Array<WeatherHazard>;
     static var _advice = [] as Array<WeatherAdvice>;
+    static var _hasIceHazard as Boolean = false;
 
     public static function setRiskOnly(riskOnly as Boolean) as Void {
         _riskOnly = riskOnly;
@@ -26,10 +27,14 @@ public class RiskCalculator {
     public static function getAdvice() as Array<WeatherAdvice> {
         return _advice;
     }
+    public static function hasIceHazard() as Boolean {
+        return _hasIceHazard;
+    }
     private static function reset() as Void {
         _riskLevel = RiskLevelSafe;
         _hazards = [];
         _advice = [];
+        _hasIceHazard = false;
     }
     public static function evaluateRisk(
         airTemp as Float,
@@ -57,10 +62,12 @@ public class RiskCalculator {
         // 0.1 cm snow ~= 1 mm snow ~= 0.1 mm rain water equivalent.
         var RAIN_THRESHOLD = 0.1f;
         var SNOW_THRESHOLD = 0.1f;
+        // Ice reference temperature
+        var ICE_T = 3.0f;
 
         // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
         if (
-            (surfaceTemp <= 0.0 || airTemp <= 0.5) &&
+            (surfaceTemp <= ICE_T || airTemp <= ICE_T * 0.5f + 0.5f) &&
             (runningRainAndShower12h >= RAIN_THRESHOLD ||
                 rainAndShowerCurrent >= RAIN_THRESHOLD ||
                 runningSnow12h >= SNOW_THRESHOLD ||
@@ -75,7 +82,7 @@ public class RiskCalculator {
         // --- 2. CRITICAL: Hoarfrost / Freezing Fog ---
         // Humid air is required: dry cold alone cannot deposit frost.
         if (
-            surfaceTemp <= 0.0 &&
+            surfaceTemp <= ICE_T &&
             surfaceDewSpread <= 2.0 &&
             humidity >= 80
         ) {
@@ -87,8 +94,8 @@ public class RiskCalculator {
 
         // --- 3. HIGH: Bridge Deck Freeze ---
         if (
-            airTemp >= 0.0 &&
-            airTemp <= 2.5 &&
+            airTemp >= ICE_T - 4.0f &&
+            airTemp <= ICE_T + 0.5f &&
             (runningRainAndShower12h >= RAIN_THRESHOLD ||
                 humidity > 88 ||
                 runningSnow12h >= SNOW_THRESHOLD)
@@ -104,7 +111,7 @@ public class RiskCalculator {
         // (runningSnow12h already includes the current hour.)
         if (
             runningSnow12h >= SNOW_THRESHOLD &&
-            (surfaceTemp <= 1.0 || airTemp <= 1.5)
+            (surfaceTemp <= ICE_T - 3.0f || airTemp <= ICE_T - 1.5f)
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardSnowOrSlushAccumulation);
@@ -271,6 +278,15 @@ public class RiskCalculator {
     }
 
     static function addHazard(hazard as WeatherHazard) as Void {
+        // Forecast projections skip hazard lists but still need the ice flag.
+        if (
+            hazard == HazardBlackIceFreezingWetRoad ||
+            hazard == HazardRoadSurfaceFrost ||
+            hazard == HazardIceOnBridges ||
+            hazard == HazardSnowOrSlushAccumulation
+        ) {
+            _hasIceHazard = true;
+        }
         if (_riskOnly) {
             return;
         }

@@ -510,20 +510,20 @@ class DemoWeatherService {
         for (var hh = 0; hh < 12; hh++) {
             demoHumidities[hh] = metrics.humidity;
         }
-        assessment.hourlyRisksLevels =
-            RiskProjectionEngine.calculate12HourRiskProfile(
-                metrics,
-                0,
-                metrics.airTempForecast,
-                metrics.surfaceTempForecast,
-                metrics.dewpointForecast,
-                demoHumidities,
-                metrics.rainForecast,
-                metrics.showersForecast,
-                metrics.snowForecast,
-                metrics.windForecast,
-                metrics.windGustForecast
-            );
+        RiskProjectionEngine.calculate12HourRiskProfile(
+            metrics,
+            0,
+            metrics.airTempForecast,
+            metrics.surfaceTempForecast,
+            metrics.dewpointForecast,
+            demoHumidities,
+            metrics.rainForecast,
+            metrics.showersForecast,
+            metrics.snowForecast,
+            metrics.windForecast,
+            metrics.windGustForecast,
+            assessment
+        );
         return assessment;
     }
 }
