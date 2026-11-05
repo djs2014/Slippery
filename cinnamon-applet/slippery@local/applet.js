@@ -1,5 +1,5 @@
 /*
- * Slippery — Cinnamon panel applet with Cycling Score system.
+ * Slippery — Cinnamon panel applet with Cycling Score system & Risk Presets.
  */
 
 const Applet = imports.ui.applet;
@@ -22,12 +22,77 @@ const UUID = "slippery@local";
 const GRAPH_DAY_BG_DEFAULT = "#1e2733";
 const GRAPH_NIGHT_BG_DEFAULT = "#111111";
 
-const RAIN_THRESHOLD = 0.1;
-const SNOW_THRESHOLD = 0.1;
-
 const RiskLevel = { NO_DATA: 0, SAFE: 1, SLIGHT: 2, MODERATE: 3, HIGH: 4, CRITICAL: 5 };
 const RISK_NAMES = ["NO_DATA", "SAFE", "SLIGHT", "MODERATE", "HIGH", "CRITICAL"];
 const SHORT_LABEL = { NO_DATA: "-", SAFE: "Ok", SLIGHT: "Low", MODERATE: "Mod", HIGH: "Hig", CRITICAL: "Crt" };
+
+const RiskPreset = {
+    VERY_CAUTIOUS: "very-cautious",
+    CAUTIOUS: "cautious",
+    NORMAL: "normal",
+    SPORT: "sport",
+    TOUGH: "tough",
+    CUSTOM: "custom"
+};
+
+function getRiskConfig(presetKey, customSettings) {
+    const config = {
+        iceT: 3.0,
+        threshRain: 1.0,
+        threshSnow: 1.0,
+        threshWind: 1.0,
+        threshGustRatio: 1.0
+    };
+
+    switch (presetKey) {
+        case RiskPreset.VERY_CAUTIOUS:
+            config.iceT = 4.5;
+            config.threshRain = 0.3;
+            config.threshSnow = 0.3;
+            config.threshWind = 0.7;
+            config.threshGustRatio = 0.8;
+            break;
+        case RiskPreset.CAUTIOUS:
+            config.iceT = 4.0;
+            config.threshRain = 0.5;
+            config.threshSnow = 0.5;
+            config.threshWind = 0.8;
+            config.threshGustRatio = 0.9;
+            break;
+        case RiskPreset.SPORT:
+            config.iceT = 2.0;
+            config.threshRain = 1.25;
+            config.threshSnow = 1.25;
+            config.threshWind = 1.1;
+            config.threshGustRatio = 1.05;
+            break;
+        case RiskPreset.TOUGH:
+            config.iceT = 1.0;
+            config.threshRain = 1.75;
+            config.threshSnow = 1.75;
+            config.threshWind = 1.3;
+            config.threshGustRatio = 1.15;
+            break;
+        case RiskPreset.CUSTOM:
+            if (customSettings) {
+                config.iceT = customSettings.iceT !== undefined ? customSettings.iceT : 3.0;
+                config.threshRain = customSettings.threshRain !== undefined ? customSettings.threshRain : 1.0;
+                config.threshSnow = customSettings.threshSnow !== undefined ? customSettings.threshSnow : 1.0;
+                config.threshWind = customSettings.threshWind !== undefined ? customSettings.threshWind : 1.0;
+                config.threshGustRatio = customSettings.threshGustRatio !== undefined ? customSettings.threshGustRatio : 1.0;
+            }
+            break;
+        case RiskPreset.NORMAL:
+        default:
+            config.iceT = 3.0;
+            config.threshRain = 1.0;
+            config.threshSnow = 1.0;
+            config.threshWind = 1.0;
+            config.threshGustRatio = 1.0;
+            break;
+    }
+    return config;
+}
 
 const RISK_BG = {
     bright: {
@@ -138,8 +203,12 @@ function rateCyclingHour(hh, iceT) {
     return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
 }
 
-function evaluateRisk(p, iceT) {
-    iceT = iceT !== undefined ? iceT : 3.0;
+function evaluateRisk(p, config) {
+    const cfg = config || getRiskConfig(RiskPreset.NORMAL);
+    const iceT = cfg.iceT;
+    const rainThresh = 0.1 * cfg.threshRain;
+    const snowThresh = 0.1 * cfg.threshSnow;
+
     let riskLevel = RiskLevel.SAFE;
     const hazards = [];
     const advice = [];
@@ -147,70 +216,82 @@ function evaluateRisk(p, iceT) {
     const addH = (h) => { if (hazards.indexOf(h) === -1) hazards.push(h); };
     const addA = (a) => { if (advice.indexOf(a) === -1) advice.push(a); };
 
+    // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
     if ((p.surfaceTemp <= iceT || p.airTemp <= iceT * 0.5 + 0.5) &&
-        (p.runningRain12h >= RAIN_THRESHOLD || p.rainCurrent >= RAIN_THRESHOLD ||
-            p.runningSnow12h >= SNOW_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
+        (p.runningRain12h >= rainThresh || p.rainCurrent >= rainThresh ||
+            p.runningSnow12h >= snowThresh || p.snowCurrent >= snowThresh)) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.BLACK_ICE); addA(Advice.AVOID_RIDING); addA(Advice.LOWER_TIRE_PRESSURE);
     }
+    // --- 2. CRITICAL: Hoarfrost / Freezing Fog ---
     if (p.surfaceTemp <= iceT && p.surfaceDewSpread <= 2.0 && p.humidity >= 80) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.FROST); addA(Advice.WATCH_SHADED); addA(Advice.AVOID_BRAKING);
     }
+    // --- 3. HIGH: Bridge Deck Freeze ---
     if (p.airTemp >= iceT - 4.0 && p.airTemp <= iceT + 0.5 &&
-        (p.runningRain12h >= RAIN_THRESHOLD || p.humidity > 88 || p.runningSnow12h >= SNOW_THRESHOLD)) {
+        (p.runningRain12h >= rainThresh || p.humidity > 88 || p.runningSnow12h >= snowThresh)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.BRIDGE_ICE); addA(Advice.WATCH_SHADED);
     }
-    if (p.runningSnow12h >= SNOW_THRESHOLD && (p.surfaceTemp <= iceT - 3.0 || p.airTemp <= iceT - 1.5)) {
+    // --- 4. HIGH: Snow / Slush Accumulation ---
+    if (p.runningSnow12h >= snowThresh && (p.surfaceTemp <= iceT - 3.0 || p.airTemp <= iceT - 1.5)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.SNOW_SLUSH); addA(Advice.TRACTION_LOSS_TURNS); addA(Advice.TREAD_REQUIRED);
     }
-    if (p.rainCurrent >= 15.0) {
+    // --- 5. RAIN LADDER ---
+    if (p.rainCurrent >= 15.0 * cfg.threshRain) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.HEAVY_RAIN); addA(Advice.SPEED_GRIP); addA(Advice.BRAKING_DISTANCE);
-    } else if (p.rainCurrent >= 7.5) {
+    } else if (p.rainCurrent >= 7.5 * cfg.threshRain) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.HEAVY_RAIN); addA(Advice.BRAKING_DISTANCE); addA(Advice.SPEED_GRIP);
     } else if ((p.season === "summer" || p.season === "spring") &&
-        p.rainCurrent >= 0.1 && p.rainCurrent < 2.5 && p.dryStreak >= 10) {
+        p.rainCurrent >= 0.1 * cfg.threshRain && p.rainCurrent < 2.5 * cfg.threshRain && p.dryStreak >= 10) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.FIRST_RAIN); addA(Advice.ASPHALT_SLIPPERY); addA(Advice.TRACTION_AFTER_RAIN);
-    } else if (p.rainCurrent >= 2.5) {
+    } else if (p.rainCurrent >= 2.5 * cfg.threshRain) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.WET_ASPHALT); addA(Advice.BRAKING_DISTANCE); addA(Advice.LEAN_ANGLE);
-    } else if (p.rainCurrent >= 0.2) {
+    } else if (p.rainCurrent >= 0.2 * cfg.threshRain) {
         upgrade(RiskLevel.SLIGHT);
         addH(Hazards.WET_ASPHALT); addA(Advice.BRAKING_DISTANCE);
     }
+    // --- 6. MODERATE: Autumn Wet Leaves ---
     if (p.season === "autumn" &&
-        (p.runningRain12h >= RAIN_THRESHOLD || p.runningSnow12h >= SNOW_THRESHOLD ||
-            p.rainCurrent >= RAIN_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
+        (p.runningRain12h >= rainThresh || p.runningSnow12h >= snowThresh ||
+            p.rainCurrent >= rainThresh || p.snowCurrent >= snowThresh)) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.WET_LEAVES); addA(Advice.SLIP_CORNERING); addA(Advice.LEAN_ANGLE);
     }
+    // --- 7. SLIGHT: Dew Condensation ---
     if (p.surfaceTemp > 0.0 && p.humidity > 90 && p.surfaceDewSpread <= 1.0) {
         upgrade(RiskLevel.SLIGHT);
         addH(Hazards.WET_ASPHALT); addA(Advice.WATCH_SHADED); addA(Advice.LEAN_ANGLE);
     }
 
+    // --- WIND & GUST RATIO ---
     const gustRatio = p.windSpeed > 1.0 ? p.windGust / p.windSpeed : 1.0;
-    if (p.windSpeed >= 45.0 || p.windGust >= 60.0 || (p.windSpeed >= 35.0 && gustRatio >= 1.7)) {
+    const wLimit = cfg.threshWind;
+    const gLimit = cfg.threshGustRatio;
+
+    if (p.windSpeed >= 45.0 * wLimit || p.windGust >= 60.0 * wLimit || (p.windSpeed >= 35.0 * wLimit && gustRatio >= 1.7 * gLimit)) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.GALE); addA(Advice.OPEN_FIELDS); addA(Advice.HOLD_BARS); addA(Advice.LOWER_PROFILE_WHEELS);
-    } else if (p.windSpeed >= 35.0 || p.windGust >= 45.0 || (p.windSpeed >= 25.0 && gustRatio >= 1.5)) {
+    } else if (p.windSpeed >= 35.0 * wLimit || p.windGust >= 45.0 * wLimit || (p.windSpeed >= 25.0 * wLimit && gustRatio >= 1.5 * gLimit)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.CROSSWIND); addA(Advice.OPEN_FIELDS); addA(Advice.HOLD_BARS);
-    } else if (p.windSpeed >= 25.0 || p.windGust >= 35.0 || (p.windSpeed >= 18.0 && gustRatio >= 1.3)) {
+    } else if (p.windSpeed >= 25.0 * wLimit || p.windGust >= 35.0 * wLimit || (p.windSpeed >= 18.0 * wLimit && gustRatio >= 1.3 * gLimit)) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.CROSSWIND); addA(Advice.HOLD_BARS);
-    } else if (p.windSpeed >= 20.0) {
+    } else if (p.windSpeed >= 20.0 * wLimit) {
         upgrade(RiskLevel.SLIGHT);
         addH(Hazards.CROSSWIND); addA(Advice.HOLD_BARS);
     }
 
-    if (p.immediateRain >= 0 && p.rainCurrent < RAIN_THRESHOLD) {
-        if ((p.upcomingRain || 0) >= 2.5) {
+    // --- IMMEDIATE RAIN / SNOW ---
+    if (p.immediateRain >= 0 && p.rainCurrent < rainThresh) {
+        if ((p.upcomingRain || 0) >= 2.5 * cfg.threshRain) {
             upgrade(RiskLevel.HIGH);
         } else {
             upgrade(RiskLevel.MODERATE);
@@ -218,7 +299,7 @@ function evaluateRisk(p, iceT) {
         addH(Hazards.IMMINENT_RAIN);
         addA(p.immediateRain === 0 ? Advice.RAIN_NOW : "Rain in " + p.immediateRain + " min");
     }
-    if (p.immediateSnow >= 0 && p.snowCurrent < SNOW_THRESHOLD) {
+    if (p.immediateSnow >= 0 && p.snowCurrent < snowThresh) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.IMMINENT_SNOW);
         addA(p.immediateSnow === 0 ? Advice.SNOW_NOW : "Snow in " + p.immediateSnow + " min");
@@ -322,21 +403,25 @@ function windArrow(deg) {
     return arrows[Math.round(norm / 45) % 8];
 }
 
-function relevantDetails(p, t, profile, u) {
+function relevantDetails(p, t, profile, u, config) {
+    const iceT = config ? config.iceT : (t && t.ice !== undefined ? t.ice : 3.0);
     const feels = p.hasFeelsLike ? p.feelsLike : p.airTemp;
     const lows = forecastLows(profile);
-    const coldNow = (p.airTemp <= t.ice + 2.0) || (p.surfaceTemp <= t.ice + 2.0);
-    const coldAhead = !!lows && ((lows.minAir <= t.ice + 2.0) || (lows.minSfc <= t.ice + 2.0));
+    const coldNow = (p.airTemp <= iceT + 2.0) || (p.surfaceTemp <= iceT + 2.0);
+    const coldAhead = !!lows && ((lows.minAir <= iceT + 2.0) || (lows.minSfc <= iceT + 2.0));
     const cold = coldNow || coldAhead;
     const heat = feels >= t.heat - 3.0;
+    const rainGate = 0.1 * (config ? config.threshRain : 1.0);
+    const snowGate = 0.1 * (config ? config.threshSnow : 1.0);
+
     const windGate = Math.min(
         Math.max(t.crossGust, 1), Math.max(t.highCross, 1),
-        Math.max(t.heavy, 1), Math.max(t.sustained, 1)) * 0.9;
+        Math.max(t.heavy, 1), Math.max(t.sustained, 1)) * 0.9 * (config ? config.threshWind : 1.0);
     const windHaz = p.risk.hazards.indexOf(Hazards.CROSSWIND) !== -1 ||
         p.risk.hazards.indexOf(Hazards.GALE) !== -1;
-    const wind = windHaz || p.windSpeed >= windGate || p.windGust >= 31.5;
-    const precip = (p.rainCurrent >= RAIN_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD ||
-        p.rain12 >= RAIN_THRESHOLD || p.snow12 >= SNOW_THRESHOLD ||
+    const wind = windHaz || p.windSpeed >= windGate || p.windGust >= 31.5 * (config ? config.threshWind : 1.0);
+    const precip = (p.rainCurrent >= rainGate || p.snowCurrent >= snowGate ||
+        p.rain12 >= rainGate || p.snow12 >= snowGate ||
         p.immRain >= 0 || p.immSnow >= 0 ||
         p.rainCurrent >= t.precip * 0.9);
 
@@ -468,8 +553,11 @@ function parseCoordField(str) {
     return { lat: lat, lon: lon };
 }
 
-function parseResponse(lat, data, nowSec) {
+function parseResponse(lat, data, nowSec, config) {
     if (!data || !data.hourly || !data.hourly.time || data.hourly.time.length === 0) return null;
+    const cfg = config || getRiskConfig(RiskPreset.NORMAL);
+    const rainThresh = 0.1 * cfg.threshRain;
+    const snowThresh = 0.1 * cfg.threshSnow;
     const hourly = data.hourly;
     const times = hourly.time;
     let targetIdx = 0;
@@ -498,7 +586,7 @@ function parseResponse(lat, data, nowSec) {
     }
     let dry = 0;
     for (let k = targetIdx - 1; k >= 0 && dry < 24; k--) {
-        if (at(rain, k) + at(showers, k) <= RAIN_THRESHOLD && at(snow, k) <= SNOW_THRESHOLD) dry++;
+        if (at(rain, k) + at(showers, k) <= rainThresh && at(snow, k) <= snowThresh) dry++;
         else break;
     }
     const airTemp = at(airT, targetIdx);
@@ -531,9 +619,8 @@ function parseResponse(lat, data, nowSec) {
         immediateSnow: immS,
         surfaceDewSpread: surfaceTemp - dewPoint,
         snowCurrent: snowCurrent,
-        upcomingRain: upcomingRain,
-        iceT: 3.0,
-    });
+        upcomingRain: upcomingRain
+    }, cfg);
     return {
         risk: r,
         season: season,
@@ -561,9 +648,12 @@ function parseResponse(lat, data, nowSec) {
     };
 }
 
-function calculateProfile(parsed, maxHours) {
+function calculateProfile(parsed, maxHours, config) {
     const out = [];
     if (!parsed || !parsed._data || !parsed._data.hourly) return out;
+    const cfg = config || getRiskConfig(RiskPreset.NORMAL);
+    const rainThresh = 0.1 * cfg.threshRain;
+    const snowThresh = 0.1 * cfg.threshSnow;
     const hourly = parsed._data.hourly;
     const n = (hourly.time || []).length;
     const at = (arr, i) => (i < arr.length && arr[i] != null ? arr[i] : 0);
@@ -595,15 +685,15 @@ function calculateProfile(parsed, maxHours) {
         }
         let dry = 0;
         for (let d = h - 1; d >= 0 && dry < 24; d--) {
-            if (at(rain, d) + at(showers, d) <= RAIN_THRESHOLD && at(snow, d) <= SNOW_THRESHOLD) dry++;
+            if (at(rain, d) + at(showers, d) <= rainThresh && at(snow, d) <= snowThresh) dry++;
             else break;
         }
         let immR = -1;
-        if (rainCur >= RAIN_THRESHOLD) immR = 0;
-        else if (h + 1 < n && at(rain, h + 1) + at(showers, h + 1) >= RAIN_THRESHOLD) immR = 60;
+        if (rainCur >= rainThresh) immR = 0;
+        else if (h + 1 < n && at(rain, h + 1) + at(showers, h + 1) >= rainThresh) immR = 60;
         let immS = -1;
-        if (snowCur >= SNOW_THRESHOLD) immS = 0;
-        else if (h + 1 < n && at(snow, h + 1) >= SNOW_THRESHOLD) immS = 60;
+        if (snowCur >= snowThresh) immS = 0;
+        else if (h + 1 < n && at(snow, h + 1) >= snowThresh) immS = 60;
         const r = evaluateRisk({
             airTemp: airTemp,
             surfaceTemp: surfaceTemp,
@@ -620,9 +710,8 @@ function calculateProfile(parsed, maxHours) {
             immediateSnow: immS,
             surfaceDewSpread: surfaceTemp - dewPoint,
             snowCurrent: snowCur,
-            upcomingRain: h + 1 < n ? at(rain, h + 1) + at(showers, h + 1) : 0,
-            iceT: 3.0,
-        });
+            upcomingRain: h + 1 < n ? at(rain, h + 1) + at(showers, h + 1) : 0
+        }, cfg);
         const t = hourly.time[h];
         const wS = at(windS, h), wG = at(windG, h), wD = at(windD, h);
         const dewV = at(dewP, h), humV = at(hum, h);
@@ -646,7 +735,7 @@ function calculateProfile(parsed, maxHours) {
             sun: at(sun, h),
             prob: at(prob, h),
         };
-        hhData.score = rateCyclingHour(hhData, 3.0);
+        hhData.score = rateCyclingHour(hhData, cfg.iceT);
         out.push(hhData);
     }
     return out;
@@ -686,14 +775,16 @@ function dayHourLabel(d) {
     return WD_SHORT[d.getDay()] + "-" + d.getDate() + " " + hourLabel(d, false);
 }
 
-function comingSummary(profile, t, u) {
+function comingSummary(profile, t, u, config) {
     if (!profile || profile.length < 2) return "";
     const numOr = (v, dflt) => {
         const x = parseNum(v);
         return isNaN(x) ? dflt : x;
     };
-    const iceT = numOr(t && t.ice, 3.0);
-    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
+    const iceT = config ? config.iceT : numOr(t && t.ice, 3.0);
+    const rainThresh = 0.1 * (config ? config.threshRain : 1.0);
+    const snowThresh = 0.1 * (config ? config.threshSnow : 1.0);
+    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1) * (config ? config.threshWind : 1.0);
     
     let rainTotal = 0, snowTotal = 0, gust = 0, maxLvl = 0, maxName = "SAFE", maxTime = null;
     let maxRainHour = 0, maxSnowHour = 0;
@@ -712,8 +803,8 @@ function comingSummary(profile, t, u) {
         snowTotal += s;
 
         if (isIce && firstIceIdx === -1) firstIceIdx = i;
-        if (r >= RAIN_THRESHOLD && firstRainIdx === -1) firstRainIdx = i;
-        if (s >= SNOW_THRESHOLD && firstSnowIdx === -1) firstSnowIdx = i;
+        if (r >= rainThresh && firstRainIdx === -1) firstRainIdx = i;
+        if (s >= snowThresh && firstSnowIdx === -1) firstSnowIdx = i;
 
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
         
@@ -730,7 +821,7 @@ function comingSummary(profile, t, u) {
 
     const n = profile.length - 1;
     const segs = [];
-    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
+    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8 * (config ? config.threshRain : 1.0);
 
     const fmtOnset = (idx) => {
         if (idx === 0) return "now";
@@ -745,10 +836,10 @@ function comingSummary(profile, t, u) {
         segs.push("❄ ice " + fmtOnset(firstIceIdx));
     }
     if (firstRainIdx !== -1 && rainTotal >= precipGate) {
-        segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtOnset(firstRainIdx) + " (tot " + fmtRain(rainTotal, u) + ")");
+        segs.push((maxRainHour >= 7.5 * (config ? config.threshRain : 1.0) ? "⚠ rain " : "rain ") + fmtOnset(firstRainIdx) + " (tot " + fmtRain(rainTotal, u) + ")");
     }
-    if (firstSnowIdx !== -1 && snowTotal >= SNOW_THRESHOLD * 0.8) {
-        segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtOnset(firstSnowIdx) + " (tot " + fmtSnow(snowTotal, u) + ")");
+    if (firstSnowIdx !== -1 && snowTotal >= snowThresh * 0.8) {
+        segs.push((maxSnowHour >= 0.5 * (config ? config.threshSnow : 1.0) ? "⚠ snow " : "snow ") + fmtOnset(firstSnowIdx) + " (tot " + fmtSnow(snowTotal, u) + ")");
     }
     if (maxLvl >= RiskLevel.SLIGHT && maxLvlIdx !== -1) {
         let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName + " " + fmtOnset(maxLvlIdx);
@@ -757,7 +848,7 @@ function comingSummary(profile, t, u) {
 
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
-        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
+        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8 * (config ? config.threshWind : 1.0);
     if (gust >= windGate) {
         segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(gust, u) + " " + speedUnit(u));
     }
@@ -900,21 +991,22 @@ function summarizeDay(dayHours, iceT) {
     return s;
 }
 
-function formatDailyRow(label, s, t, u) {
+function formatDailyRow(label, s, t, u, config) {
     const numOr = (v, dflt) => {
         const x = parseNum(v);
         return isNaN(x) ? dflt : x;
     };
-    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
-    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
+    const snowThresh = 0.1 * (config ? config.threshSnow : 1.0);
+    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8 * (config ? config.threshRain : 1.0);
+    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1) * (config ? config.threshWind : 1.0);
     const segs = [];
     segs.push(s.maxLvl >= RiskLevel.HIGH ? "⚠ " + s.maxName : s.maxName);
-    if (s.maxRainHour >= precipGate) segs.push((s.maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtRain(s.rain, u));
-    if (s.maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((s.maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtSnow(s.snow, u));
+    if (s.maxRainHour >= precipGate) segs.push((s.maxRainHour >= 7.5 * (config ? config.threshRain : 1.0) ? "⚠ rain " : "rain ") + fmtRain(s.rain, u));
+    if (s.maxSnowHour >= snowThresh * 0.8) segs.push((s.maxSnowHour >= 0.5 * (config ? config.threshSnow : 1.0) ? "⚠ snow " : "snow ") + fmtSnow(s.snow, u));
     if (s.ice > 0) segs.push("❄ ice " + s.ice + "h");
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
-        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
+        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8 * (config ? config.threshWind : 1.0);
     if (s.gust >= windGate) segs.push((s.gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(s.gust, u) + " " + speedUnit(u));
     if (s.minSfc !== null && s.minSfc !== undefined) {
         let low = "low " + fmtTemp(s.minSfc, u) + "sfc";
@@ -1621,6 +1713,7 @@ SlipperyApplet.prototype = {
             "graph-show-temp", "graph-show-surface", "graph-show-dew",
             "graph-show-sun", "graph-show-wind", "graph-show-humidity",
             "graph-show-prob", "graph-show-precip", "graph-values",
+            "risk-preset", "thresh-ice-t", "thresh-rain", "thresh-snow", "thresh-wind", "thresh-gust-ratio",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
@@ -1651,6 +1744,22 @@ SlipperyApplet.prototype = {
                 return false;
             });
         }
+    },
+
+    _riskConfig: function () {
+        const presetKey = String(this.s["risk-preset"] || "normal");
+        const f = (key, dflt) => {
+            const v = parseNum(this.s[key]);
+            return isNaN(v) ? dflt : v;
+        };
+        const customSettings = {
+            iceT: f("thresh-ice-t", 3.0),
+            threshRain: f("thresh-rain", 1.0),
+            threshSnow: f("thresh-snow", 1.0),
+            threshWind: f("thresh-wind", 1.0),
+            threshGustRatio: f("thresh-gust-ratio", 1.0)
+        };
+        return getRiskConfig(presetKey, customSettings);
     },
 
     _onSettingsChanged: function () {
@@ -1707,15 +1816,16 @@ SlipperyApplet.prototype = {
             const v = parseNum(this.s[key]);
             return isNaN(v) ? dflt : v;
         };
+        const cfg = this._riskConfig();
         return {
-            ice: f("thresh-ice-alert", 3.0),
-            highCross: f("thresh-high-crosswind", 25.0),
-            crossGust: f("thresh-cross-gust", 18.0),
-            heavy: f("thresh-heavy-wind", 35.0),
-            sustained: f("thresh-sustained-wind", 25.0),
-            head: f("thresh-headwind", 12.0),
+            ice: f("thresh-ice-alert", cfg.iceT),
+            highCross: f("thresh-high-crosswind", 25.0 * cfg.threshWind),
+            crossGust: f("thresh-cross-gust", 18.0 * cfg.threshWind),
+            heavy: f("thresh-heavy-wind", 35.0 * cfg.threshWind),
+            sustained: f("thresh-sustained-wind", 25.0 * cfg.threshWind),
+            head: f("thresh-headwind", 12.0 * cfg.threshWind),
             heat: f("thresh-heat-stress", 32.0),
-            precip: f("thresh-precip-ahead", 0.5),
+            precip: f("thresh-precip-ahead", 0.5 * cfg.threshRain),
         };
     },
 
@@ -1797,6 +1907,7 @@ SlipperyApplet.prototype = {
 
     _fetchAll: function (locs, done) {
         const url = buildUrl(locs, this._fetchHours());
+        const config = this._riskConfig();
         this._fetchJson(url, (err, data) => {
             if (err) {
                 done(locs.map((loc) => ({ loc: loc, parsed: null, error: err })));
@@ -1807,7 +1918,7 @@ SlipperyApplet.prototype = {
             for (let i = 0; i < locs.length; i++) {
                 let parsed = null;
                 try {
-                    parsed = parseResponse(locs[i].lat, parts[i], Math.floor(Date.now() / 1000));
+                    parsed = parseResponse(locs[i].lat, parts[i], Math.floor(Date.now() / 1000), config);
                 } catch (e) {
                     parsed = null;
                 }
@@ -2023,7 +2134,7 @@ SlipperyApplet.prototype = {
         }
     },
 
-    _addLocationBlock: function (r, idx, th, hours, days, opts) {
+    _addLocationBlock: function (r, idx, th, hours, days, opts, config) {
         if (!r.parsed) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
                 r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
@@ -2034,7 +2145,7 @@ SlipperyApplet.prototype = {
         const currentRisk = r.parsed.risk.name;
         const peak = peakComingRisk(r.profile);
         const maxWarn = peak ? peak.name : currentRisk;
-        const sum = comingSummary(r.profile, th, units) || "calm";
+        const sum = comingSummary(r.profile, th, units, config) || "calm";
 
         const col1 = r.loc.name + " (" + currentRisk + ")";
         const col2 = sum;        
@@ -2070,13 +2181,13 @@ SlipperyApplet.prototype = {
         if (!isNaN(nDays) && nDays > 0 && popupMode !== "warnings-only") {
             const groups = (r.daily && r.daily.length) ? r.daily :
                 groupComingByDay(r.fullProfile || r.profile, nDays);
-            const iceT = (th && th.ice !== undefined) ? th.ice : 3.0;
+            const iceT = config ? config.iceT : ((th && th.ice !== undefined) ? th.ice : 3.0);
             for (let di = 0; di < groups.length; di++) {
                 const g = groups[di];
                 if (!g.hours || g.hours.length === 0) continue;
                 const ds = summarizeDay(g.hours, iceT);
                 if (this.s["hide-calm-days"] === true && ds.maxLvl < RiskLevel.SLIGHT) continue;
-                const row = formatDailyRow(g.label, ds, th, units);
+                const row = formatDailyRow(g.label, ds, th, units, config);
                 if (ds.maxLvl >= RiskLevel.SLIGHT) {
                     if (!this._addRiskRow(row, ds.maxLvl, ds.maxName, opts)) {
                         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
@@ -2094,8 +2205,9 @@ SlipperyApplet.prototype = {
             this._showError(primary && primary.error ? primary.loc.name + ": " + primary.error : "Empty response.");
             return;
         }
+        const config = this._riskConfig();
         const th = this._thresholds();
-        const iceT = th.ice;
+        const iceT = config.iceT;
         const hours = this._forecastHours();
         const days = this._forecastDays();
         const fetchH = this._fetchHours();
@@ -2119,7 +2231,7 @@ SlipperyApplet.prototype = {
         for (let i = 0; i < results.length; i++) {
             const r = results[i];
             if (!r.parsed) continue;
-            r.fullProfile = calculateProfile(r.parsed, fetchH);
+            r.fullProfile = calculateProfile(r.parsed, fetchH, config);
             r.profile = r.fullProfile.slice(0, Math.min(r.fullProfile.length, hours + 1));
             r.daily = groupComingByDay(r.fullProfile, days);
             r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= iceT;
@@ -2275,7 +2387,7 @@ SlipperyApplet.prototype = {
 
         let tipParts = [];
         const primaryPeak = showPeak ? peakComingRisk(primary.profile) : null;
-        const primarySummary = comingSummary(primary.profile, th, units);
+        const primarySummary = comingSummary(primary.profile, th, units, config);
         let primaryTipText = primary.loc.name + ": " + (primaryPeak ? primaryPeak.name : p.risk.name);
         if (primarySummary) primaryTipText += " — " + primarySummary;
         tipParts.push(primaryTipText);
@@ -2283,7 +2395,7 @@ SlipperyApplet.prototype = {
         if (alertIdx !== -1 && alertIdx < results.length) {
             const alertRes = results[alertIdx];
             const alertPeak = showPeak ? peakComingRisk(alertRes.profile) : null;
-            const alertSummary = comingSummary(alertRes.profile, th, units);
+            const alertSummary = comingSummary(alertRes.profile, th, units, config);
             let alertTipText = alertRes.loc.name + ": " + (alertPeak ? alertPeak.name : alertRes.parsed.risk.name);
             if (alertSummary) alertTipText += " — " + alertSummary;
             tipParts.push(alertTipText);
@@ -2291,7 +2403,7 @@ SlipperyApplet.prototype = {
             const secondaryRes = results[1];
             if (secondaryRes && secondaryRes.parsed) {
                 const secPeak = showPeak ? peakComingRisk(secondaryRes.profile) : null;
-                const secSummary = comingSummary(secondaryRes.profile, th, units);
+                const secSummary = comingSummary(secondaryRes.profile, th, units, config);
                 let secTipText = secondaryRes.loc.name + ": " + (secPeak ? secPeak.name : secondaryRes.parsed.risk.name);
                 if (secSummary) secTipText += " — " + secSummary;
                 tipParts.push(secTipText);
@@ -2371,7 +2483,7 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
             if (this.s["show-details"] !== false) {
-                const det = relevantDetails(p, th, primary.profile, units);
+                const det = relevantDetails(p, th, primary.profile, units, config);
                 let shownDetail = false;
                 if (det.windRow) {
                     this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
@@ -2383,7 +2495,7 @@ SlipperyApplet.prototype = {
                 }
                 if (det.precip) {
                     let prow = "Rain " + fmtRain(p.rainCurrent, units) + " \u00b7 12h " + fmtRain(p.rain12, units);
-                    if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
+                    if (p.snowCurrent >= 0.05 || p.snow12 >= (0.1 * config.threshSnow)) {
                         prow += " \u00b7 snow " + fmtSnow(p.snowCurrent, units) + "/" + fmtSnow(p.snow12, units);
                     }
                     if (p.immRain === 0) prow += " \u00b7 rain NOW";
@@ -2419,7 +2531,7 @@ SlipperyApplet.prototype = {
             if (i > 0) {
                 this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             }
-            this._addLocationBlock(r, i, th, hours, days, locOpts);
+            this._addLocationBlock(r, i, th, hours, days, locOpts, config);
         }
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());

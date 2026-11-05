@@ -54,6 +54,7 @@
             "type": "page",
             "title": "Thresholds",
             "sections": [
+                "section-risk-preset",
                 "section-thresh"
             ]
         },
@@ -184,6 +185,18 @@
                 "graph-values"
             ]
         },
+        "section-risk-preset": {
+            "type": "section",
+            "title": "Risk Profile Presets",
+            "keys": [
+                "risk-preset",
+                "thresh-ice-t",
+                "thresh-rain",
+                "thresh-snow",
+                "thresh-wind",
+                "thresh-gust-ratio"
+            ]
+        },
         "section-thresh": {
             "type": "section",
             "title": "Alert thresholds (like the Connect IQ app)",
@@ -198,6 +211,66 @@
                 "thresh-precip-ahead"
             ]
         }
+    },
+    "risk-preset": {
+        "type": "combobox",
+        "default": "normal",
+        "description": "Risk calculation preset profile",
+        "tooltip": "Preset sensitivities matching the Connect IQ app logic: Very Cautious, Cautious, Normal, Sport, Tough, or Custom multipliers.",
+        "options": {
+            "Very Cautious (Max alerts, ice @ 4.5°C)": "very-cautious",
+            "Cautious (Early alerts, ice @ 4.0°C)": "cautious",
+            "Normal (Balanced, ice @ 3.0°C)": "normal",
+            "Sport (Comfortable on wet road, ice @ 2.0°C)": "sport",
+            "Tough (Hardcore winter, ice @ 1.0°C)": "tough",
+            "Custom Multipliers": "custom"
+        }
+    },
+    "thresh-ice-t": {
+        "type": "spinbutton",
+        "default": 3.0,
+        "min": -5.0,
+        "max": 10.0,
+        "step": 0.5,
+        "units": "°C",
+        "description": "Ice baseline temperature (ICE_T)",
+        "tooltip": "Used in Custom preset mode. Reference temperature boundary for frost, black ice, and bridge freeze."
+    },
+    "thresh-rain": {
+        "type": "spinbutton",
+        "default": 1.0,
+        "min": 0.1,
+        "max": 5.0,
+        "step": 0.05,
+        "description": "Rain threshold multiplier",
+        "tooltip": "Used in Custom preset mode. Multiplier applied to all rain risk thresholds."
+    },
+    "thresh-snow": {
+        "type": "spinbutton",
+        "default": 1.0,
+        "min": 0.1,
+        "max": 5.0,
+        "step": 0.05,
+        "description": "Snow threshold multiplier",
+        "tooltip": "Used in Custom preset mode. Multiplier applied to all snow accumulation thresholds."
+    },
+    "thresh-wind": {
+        "type": "spinbutton",
+        "default": 1.0,
+        "min": 0.1,
+        "max": 3.0,
+        "step": 0.05,
+        "description": "Wind speed multiplier",
+        "tooltip": "Used in Custom preset mode. Multiplier applied to wind and gust speed risk tiers."
+    },
+    "thresh-gust-ratio": {
+        "type": "spinbutton",
+        "default": 1.0,
+        "min": 0.5,
+        "max": 3.0,
+        "step": 0.05,
+        "description": "Gust ratio multiplier",
+        "tooltip": "Used in Custom preset mode. Multiplier applied to gust-to-speed spike ratio triggers."
     },
     "location-1-name": {
         "type": "entry",
