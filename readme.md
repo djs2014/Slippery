@@ -39,12 +39,12 @@ List of checks (with shortened text):
 
 | Condition / Hazard | Trigger Criteria | Risk Level | Primary Advice |
 | --- | --- | --- | --- |
-| Black Ice / Freezing Wet Road | Surface ≤0.0°C or Air ≤0.5°C + rain/showers ≥0.1 mm/h (current or 12 h sum) or snow ≥0.1 cm/h | CRITICAL | Avoid riding; lower tire pressure |
-| Hoarfrost / Freezing Fog | Surface ≤0.0°C + Surface-Dew spread ≤2.0°C + Humidity ≥80% | CRITICAL | Watch shaded areas/bridges; no sudden braking |
+| Black Ice / Freezing Wet Road | Surface ≤3.0°C or Air ≤2.0°C + rain/showers ≥0.1 mm/h (current or 12 h sum) or snow ≥0.1 cm/h | CRITICAL | Avoid riding; lower tire pressure |
+| Hoarfrost / Freezing Fog | Surface ≤3.0°C + Surface-Dew spread ≤2.0°C + Humidity ≥80% | CRITICAL | Watch shaded areas/bridges; no sudden braking |
 | Gale-Force Winds / Severe Gusts | Wind ≥45 km/h, Gust ≥60 km/h, or Wind ≥35 + Gust/Wind ratio ≥1.7 | CRITICAL | Hold bars firmly; use lower-profile wheels |
 | Torrential Downpour | Current rain+showers ≥15.0 mm/h | CRITICAL | Reduce speed; increase grip margin, braking distance |
-| Bridge Deck Freeze | Air 0.0 to 2.5°C + (12 h rain ≥0.1 mm/h or Humidity >88% or 12 h snow ≥0.1 cm) | HIGH | Watch exposed structure surfaces |
-| Snow / Slush Accumulation | 12 h snow ≥0.1 cm + (Surface ≤1.0°C or Air ≤1.5°C) | HIGH | Loss of traction in turns; tread required |
+| Bridge Deck Freeze | Air −1.0 to 3.5°C + (12 h rain ≥0.1 mm/h or Humidity >88% or 12 h snow ≥0.1 cm) | HIGH | Watch exposed structure surfaces |
+| Snow / Slush Accumulation | 12 h snow ≥0.1 cm + (Surface ≤0.0°C or Air ≤1.5°C) | HIGH | Loss of traction in turns; tread required |
 | Heavy Rain / Standing Water | Current rain+showers ≥7.5 mm/h | HIGH | Reduce speed; increase braking distance |
 | Strong Crosswinds / Heavy Gusts | Wind ≥35 km/h, Gust ≥45 km/h, or Wind ≥25 + ratio ≥1.5 | HIGH | Beware open fields and bridges |
 | Imminent Rain | `minutely_15` rain ≥0.1 within 0/15/30/45 min, while currently dry | HIGH | Rain starting now / Rain in X min |
@@ -64,6 +64,11 @@ Notes:
 - Dry streak counts *preceding* dry hours (excludes current hour, capped at 24 h), so first-rain can fire while it is raining now.
 - Seasons are meteorological by hemisphere (N: Mar–May spring, Jun–Aug summer, Sep–Nov autumn; S mirrored).
 - Forecast bars use the same rules per hour (current + 12 h), so live badge and sparkline always agree.
+- The sparkline's `ICE AHEAD` badge appears when any displayed hour has black ice,
+  surface frost, bridge ice, or snow/slush risk. Layer A's ice background marks
+  those specific hours, including the current hour. Both use the slip-risk engine's
+  fixed thresholds above, not temperature alone or the configurable Ice Alert
+  banner threshold. Dry subzero conditions alone do not trigger either indicator.
 - Gust bars warn one tier earlier (gust 45/35/25 km/h or ratio 1.7/1.5/1.3) than the risk upgrade: bars show exposure, the risk rule upgrades the ride.
 
 Key Features
@@ -170,7 +175,7 @@ rules keep protecting you regardless.
 | Deep-section rims (50–80 mm), TT bike | High Crosswind 25 → 18–20, Cross Gust 18 → 12–15, Heavy Wind 35 → 30, keep Effective Cross Gust ON | Side force scales with rim depth; a 30 km/h gust that is fine on 25 mm box rims can steer a 65 mm front wheel. Earlier banner = earlier grip on the drops. |
 | Shallow rims, calm inland route | High Crosswind 25 → 28–30, Cross Gust 18 → 20–22, Sustained 25 → 28 | Fewer false alarms in sheltered terrain; risk engine still catches true gales (fixed 45/60 km/h Critical rule). |
 | Tired / night / fast alpine descent / loaded touring | Ice Alert 3.0 → 4–5, Precip Ahead 0.5 → 0.2, High Crosswind −3 to −5, Headwind 12 → 8–10 | Reaction time is worse and braking distance longer; buy margin. Lower precip threshold warns before the road wets. |
-| Winter commuting near 0 °C | Ice Alert → 4.0, keep risk engine as-is | Bridges freeze ~2 °C before roads; banner at 4 °C reminds you before the fixed Bridge-Freeze rule (0–2.5 °C) fires. |
+| Winter commuting near 0 °C | Ice Alert → 4.0, keep risk engine as-is | Bridges freeze ~2 °C before roads; banner at 4 °C reminds you before the fixed Bridge-Freeze rule (−1–3.5 °C) fires. |
 | Heat-sensitive / midday summer | Heat Stress 32 → 28–30, Precip Ahead → 1.0 | Earlier heat warning; fewer drizzle banners when only thunderstorms matter. |
 | Aero training (headwind intervals) | Headwind 12 → 8, Sustained 25 → 20 | Banner marks every useful drag stretch; combine with Effective Cross Gust OFF if you only care about steady push. |
 | Gusty coastal / bridge commute | Cross Gust → 14–15, Heavy Wind → 30–32 | Gust-ratio spikes (e.g. 25 km/h gusting 40, ratio 1.6) trigger earlier; expect more MODERATE CROSSWIND holds (30-cycle hysteresis keeps it visible). |

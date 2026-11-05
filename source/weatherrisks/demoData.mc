@@ -431,6 +431,43 @@ class DemoWeatherService {
             }
         }
 
+        // Precomputed gust severity per forecast hour (same tiers as live
+        // path via Wind.calculateOptimalGustLevel, for predictiveSparkline).
+        wd.gustSeverityForecast = [] as Array<Number>;
+        var demoHours = wd.windForecast.size();
+        if (wd.windGustForecast.size() < demoHours) {
+            demoHours = wd.windGustForecast.size();
+        }
+        for (var g = 0; g < demoHours; g++) {
+            wd.gustSeverityForecast.add(
+                Wind.calculateOptimalGustLevel(
+                    wd.windForecast[g],
+                    wd.windGustForecast[g],
+                    true
+                )
+            );
+        }
+
+        wd.isValid = true;
+
+        // Coming intensity scales the imminent-rain warning (same definition
+        // as the live path: next hourly rain+showers vs. minutely max x4).
+        wd.upcomingRain = 0.0f;
+        if (wd.rainForecast.size() > 1 && wd.showersForecast.size() > 1) {
+            wd.upcomingRain =
+                wd.rainForecast[1] + wd.showersForecast[1];
+        }
+        var maxMinutely = 0.0f;
+        for (var m = 0; m < wd.minutelyRainForecast.size(); m++) {
+            if (wd.minutelyRainForecast[m] > maxMinutely) {
+                maxMinutely = wd.minutelyRainForecast[m];
+            }
+        }
+        var minutelyRate = maxMinutely * 4.0f;
+        if (minutelyRate > wd.upcomingRain) {
+            wd.upcomingRain = minutelyRate;
+        }
+
         return wd;
     }
 
@@ -459,7 +496,8 @@ class DemoWeatherService {
             metrics.immediateRain,
             metrics.immediateSnow,
             metrics.surfaceTemp - metrics.dewPoint,
-            metrics.snowCurrent
+            metrics.snowCurrent,
+            metrics.upcomingRain
         );
         assessment.hazards = RiskCalculator.getHazards();
         assessment.advice = RiskCalculator.getAdvice();
@@ -472,20 +510,20 @@ class DemoWeatherService {
         for (var hh = 0; hh < 12; hh++) {
             demoHumidities[hh] = metrics.humidity;
         }
-        assessment.hourlyRisksLevels =
-            RiskProjectionEngine.calculate12HourRiskProfile(
-                metrics,
-                0,
-                metrics.airTempForecast,
-                metrics.surfaceTempForecast,
-                metrics.dewpointForecast,
-                demoHumidities,
-                metrics.rainForecast,
-                metrics.showersForecast,
-                metrics.snowForecast,
-                metrics.windForecast,
-                metrics.windGustForecast
-            );
+        RiskProjectionEngine.calculate12HourRiskProfile(
+            metrics,
+            0,
+            metrics.airTempForecast,
+            metrics.surfaceTempForecast,
+            metrics.dewpointForecast,
+            demoHumidities,
+            metrics.rainForecast,
+            metrics.showersForecast,
+            metrics.snowForecast,
+            metrics.windForecast,
+            metrics.windGustForecast,
+            assessment
+        );
         return assessment;
     }
 }

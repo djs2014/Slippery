@@ -7,3 +7,9 @@ cp -r cinnamon-applet/slippery@local ~/.local/share/cinnamon/applets/
 # Menu → Applets → find "Slippery" → add to panel → gear icon for lat/lon
 Debug via melange (Alt+F2 → melange → Log tab) if the label sticks at n/a.
 Each of the up to 5 commute points gets its own totals row + graph button in the popup.
+
+In the applet settings, Graph image > Graph metrics (show / hide) > Graph: hourly score badges toggles the score numbers without hiding the ride score curve. Graph: score badge position places them above the curve (default), inside the bottom risk level rectangles, or hides them with Hidden. Above the curve, badges follow Graph value labels: all hours, peak + low over the whole window, peak + low per calendar day, every other hour, or none. Inside rectangles, every hourly score is shown regardless of that mode (including None); the hourly score badges toggle still controls visibility.
+
+Run the applet graph regression tests from the repository root with `node --test cinnamon-applet/tests/graph-score-badges.test.js` (Node.js 18+; Cinnamon imports are stubbed).
+
+Weather traces use distinct colors and patterns: solid red air temperature, long-dashed orange surface temperature, short-dashed light gray dewpoint, thin yellow sunshine with circle markers, white dash-dot wind with direction arrows, long-dashed cyan humidity with square markers, and round blue dots for precipitation probability. The legend uses matching line and marker samples; trace names appear at the right endpoints when there is room without overlapping. The color-coded ride score curve is thicker than all weather traces. The graph remains a single panel.

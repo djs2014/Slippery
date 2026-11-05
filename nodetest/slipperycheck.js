@@ -239,6 +239,7 @@ function evaluateRisk({
   immediateSnow,
   surfaceDewSpread, // surfaceTemp - dewPoint
   snowCurrent,
+  upcomingRainAndShower = 0, // mm/h equivalent of coming rain; >=2.5 warns High, else Moderate
 }) {
   let riskLevel = RiskLevel.SAFE;
   const hazards = [];
@@ -378,9 +379,15 @@ function evaluateRisk({
     addAdvice(Advice.HOLD_BARS);
   }
 
-  // --- 12/13. IMMEDIATE: Imminent Rain / Snow (suppressed while already active) ---
+  // --- 12/13. IMMEDIATE: Imminent Rain (scaled by coming intensity) / Snow ---
+  // Drizzle (< 2.5 mm/h coming) warns Moderate so it never outranks actual
+  // rain; steady rain (>= 2.5, same tier as the rain ladder) warns High.
   if (immediateRainAndShower >= 0 && rainAndShowerCurrent < RAIN_THRESHOLD) {
-    upgrade(RiskLevel.HIGH);
+    if (upcomingRainAndShower >= 2.5) {
+      upgrade(RiskLevel.HIGH);
+    } else {
+      upgrade(RiskLevel.MODERATE);
+    }
     addHazard(Hazards.IMMINENT_RAIN);
     addAdvice(immediateRainAndShower === 0 ? Advice.RAIN_NOW : `${Advice.RAIN_SHORTLY} ${immediateRainAndShower} min`);
   }
@@ -467,6 +474,10 @@ function parseOpenMeteoResponse(lat, data, nowSec = Math.floor(Date.now() / 1000
     immediateRain = checkForImminentPrecipitation(minutelyRain, 0.1);
     immediateSnow = checkForImminentPrecipitation(minutelySnow, 0.1);
   }
+  // Coming intensity (mm/h equivalent): next hourly vs minutely max x4.
+  const nextHourlyRain = at(rains, targetIdx + 1) + at(showers, targetIdx + 1);
+  const maxMinutelyRain = minutelyRain.reduce((m, v) => Math.max(m, v || 0), 0);
+  const upcomingRainAndShower = Math.max(nextHourlyRain, maxMinutelyRain * 4);
 
   const result = evaluateRisk({
     airTemp,
@@ -484,6 +495,7 @@ function parseOpenMeteoResponse(lat, data, nowSec = Math.floor(Date.now() / 1000
     immediateSnow,
     surfaceDewSpread,
     snowCurrent,
+    upcomingRainAndShower,
   });
 
   const ts = times[targetIdx];
@@ -576,6 +588,7 @@ function calculate12HourRiskProfile(lat, data, startIndex, season) {
     let immS = -1;
     if (snowCur >= SNOW_THRESHOLD) immS = 0;
     else if (h + 1 < count && at(snows, h + 1) >= SNOW_THRESHOLD) immS = 60;
+    const upcoming = h + 1 < count ? at(rains, h + 1) + at(showers, h + 1) : 0;
 
     const r = evaluateRisk({
       airTemp,
@@ -593,6 +606,7 @@ function calculate12HourRiskProfile(lat, data, startIndex, season) {
       immediateSnow: immS,
       surfaceDewSpread: surfaceTemp - dewPoint,
       snowCurrent: snowCur,
+      upcomingRainAndShower: upcoming,
     });
     profile.push(r.riskName);
   }

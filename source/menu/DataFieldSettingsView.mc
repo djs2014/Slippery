@@ -56,7 +56,13 @@ class DataFieldSettingsDelegate extends WatchUi.BehaviorDelegate {
     mi = new WatchUi.MenuItem("Thresholds", null, "thresholds", null);
     menu.addItem(mi);
 
-    mi = new WatchUi.MenuItem("Forecast", null, "forecast", null);
+    mi = new WatchUi.MenuItem("Show one field", null, "show_one_field", null);
+    menu.addItem(mi);
+    mi = new WatchUi.MenuItem("Show large field", null, "show_large_field", null);
+    menu.addItem(mi);
+    mi = new WatchUi.MenuItem("Show wide field", null, "show_wide_field", null);
+    menu.addItem(mi);
+    mi = new WatchUi.MenuItem("Show small field", null, "show_small_field", null);
     menu.addItem(mi);
     
     mi = new WatchUi.MenuItem("Advanced", null, "advanced", null);

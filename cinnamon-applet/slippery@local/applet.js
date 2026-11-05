@@ -1,23 +1,5 @@
 /*
- * Slippery — Cinnamon panel applet.
- *
- * Same data + same checks as the Slippery Connect IQ data field:
- *  - Open-Meteo request mirrors source/background/BackgroundService.mc
- *    (hourly vars + apparent_temperature, past_hours=12,
- *     forecast_hours=12, unixtime, minutely_15)
- *  - evaluateRisk() is a direct port of source/weatherrisks/riskCalculator.mc
- *  - seasons mirror source/weatherrisks/helpers.mc
- *  - user thresholds mirror SlipperyApp.mc / AlertStateAnalyzer.mc
- *    (ice, winds, heat, precip-ahead); the ice threshold drives the big
- *    ICE banner, the rest stay configurable without cluttering the popup.
- *    The core risk engine itself stays stock so node tests
- *    (nodetest/slipperycheck.js) keep covering this logic.
- *  - HSP text-color check mirrors source/utils/color_utils.mc
- *    (sqrt(0.299 R^2 + 0.587 G^2 + 0.114 B^2), configurable breakpoint).
- *
- * Node has no role here: Cinnamon applets run on GJS, so HTTP goes through
- * `curl` (preinstalled on Mint) via Gio.Subprocess — this also avoids the
- * Soup 2 vs 3 API split between Cinnamon versions.
+ * Slippery — Cinnamon panel applet with Cycling Score system.
  */
 
 const Applet = imports.ui.applet;
@@ -37,10 +19,8 @@ try {
 
 const UUID = "slippery@local";
 
-// ---------------------------------------------------------------------------
-// Pure risk engine (no Cinnamon dependencies — kept identical to
-// nodetest/slipperycheck.js so node tests cover this logic).
-// ---------------------------------------------------------------------------
+const GRAPH_DAY_BG_DEFAULT = "#1e2733";
+const GRAPH_NIGHT_BG_DEFAULT = "#111111";
 
 const RAIN_THRESHOLD = 0.1;
 const SNOW_THRESHOLD = 0.1;
@@ -49,8 +29,6 @@ const RiskLevel = { NO_DATA: 0, SAFE: 1, SLIGHT: 2, MODERATE: 3, HIGH: 4, CRITIC
 const RISK_NAMES = ["NO_DATA", "SAFE", "SLIGHT", "MODERATE", "HIGH", "CRITICAL"];
 const SHORT_LABEL = { NO_DATA: "-", SAFE: "Ok", SLIGHT: "Low", MODERATE: "Mod", HIGH: "Hig", CRITICAL: "Crt" };
 
-// todo.md: "colors bright" / "colors modest". "follow-theme" was removed:
-// the new "color-min-level = Never" covers it (chip stays unstyled).
 const RISK_BG = {
     bright: {
         NO_DATA: "#9e9e9e",
@@ -69,7 +47,7 @@ const RISK_BG = {
         CRITICAL: "#a00000",
     },
 };
-// Fixed fallback text colors when the HSP check is switched off.
+
 const RISK_TEXT_FIXED = {
     NO_DATA: "#fff",
     SAFE: "#fff",
@@ -79,8 +57,7 @@ const RISK_TEXT_FIXED = {
     CRITICAL: "#fff",
 };
 
-// Hazards that count as ICE (big warning, here and in the coming hours).
-const ICE_HAZARDS = ["Black Ice / Freezing Wet Road", "Road Surface Frost", "Ice On Bridges"];
+const ICE_HAZARDS = ["Black Ice / Freezing Wet Road", "Road Surface Frost", "Ice On Bridges", "Snow Or Slush Accumulation"];
 
 const Hazards = {
     BLACK_ICE: "Black Ice / Freezing Wet Road",
@@ -131,8 +108,38 @@ function getSeason(lat, date) {
     return season;
 }
 
-// Exact port of RiskCalculator.evaluateRisk(). All thresholds match.
-function evaluateRisk(p) {
+function rateCyclingHour(hh, iceT) {
+    let score = 10.0;
+    const isIcy = hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT);
+    if (isIcy) return 0.0;
+
+    const temp = hh.airTemp;
+    if (temp !== undefined && temp !== null) {
+        if (temp < 10) score -= Math.min(4.0, (10 - temp) * 0.4);
+        else if (temp < 18) score -= (18 - temp) * 0.15;
+        else if (temp > 30) score -= Math.min(5.0, (temp - 30) * 0.5);
+        else if (temp > 24) score -= (temp - 24) * 0.05;
+    }
+
+    const precip = (hh.rain || 0) + (hh.snow || 0);
+    if (precip >= 7.5) score -= 5.0;
+    else if (precip >= 2.5) score -= 3.0;
+    else if (precip > 0) score -= 1.5;
+
+    if (hh.dewPoint > 18) score -= 1.5;
+    else if (hh.dewPoint > 15) score -= 0.7;
+
+    const wind = Math.max(hh.windSpeed || 0, hh.windGust || 0);
+    if (wind >= 45) score -= 5.0;
+    else if (wind >= 35) score -= 3.0;
+    else if (wind >= 25) score -= 1.5;
+    else if (wind >= 18) score -= 0.5;
+
+    return Math.max(0, Math.min(10, Math.round(score * 10) / 10));
+}
+
+function evaluateRisk(p, iceT) {
+    iceT = iceT !== undefined ? iceT : 3.0;
     let riskLevel = RiskLevel.SAFE;
     const hazards = [];
     const advice = [];
@@ -140,22 +147,22 @@ function evaluateRisk(p) {
     const addH = (h) => { if (hazards.indexOf(h) === -1) hazards.push(h); };
     const addA = (a) => { if (advice.indexOf(a) === -1) advice.push(a); };
 
-    if ((p.surfaceTemp <= 0.0 || p.airTemp <= 0.5) &&
+    if ((p.surfaceTemp <= iceT || p.airTemp <= iceT * 0.5 + 0.5) &&
         (p.runningRain12h >= RAIN_THRESHOLD || p.rainCurrent >= RAIN_THRESHOLD ||
-         p.runningSnow12h >= SNOW_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
+            p.runningSnow12h >= SNOW_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.BLACK_ICE); addA(Advice.AVOID_RIDING); addA(Advice.LOWER_TIRE_PRESSURE);
     }
-    if (p.surfaceTemp <= 0.0 && p.surfaceDewSpread <= 2.0 && p.humidity >= 80) {
+    if (p.surfaceTemp <= iceT && p.surfaceDewSpread <= 2.0 && p.humidity >= 80) {
         upgrade(RiskLevel.CRITICAL);
         addH(Hazards.FROST); addA(Advice.WATCH_SHADED); addA(Advice.AVOID_BRAKING);
     }
-    if (p.airTemp >= 0.0 && p.airTemp <= 2.5 &&
+    if (p.airTemp >= iceT - 4.0 && p.airTemp <= iceT + 0.5 &&
         (p.runningRain12h >= RAIN_THRESHOLD || p.humidity > 88 || p.runningSnow12h >= SNOW_THRESHOLD)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.BRIDGE_ICE); addA(Advice.WATCH_SHADED);
     }
-    if (p.runningSnow12h >= SNOW_THRESHOLD && (p.surfaceTemp <= 1.0 || p.airTemp <= 1.5)) {
+    if (p.runningSnow12h >= SNOW_THRESHOLD && (p.surfaceTemp <= iceT - 3.0 || p.airTemp <= iceT - 1.5)) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.SNOW_SLUSH); addA(Advice.TRACTION_LOSS_TURNS); addA(Advice.TREAD_REQUIRED);
     }
@@ -166,7 +173,7 @@ function evaluateRisk(p) {
         upgrade(RiskLevel.HIGH);
         addH(Hazards.HEAVY_RAIN); addA(Advice.BRAKING_DISTANCE); addA(Advice.SPEED_GRIP);
     } else if ((p.season === "summer" || p.season === "spring") &&
-               p.rainCurrent >= 0.1 && p.rainCurrent < 2.5 && p.dryStreak >= 10) {
+        p.rainCurrent >= 0.1 && p.rainCurrent < 2.5 && p.dryStreak >= 10) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.FIRST_RAIN); addA(Advice.ASPHALT_SLIPPERY); addA(Advice.TRACTION_AFTER_RAIN);
     } else if (p.rainCurrent >= 2.5) {
@@ -178,7 +185,7 @@ function evaluateRisk(p) {
     }
     if (p.season === "autumn" &&
         (p.runningRain12h >= RAIN_THRESHOLD || p.runningSnow12h >= SNOW_THRESHOLD ||
-         p.rainCurrent >= RAIN_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
+            p.rainCurrent >= RAIN_THRESHOLD || p.snowCurrent >= SNOW_THRESHOLD)) {
         upgrade(RiskLevel.MODERATE);
         addH(Hazards.WET_LEAVES); addA(Advice.SLIP_CORNERING); addA(Advice.LEAN_ANGLE);
     }
@@ -203,7 +210,11 @@ function evaluateRisk(p) {
     }
 
     if (p.immediateRain >= 0 && p.rainCurrent < RAIN_THRESHOLD) {
-        upgrade(RiskLevel.HIGH);
+        if ((p.upcomingRain || 0) >= 2.5) {
+            upgrade(RiskLevel.HIGH);
+        } else {
+            upgrade(RiskLevel.MODERATE);
+        }
         addH(Hazards.IMMINENT_RAIN);
         addA(p.immediateRain === 0 ? Advice.RAIN_NOW : "Rain in " + p.immediateRain + " min");
     }
@@ -231,9 +242,6 @@ function checkImminent(arr) {
     return -1;
 }
 
-// --- HSP luminance (port of source/utils/color_utils.mc) -------------------
-// HSP 0 = black, 255 = white. Backgrounds brighter than the breakpoint get
-// black text, darker ones get white text. Breakpoint is user-configurable.
 function hexToRgb(hex) {
     let h = String(hex || "").replace("#", "");
     if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
@@ -241,6 +249,23 @@ function hexToRgb(hex) {
     const v = parseInt(h, 16);
     if (isNaN(v)) return [0, 0, 0];
     return [(v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
+}
+
+function hasIceInProfile(profile) {
+    if (!profile || profile.length === 0) return false;
+    for (let i = 0; i < profile.length; i++) {
+        if (profile[i] && profile[i].ice) return true;
+    }
+    return false;
+}
+
+function hasIceWithinHours(profile, hours) {
+    if (!profile || profile.length === 0 || !hours || hours <= 0) return false;
+    const limit = Math.min(profile.length, Math.ceil(hours));
+    for (let i = 0; i < limit; i++) {
+        if (profile[i] && profile[i].ice) return true;
+    }
+    return false;
 }
 
 function hspOfHex(hex) {
@@ -251,14 +276,22 @@ function hspOfHex(hex) {
 function textColorFor(bgHex, useHsp, threshold, riskName) {
     if (!useHsp) return RISK_TEXT_FIXED[riskName] || "#fff";
     let t = parseFloat(threshold);
-    if (isNaN(t) || t < 0 || t > 255) t = 127; // desktop default, not a Garmin screen
+    if (isNaN(t) || t < 0 || t > 255) t = 127;
     return hspOfHex(bgHex) > t ? "#000" : "#fff";
 }
 
-function chipStyle(colorMode, minLevel, levelNum, riskName, useHsp, hspThreshold) {
-    // Old installs may still have color-mode=follow-theme stored: treat as never.
+function chipStyle(colorMode, minLevel, levelNum, riskName, useHsp, hspThreshold, iceChipOpts) {
     if (colorMode === "follow-theme") return "";
+
+    if (iceChipOpts && iceChipOpts.enabled && iceChipOpts.hasIce) {
+        const bg = iceChipOpts.color || "#add8e6";
+        const fg = textColorFor(bg, useHsp, hspThreshold, riskName);
+        const bold = (riskName === "CRITICAL") ? " font-weight: bold;" : "";
+        return "background-color: " + bg + "; color: " + fg + ";" + bold;
+    }
+
     if (!colorPassesMinLevel(minLevel, levelNum)) return "";
+
     const pal = RISK_BG[colorMode] || RISK_BG.bright;
     const bg = pal[riskName] || "";
     if (!bg) return "";
@@ -267,8 +300,6 @@ function chipStyle(colorMode, minLevel, levelNum, riskName, useHsp, hspThreshold
     return "background-color: " + bg + "; color: " + fg + ";" + bold;
 }
 
-// Panel chip is only colored when the current risk reaches the configured
-// minimum. "always" = every level, "never" = theme decides (old follow-theme).
 function colorPassesMinLevel(minLevel, levelNum) {
     const m = String(minLevel || "always");
     if (m === "always") return true;
@@ -278,7 +309,11 @@ function colorPassesMinLevel(minLevel, levelNum) {
     return (levelNum || 0) >= need;
 }
 
-// Wind direction as a unicode arrow (meteorological: where the wind goes to).
+function chipAlertLevelNum(v) {
+    const need = { slight: 2, moderate: 3, high: 4, critical: 5 }[String(v || "high")];
+    return need === undefined ? RiskLevel.HIGH : need;
+}
+
 function windArrow(deg) {
     const d = parseFloat(deg);
     if (isNaN(d)) return "?";
@@ -287,15 +322,7 @@ function windArrow(deg) {
     return arrows[Math.round(norm / 45) % 8];
 }
 
-// todo.md popup: only mention a detail group when it is relevant, i.e. at or
-// near (10% below / small margin above) its threshold. Returns
-// { cold, heat, wind, precip, tempRow, windRow } with prebuilt
-// compact row strings (null when nothing in that group is relevant).
-// profile (optional, from calculateProfile) is used so an ICE-ahead banner
-// always has a visible temperature explanation: when a coming hour drops
-// near the ice threshold, cold becomes true and tempRow gains the forecast
-// low (air + surface + hour), even if the current hour is warm.
-function relevantDetails(p, t, profile) {
+function relevantDetails(p, t, profile, u) {
     const feels = p.hasFeelsLike ? p.feelsLike : p.airTemp;
     const lows = forecastLows(profile);
     const coldNow = (p.airTemp <= t.ice + 2.0) || (p.surfaceTemp <= t.ice + 2.0);
@@ -315,35 +342,85 @@ function relevantDetails(p, t, profile) {
 
     let tempRow = null;
     if (cold || heat) {
-        tempRow = "Air " + p.airTemp.toFixed(1) + "°";
-        if (p.hasFeelsLike) tempRow += " (feels " + p.feelsLike.toFixed(1) + "°)";
-        tempRow += " · sfc " + p.surfaceTemp.toFixed(1) + "°";
-        // When the ICE banner comes from a coming hour (current looks warm),
-        // append the forecast low so the popup explains the warning.
+        tempRow = "Air " + fmtTemp(p.airTemp, u);
+        if (p.hasFeelsLike) tempRow += " (feels " + fmtTemp(p.feelsLike, u) + ")";
+        tempRow += " · sfc " + fmtTemp(p.surfaceTemp, u);
         if (lows && coldAhead) {
-            tempRow += " → low air " + lows.minAir.toFixed(1) + "°" +
-                (lows.minAirTime ? " @" + hourLabel(lows.minAirTime, false) : "") +
-                " · sfc " + lows.minSfc.toFixed(1) + "°" +
-                (lows.minSfcTime ? " @" + hourLabel(lows.minSfcTime, false) : "");
+            tempRow += " → low air " + fmtTemp(lows.minAir, u) +
+                (lows.minAirTime ? " (" + fmtRelHours(Date.now(), lows.minAirTime.getTime()) + ")" : "") +
+                " · sfc " + fmtTemp(lows.minSfc, u) +
+                (lows.minSfcTime ? " (" + fmtRelHours(Date.now(), lows.minSfcTime.getTime()) + ")" : "");
         }
     }
     let windRow = null;
     if (wind) {
-        windRow = "Wind " + p.windSpeed.toFixed(0) + " " + compass16(p.windDir) +
-            " (" + Math.round(p.windDir) + "°) · gust " + p.windGust.toFixed(0);
+        windRow = "Wind " + windArrow(p.windDir) + " " +
+            fmtSpeedNum(p.windSpeed, u) + " " + compass16(p.windDir) +
+            " (" + Math.round(p.windDir) + "°) · gust " + fmtSpeedNum(p.windGust, u) +
+            " " + speedUnit(u);
     }
-    return { cold: cold, heat: heat, wind: wind,
-             precip: precip, tempRow: tempRow, windRow: windRow };
+    return {
+        cold: cold, heat: heat, wind: wind,
+        precip: precip, tempRow: tempRow, windRow: windRow
+    };
 }
 
 function compass16(deg) {
     const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                  "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
     let d = parseFloat(deg);
     if (isNaN(d)) return "?";
     d = ((d % 360) + 360) % 360;
     return dirs[Math.round(d / 22.5) % 16];
 }
+
+function isImperial(u) { return String(u || "metric") === "imperial"; }
+function speedUnit(u) { return isImperial(u) ? "mph" : "km/h"; }
+
+function speedToU(v, u) {
+    const x = parseFloat(v);
+    if (isNaN(x)) return NaN;
+    return isImperial(u) ? x * 0.621371 : x;
+}
+
+function fmtSpeedNum(v, u) {
+    const x = speedToU(v, u);
+    return isNaN(x) ? "?" : String(Math.round(x));
+}
+
+function fmtTemp(v, u, dec) {
+    const d = (dec === undefined) ? 1 : dec;
+    const x = parseFloat(v);
+    if (isNaN(x)) return "?";
+    if (isImperial(u)) return (x * 9 / 5 + 32).toFixed(d) + "°F";
+    return x.toFixed(d) + "°";
+}
+
+function fmtTempInt(v, u) {
+    const x = parseFloat(v);
+    if (isNaN(x)) return "?";
+    if (isImperial(u)) return String(Math.round(x * 9 / 5 + 32)) + "°F";
+    return String(Math.round(x)) + "°";
+}
+
+function fmtRain(v, u) {
+    const x = parseFloat(v);
+    if (isNaN(x)) return "?";
+    if (isImperial(u)) return (x / 25.4).toFixed(2) + "in";
+    return x.toFixed(1) + "mm";
+}
+
+function fmtSnow(v, u) {
+    const x = parseFloat(v);
+    if (isNaN(x)) return "?";
+    if (isImperial(u)) return (x / 2.54).toFixed(2) + "in";
+    return x.toFixed(1) + "cm";
+}
+
+function rainRateUnit(u) { return isImperial(u) ? "in/h" : "mm/h"; }
+function snowRateUnit(u) { return isImperial(u) ? "in/h" : "cm/h"; }
+function tempScaleUnit(u) { return isImperial(u) ? "°F" : "°C"; }
+function tempAxisUnit(u) { return isImperial(u) ? "°F" : "°"; }
 
 function hasIceHazard(hazards) {
     if (!hazards) return false;
@@ -358,10 +435,6 @@ function parseNum(v) {
     return parseFloat(String(v).replace(",", "."));
 }
 
-// Parses one "lat, lon" configuration field. Accepts a Google Maps paste
-// ("52.387520877358256, 4.7199631014777") as well as space/semicolon
-// separated pairs and Dutch decimal commas ("52,3875, 4,7199").
-// Returns { lat, lon } or null (empty/invalid = location disabled).
 function parseCoordField(str) {
     if (str === null || str === undefined) return null;
     const s = String(str).trim();
@@ -385,7 +458,6 @@ function parseCoordField(str) {
         lat = num(parts[0]);
         lon = num(parts[1]);
     } else if (parts.length === 4) {
-        // decimal-comma pair without whitespace: "52,3875,4,7199"
         lat = num(parts[0] + "." + parts[1]);
         lon = num(parts[2] + "." + parts[3]);
     } else {
@@ -396,7 +468,6 @@ function parseCoordField(str) {
     return { lat: lat, lon: lon };
 }
 
-// Mirrors weatherService.mc parseOpenMeteoResponse().
 function parseResponse(lat, data, nowSec) {
     if (!data || !data.hourly || !data.hourly.time || data.hourly.time.length === 0) return null;
     const hourly = data.hourly;
@@ -440,6 +511,9 @@ function parseResponse(lat, data, nowSec) {
         immR = checkImminent((data.minutely_15.rain || []).slice(0, 4));
         immS = checkImminent((data.minutely_15.snowfall || []).slice(0, 4));
     }
+    const nextHourlyRain = at(rain, targetIdx + 1) + at(showers, targetIdx + 1);
+    const maxMinutelyRain = (data.minutely_15 && data.minutely_15.rain || []).slice(0, 4).reduce((m, v) => Math.max(m, v || 0), 0);
+    const upcomingRain = Math.max(nextHourlyRain, maxMinutelyRain * 4);
     const season = getSeason(lat, new Date(nowSec * 1000));
     const r = evaluateRisk({
         airTemp: airTemp,
@@ -457,6 +531,8 @@ function parseResponse(lat, data, nowSec) {
         immediateSnow: immS,
         surfaceDewSpread: surfaceTemp - dewPoint,
         snowCurrent: snowCurrent,
+        upcomingRain: upcomingRain,
+        iceT: 3.0,
     });
     return {
         risk: r,
@@ -479,17 +555,12 @@ function parseResponse(lat, data, nowSec) {
         immRain: immR,
         immSnow: immS,
         time: new Date(times[targetIdx] * 1000),
-        // Kept for the forecast projection + precip-ahead alerts.
         _data: data,
         _targetIdx: targetIdx,
         _lat: lat,
     };
 }
 
-// Port of RiskProjectionEngine.calculate12HourRiskProfile(): current hour +
-// up to 12 forecast hours, each with risk + precipitation (for the
-// "coming x hours: risklevel + precipitation amount" rows and the ICE-ahead
-// banner). Hazards per hour are included so ICE hours can be flagged.
 function calculateProfile(parsed, maxHours) {
     const out = [];
     if (!parsed || !parsed._data || !parsed._data.hourly) return out;
@@ -508,6 +579,7 @@ function calculateProfile(parsed, maxHours) {
     const windG = pickHourly(hourly, ["wind_gusts_10m"], n);
     const windD = pickHourly(hourly, ["wind_direction_10m"], n);
     const sun = pickHourly(hourly, ["sunshine_duration"], n);
+    const prob = pickHourly(hourly, ["precipitation_probability"], n);
     const start = parsed._targetIdx;
     const count = Math.min(n, start + 1 + Math.max(0, maxHours));
     for (let h = start; h < count; h++) {
@@ -548,10 +620,14 @@ function calculateProfile(parsed, maxHours) {
             immediateSnow: immS,
             surfaceDewSpread: surfaceTemp - dewPoint,
             snowCurrent: snowCur,
+            upcomingRain: h + 1 < n ? at(rain, h + 1) + at(showers, h + 1) : 0,
+            iceT: 3.0,
         });
         const t = hourly.time[h];
         const wS = at(windS, h), wG = at(windG, h), wD = at(windD, h);
-        out.push({
+        const dewV = at(dewP, h), humV = at(hum, h);
+        
+        const hhData = {
             time: (typeof t === "number") ? new Date(t * 1000) : null,
             name: r.name,
             level: r.level,
@@ -565,16 +641,17 @@ function calculateProfile(parsed, maxHours) {
             airTemp: airTemp,
             surfaceTemp: surfaceTemp,
             feelsLike: at(feelT, h),
+            dewPoint: dewV,
+            humidity: humV,
             sun: at(sun, h),
-        });
+            prob: at(prob, h),
+        };
+        hhData.score = rateCyclingHour(hhData, 3.0);
+        out.push(hhData);
     }
     return out;
 }
 
-// Coldest air/surface temps over the coming forecast hours (profile[1..],
-// current hour excluded). Returns null when there are no coming hours.
-// Used so the popup can explain an ICE-ahead banner even when the current
-// hour looks warm.
 function forecastLows(profile) {
     if (!profile || profile.length < 2) return null;
     let minAir = null, minSfc = null, minAirTime = null, minSfcTime = null;
@@ -592,8 +669,10 @@ function forecastLows(profile) {
         }
     }
     if (minAir === null && minSfc === null) return null;
-    return { minAir: minAir, minSfc: minSfc,
-             minAirTime: minAirTime, minSfcTime: minSfcTime };
+    return {
+        minAir: minAir, minSfc: minSfc,
+        minAirTime: minAirTime, minSfcTime: minSfcTime
+    };
 }
 
 function hourLabel(d, isNow) {
@@ -603,59 +682,90 @@ function hourLabel(d, isNow) {
     return (h < 10 ? "0" + h : "" + h) + ":00";
 }
 
-// Coming-hours summary for the popup: totals over the forecast hours after
-// the current one. Each segment is only shown when relevant, i.e. above 80%
-// of its threshold (rain vs precip-ahead, snow vs snow threshold, gust vs the
-// lowest wind threshold, max risk vs SLIGHT, ice whenever an ICE hour lands
-// in the window). Segments that breach a full warning threshold get a
-// warning glyph, so threshold hits stand out even with popup colors off:
-//   ❄ ice hours (hazard ICE hour, or surface temp at/below the ice
-//     threshold — same rule as the ICE-ahead banner),
-//   ⚠ rain when the peak hourly rate reaches the engine HIGH rule (7.5 mm/h),
-//   ⚠ snow when the peak hourly rate reaches 0.5 cm/h,
-//   ⚠ max when the peak coming risk is HIGH or worse,
-//   ⚠ gust when the peak gust reaches the heavy-wind threshold.
-// Returns "" when there are no coming hours or nothing is relevant.
-function comingSummary(profile, t) {
+function dayHourLabel(d) {
+    return WD_SHORT[d.getDay()] + "-" + d.getDate() + " " + hourLabel(d, false);
+}
+
+function comingSummary(profile, t, u) {
     if (!profile || profile.length < 2) return "";
-    // Thresholds come from _thresholds(); fall back to its defaults when t
-    // is missing so the helper stays safe to call standalone.
     const numOr = (v, dflt) => {
         const x = parseNum(v);
         return isNaN(x) ? dflt : x;
     };
     const iceT = numOr(t && t.ice, 3.0);
     const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
-    let rain = 0, snow = 0, ice = 0, gust = 0, maxLvl = 0, maxName = "SAFE";
+    
+    let rainTotal = 0, snowTotal = 0, gust = 0, maxLvl = 0, maxName = "SAFE", maxTime = null;
     let maxRainHour = 0, maxSnowHour = 0;
+    let firstIceIdx = -1;
+    let firstRainIdx = -1;
+    let firstSnowIdx = -1;
+    let maxLvlIdx = -1;
+
     for (let i = 1; i < profile.length; i++) {
         const hh = profile[i];
-        rain += hh.rain || 0;
-        snow += hh.snow || 0;
-        if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) ice++;
+        const r = hh.rain || 0;
+        const s = hh.snow || 0;
+        const isIce = hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT);
+        
+        rainTotal += r;
+        snowTotal += s;
+
+        if (isIce && firstIceIdx === -1) firstIceIdx = i;
+        if (r >= RAIN_THRESHOLD && firstRainIdx === -1) firstRainIdx = i;
+        if (s >= SNOW_THRESHOLD && firstSnowIdx === -1) firstSnowIdx = i;
+
         if ((hh.windGust || 0) > gust) gust = hh.windGust;
-        if ((hh.level || 0) > maxLvl) { maxLvl = hh.level; maxName = hh.name; }
-        if ((hh.rain || 0) > maxRainHour) maxRainHour = hh.rain;
-        if ((hh.snow || 0) > maxSnowHour) maxSnowHour = hh.snow;
+        
+        const lvl = hh.level || 0;
+        if (lvl > maxLvl) { 
+            maxLvl = lvl; 
+            maxName = hh.name; 
+            maxTime = hh.time || null; 
+            maxLvlIdx = i;
+        }
+        if (r > maxRainHour) maxRainHour = r;
+        if (s > maxSnowHour) maxSnowHour = s;
     }
+
     const n = profile.length - 1;
     const segs = [];
     const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
-    if (maxRainHour >= precipGate) segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + rain.toFixed(1) + "mm");
-    if (maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + snow.toFixed(1) + "cm");
-    if (ice > 0) segs.push("❄ ice " + ice + "h");
-    if (maxLvl >= RiskLevel.SLIGHT) segs.push((maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName);
+
+    const fmtOnset = (idx) => {
+        if (idx === 0) return "now";
+        const hh = profile[idx];
+        if (hh && hh.time instanceof Date && !isNaN(hh.time)) {
+            return fmtRelHours(Date.now(), hh.time.getTime());
+        }
+        return "in " + idx + "h";
+    };
+
+    if (firstIceIdx !== -1) {
+        segs.push("❄ ice " + fmtOnset(firstIceIdx));
+    }
+    if (firstRainIdx !== -1 && rainTotal >= precipGate) {
+        segs.push((maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtOnset(firstRainIdx) + " (tot " + fmtRain(rainTotal, u) + ")");
+    }
+    if (firstSnowIdx !== -1 && snowTotal >= SNOW_THRESHOLD * 0.8) {
+        segs.push((maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtOnset(firstSnowIdx) + " (tot " + fmtSnow(snowTotal, u) + ")");
+    }
+    if (maxLvl >= RiskLevel.SLIGHT && maxLvlIdx !== -1) {
+        let maxSeg = (maxLvl >= RiskLevel.HIGH ? "⚠ max " : "max ") + maxName + " " + fmtOnset(maxLvlIdx);
+        segs.push(maxSeg);
+    }
+
     const windGate = Math.min(
         Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
         Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
-    if (gust >= windGate) segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + Math.round(gust));
+    if (gust >= windGate) {
+        segs.push((gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(gust, u) + " " + speedUnit(u));
+    }
+
     if (segs.length === 0) return "";
     return "Next " + n + "h: " + segs.join(" | ");
 }
 
-// Highest risk level over the coming forecast hours (profile[1..], i.e.
-// without the current hour). Returns null when there are no coming hours,
-// otherwise { level, name, time } with the earliest hour at the peak level.
 function peakComingRisk(profile) {
     if (!profile || profile.length < 2) return null;
     let best = null;
@@ -668,18 +778,156 @@ function peakComingRisk(profile) {
     return best;
 }
 
-// One-line label for the peak risk, e.g. "Peak next 8h: HIGH @ 14:00".
 function peakComingText(profile, peak) {
     if (!peak) return "";
     const n = profile.length - 1;
     let at = "";
-    if (peak.time) at = " @ " + hourLabel(peak.time, false);
+    if (peak.time) at = " (" + fmtRelHours(Date.now(), peak.time.getTime()) + ")";
     return "Peak next " + n + "h: " + peak.name + at;
 }
 
-// SVG graph (port of nodetest/graph.js — same layout: risk columns, rain bars,
-// gust dots, top W row with blow-to arrow + speed, legend below the hours).
-// Pure string building, no Cinnamon dependencies, so node tests cover it.
+function bestComingHour(profile) {
+    if (!profile || profile.length < 2) return null;
+    let best = null;
+    for (let i = 0; i < profile.length; i++) {
+        const hh = profile[i];
+        const gust = Math.max(hh.windGust || 0, hh.windSpeed || 0);
+        const precip = (hh.rain || 0) + (hh.snow || 0);
+        const score = (hh.level || 0) * 10000 + gust * 10 + precip;
+        if (!best || score < best.score) {
+            best = {
+                idx: i, score: score, level: hh.level || 0,
+                name: hh.name || "SAFE", time: hh.time || null,
+                gust: gust, rain: hh.rain || 0, snow: hh.snow || 0
+            };
+        }
+    }
+    return best;
+}
+
+function fmtRelHours(fromMs, toMs) {
+    const mins = Math.round((toMs - fromMs) / 60000 / 5) * 5;
+    if (mins <= 0) return "now";
+    const h = Math.floor(mins / 60), m = mins % 60;
+    const d = Math.floor(h / 24);
+    const remainingH = h % 24;
+    if (d > 0) {
+        return "in " + d + "d" + (remainingH > 0 ? " " + remainingH + "h" : "") +
+            (m > 0 ? " " + m + "min" : "");
+    }
+    if (remainingH > 0) {
+        return "in " + remainingH + "h" + (m > 0 ? " " + m + "min" : "");
+    }
+    return "in " + m + "min";
+}
+
+function fmtHoursToDaysHours(hours) {
+    const d = Math.floor(hours / 24);
+    const h = hours % 24;
+    let s = "";
+    if (d > 0) s += d + "d";
+    if (h > 0) s += (s ? " " : "") + h + "h";
+    return s || "0h";
+}
+
+function bestHourText(profile, best, u) {
+    if (!best) return "";
+    const n = profile.length - 1;
+    let at = "now";
+    if (best.idx > 0) {
+        if (best.time instanceof Date && !isNaN(best.time)) {
+            at = "(" + fmtRelHours(Date.now(), best.time.getTime()) + ")";
+        } else {
+            at = "@ +" + best.idx + "h";
+        }
+    }
+    let s = "Best next " + n + "h: " + best.name + " " + at +
+        " · gust " + fmtSpeedNum(best.gust, u) + " " + speedUnit(u);
+    if ((best.rain || 0) >= 0.1) s += " · rain " + fmtRain(best.rain, u);
+    if ((best.snow || 0) >= 0.1) s += " · snow " + fmtSnow(best.snow, u);
+    return s;
+}
+
+function groupComingByDay(profile, maxDays) {
+    if (!profile || profile.length < 2 || !maxDays || maxDays < 1) return [];
+    const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const groups = [];
+    const byKey = {};
+    for (let i = 1; i < profile.length; i++) {
+        const hh = profile[i];
+        let key, label;
+        if (hh.time instanceof Date && !isNaN(hh.time)) {
+            const d = hh.time;
+            key = d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+            label = WD[d.getDay()] + " " + d.getDate() + "/" + (d.getMonth() + 1);
+        } else {
+            const dayIdx = Math.floor((i - 1) / 24);
+            key = "chunk-" + dayIdx;
+            label = "Day +" + (dayIdx + 1);
+        }
+        if (!byKey[key]) {
+            if (groups.length >= maxDays) break;
+            const g = { key: key, label: label, hours: [] };
+            byKey[key] = g;
+            groups.push(g);
+        }
+        byKey[key].hours.push(hh);
+    }
+    return groups.slice(0, maxDays);
+}
+
+function summarizeDay(dayHours, iceT) {
+    const s = {
+        n: dayHours.length, rain: 0, snow: 0, ice: 0, gust: 0,
+        maxLvl: 0, maxName: "SAFE", maxTime: null,
+        minAir: null, minAirTime: null, minSfc: null, minSfcTime: null,
+        maxRainHour: 0, maxSnowHour: 0
+    };
+    for (let i = 0; i < dayHours.length; i++) {
+        const hh = dayHours[i];
+        s.rain += hh.rain || 0;
+        s.snow += hh.snow || 0;
+        if ((hh.rain || 0) > s.maxRainHour) s.maxRainHour = hh.rain;
+        if ((hh.snow || 0) > s.maxSnowHour) s.maxSnowHour = hh.snow;
+        if (hh.ice || (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null && hh.surfaceTemp <= iceT)) s.ice++;
+        if ((hh.windGust || 0) > s.gust) s.gust = hh.windGust;
+        if ((hh.level || 0) > s.maxLvl) { s.maxLvl = hh.level; s.maxName = hh.name || "SAFE"; s.maxTime = hh.time || null; }
+        if (hh.airTemp !== undefined && hh.airTemp !== null &&
+            (s.minAir === null || hh.airTemp < s.minAir)) { s.minAir = hh.airTemp; s.minAirTime = hh.time || null; }
+        if (hh.surfaceTemp !== undefined && hh.surfaceTemp !== null &&
+            (s.minSfc === null || hh.surfaceTemp < s.minSfc)) { s.minSfc = hh.surfaceTemp; s.minSfcTime = hh.time || null; }
+    }
+    return s;
+}
+
+function formatDailyRow(label, s, t, u) {
+    const numOr = (v, dflt) => {
+        const x = parseNum(v);
+        return isNaN(x) ? dflt : x;
+    };
+    const precipGate = Math.max(numOr(t && t.precip, 0.5), 0.01) * 0.8;
+    const heavyGust = Math.max(numOr(t && t.heavy, 35.0), 1);
+    const segs = [];
+    segs.push(s.maxLvl >= RiskLevel.HIGH ? "⚠ " + s.maxName : s.maxName);
+    if (s.maxRainHour >= precipGate) segs.push((s.maxRainHour >= 7.5 ? "⚠ rain " : "rain ") + fmtRain(s.rain, u));
+    if (s.maxSnowHour >= SNOW_THRESHOLD * 0.8) segs.push((s.maxSnowHour >= 0.5 ? "⚠ snow " : "snow ") + fmtSnow(s.snow, u));
+    if (s.ice > 0) segs.push("❄ ice " + s.ice + "h");
+    const windGate = Math.min(
+        Math.max(numOr(t && t.crossGust, 18.0), 1), Math.max(numOr(t && t.highCross, 25.0), 1),
+        Math.max(numOr(t && t.heavy, 35.0), 1), Math.max(numOr(t && t.sustained, 25.0), 1)) * 0.8;
+    if (s.gust >= windGate) segs.push((s.gust >= heavyGust ? "⚠ gust " : "gust ") + fmtSpeedNum(s.gust, u) + " " + speedUnit(u));
+    if (s.minSfc !== null && s.minSfc !== undefined) {
+        let low = "low " + fmtTemp(s.minSfc, u) + "sfc";
+        if (s.minSfcTime) low += " (" + fmtRelHours(Date.now(), s.minSfcTime.getTime()) + ")";
+        segs.push(low);
+    } else if (s.minAir !== null && s.minAir !== undefined) {
+        let low = "low " + fmtTemp(s.minAir, u);
+        if (s.minAirTime) low += " (" + fmtRelHours(Date.now(), s.minAirTime.getTime()) + ")";
+        segs.push(low);
+    }
+    return label + ": " + segs.join(" · ");
+}
+
 const GRAPH_FILL = {
     NO_DATA: "#9e9e9e",
     SAFE: "#4caf50",
@@ -694,7 +942,17 @@ function escXml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// Greedy wrap of advice items into at most 2 lines of max chars.
+const GRAPH_WD_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function dayRowLabel(d, mode) {
+    const m = String(mode || "date");
+    const date = d.getDate() + "/" + (d.getMonth() + 1);
+    if (m === "weekday") return GRAPH_WD_FULL[d.getDay()];
+    if (m === "both") return GRAPH_WD_FULL[d.getDay()] + " " + date;
+    return date;
+}
+
 function wrapAdviceLines(items, max) {
     const lines = [];
     let cur = "";
@@ -712,107 +970,610 @@ function wrapAdviceLines(items, max) {
     return lines;
 }
 
-// o: { title, subtitle, hours: [{time, name, rain, snow, wind, gust, wdir}],
-//      advice: [...] }. Returns the SVG string, or "" when there is no data.
+function graphIsDay(hh) {
+    if (!hh) return true;
+    const sun = Number(hh.sun);
+    if (!isNaN(sun) && sun > 0) return true;
+    const t = hh.time;
+    if (t instanceof Date && !isNaN(t)) {
+        const h = t.getHours();
+        return h >= 7 && h < 19;
+    }
+    return true;
+}
+
 function buildGraphSvg(o) {
     const hours = (o && o.hours) || [];
     const n = hours.length;
     if (n === 0) return "";
-    const W = 780, H = 404, padL = 46, padR = 14, padT = 90, padB = 70;
+    const tro = (o && o.traces) || {};
+    const drawScoreBadges = tro.scoreBadges !== false && o.scoreBadgePosition !== "hidden";
+    const valuesMode = String((o && o.values) || "all");
+    const showVals = valuesMode !== "none";
+    const scoreInStrip = drawScoreBadges && o.scoreBadgePosition === "risk-strip";
+    const extraStripH = scoreInStrip ? 10 : 0;
+    const H = 892 + extraStripH, padL = 46, padR = 126, padT = 88, padB = 96 + extraStripH;
+    const MIN_SLOT = 8;
+    const W = Math.max(1912, padL + padR + n * MIN_SLOT);
     const plotW = W - padL - padR, plotH = H - padT - padB;
-    // Only a slim bottom strip stays reserved for the blue rain bars; the
-    // risk columns and the wind/gust markers span the rest and are anchored
-    // to the bottom of that strip, so the bars no longer float in empty space
-    // with stray risk-level lines dangling underneath.
-    const rainH = Math.round(plotH * 0.18);
-    const riskH = plotH - rainH;
-    const base = padT + plotH - rainH;
-    const slot = plotW / n, barW = Math.min(44, slot * 0.62);
-    let maxRain = 2.0, maxGust = 10;
+    const base = padT + plotH;
+    const slot = plotW / n, barW = Math.min(52, slot * 0.85);
+    const stripH = 8 + extraStripH, stripY = base + 4, hourY = stripY + stripH + 14, dayY = hourY + 12;
+    let maxRain = 2.0, maxSnow = 1.0, maxWind = 10;
+    let tMin = null, tMax = null;
     for (let i = 0; i < n; i++) {
-        if (hours[i].rain > maxRain) maxRain = hours[i].rain;
-        const g = Math.max(hours[i].gust || 0, hours[i].wind || 0);
-        if (g > maxGust) maxGust = g;
+        const hh = hours[i];
+        if ((hh.rain || 0) > maxRain) maxRain = hh.rain;
+        if ((hh.snow || 0) > maxSnow) maxSnow = hh.snow;
+        const g = Math.max(hh.gust || 0, hh.wind || 0);
+        if (g > maxWind) maxWind = g;
+        const ts = [hh.temp, hh.dew, hh.sfc];
+        for (let k = 0; k < ts.length; k++) {
+            if (ts[k] === null || ts[k] === undefined || isNaN(ts[k])) continue;
+            if (tMin === null || ts[k] < tMin) tMin = ts[k];
+            if (tMax === null || ts[k] > tMax) tMax = ts[k];
+        }
     }
-    const riskY = (name) => base - (((GRAPH_NUM[name] || 0) / 5) * riskH);
+    if (tMin === null) { tMin = 0; tMax = 10; }
+    if (tMax - tMin < 5) { const m = (tMax + tMin) / 2; tMin = m - 2.5; tMax = m + 2.5; }
+    else { tMin -= 1; tMax += 1; }
+    const barMaxH = plotH * 0.55;
+    const tempY = (t) => padT + (1 - (t - tMin) / (tMax - tMin)) * plotH;
+    const humY = (h) => padT + (1 - Math.max(0, Math.min(100, h || 0)) / 100) * plotH;
+    const probY = (p) => padT + (1 - Math.max(0, Math.min(100, p || 0)) / 100) * plotH;
+    const scoreY = (sc) => padT + (1 - Math.max(0, Math.min(10, sc || 0)) / 10) * plotH;
+    const windY = (w) => padT + (1 - (w || 0) / maxWind) * plotH;
+    const windMarkY = (i) => Math.max(16, windY(Math.max(hours[i].wind || 0, hours[i].gust || 0)) - 16);
+    const sunY = (sec) => padT + (1 - Math.max(0, Math.min(3600, sec || 0)) / 3600) * plotH;
+    const cxOf = (i) => padL + slot * i + slot / 2;
+    let iceStartIdx = -1;
+    for (let fi = 0; fi < n; fi++) {
+        if (hours[fi] && hours[fi].ice) { iceStartIdx = fi; break; }
+    }
+    const iceStartLabel = () => {
+        if (iceStartIdx < 0) return "";
+        if (iceStartIdx === 0) return "❄ ICE now";
+        const d = Math.floor(iceStartIdx / 24);
+        const h = iceStartIdx % 24;
+        if (d > 0) {
+            return "❄ ice in " + d + "d" + (h > 0 ? " " + h + "h" : "");
+        }
+        return "❄ ice in " + iceStartIdx + "h";
+    };
+    const linePath = (fn) => {
+        let d = "";
+        for (let i = 0; i < n; i++) {
+            const cx = cxOf(i), y = fn(i);
+            d += (i === 0 ? "M" : "L") + cx.toFixed(1) + " " + y.toFixed(1);
+        }
+        return d;
+    };
+    const hasTemp = hours.some((hh) => hh.temp !== null && hh.temp !== undefined);
+    const hasDew = hours.some((hh) => hh.dew !== null && hh.dew !== undefined);
+    const hasSfc = hours.some((hh) => hh.sfc !== null && hh.sfc !== undefined);
+    const hasHum = hours.some((hh) => hh.humidity !== null && hh.humidity !== undefined);
+    const hasSun = hours.some((hh) => (hh.sun || 0) > 0);
+    const hasProb = hours.some((hh) => hh.prob !== null && hh.prob !== undefined && !isNaN(hh.prob));
+    const PROB_COLOR = "#5b9bff";
+    const SFC_COLOR = "#ffa040";
+    const drawTemp = hasTemp && tro.temp !== false;
+    const drawDew = hasDew && tro.dew !== false;
+    const drawSfc = hasSfc && tro.sfc !== false;
+    const drawSun = hasSun && tro.sun !== false;
+    const drawWind = tro.wind !== false;
+    const drawHum = hasHum && tro.hum !== false;
+    const drawProb = hasProb && tro.prob !== false;
+    const drawPrecip = tro.precip !== false;
+    const peakVals = valuesMode === "peak" || valuesMode === "peak-day";
+    const dailyPeakVals = valuesMode === "peak-day";
+    const alternateVals = valuesMode === "alternate";
+    const dayMode = String((o && o.dayLabels) || "date");
+    const dayKeyOf = (idx) => {
+        const t = hours[idx] && hours[idx].time;
+        if (t instanceof Date && !isNaN(t)) {
+            return t.getFullYear() + "-" + t.getMonth() + "-" + t.getDate();
+        }
+        return "all";
+    };
+    let peakWindIdx = -1, peakRainIdx = -1, peakSnowIdx = -1;
+    let minTempIdx = -1, minSfcIdx = -1;
+    const numOrNull = (v) => (v === null || v === undefined || isNaN(v)) ? null : v;
+    let peakWindSet = {}, minWindSet = {}, peakRainSet = {}, peakSnowSet = {};
+    let maxTempSet = {}, minTempSet = {}, maxSfcSet = {}, minSfcSet = {};
+    let maxDewSet = {}, minDewSet = {}, maxSunSet = {}, minSunSet = {};
+    let maxHumSet = {}, minHumSet = {}, maxProbSet = {}, minProbSet = {};
+    let maxScoreSet = {}, minScoreSet = {};
+    if (peakVals && !dailyPeakVals) {
+        let wMax = -1, wMaxIdx = -1, wMin = null, wMinIdx = -1;
+        let pr = -1, prIdx = -1, ps = -1, psIdx = -1;
+        let tMax = null, tMaxIdx = -1, tMin = null, tMinIdx = -1;
+        let fMax = null, fMaxIdx = -1, fMin = null, fMinIdx = -1;
+        let dMax = null, dMaxIdx = -1, dMin = null, dMinIdx = -1;
+        let sunMax = -1, sunMaxIdx = -1, sunMin = null, sunMinIdx = -1;
+        let hMax = null, hMaxIdx = -1, hMin = null, hMinIdx = -1;
+        let pMax = null, pMaxIdx = -1, pMin = null, pMinIdx = -1;
+        let scMax = null, scMaxIdx = -1, scMin = null, scMinIdx = -1;
+        for (let pi = 0; pi < n; pi++) {
+            const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
+            if (g > wMax) { wMax = g; wMaxIdx = pi; }
+            if (wMin === null || g < wMin) { wMin = g; wMinIdx = pi; }
+            if ((hours[pi].rain || 0) > pr) { pr = hours[pi].rain || 0; prIdx = pi; }
+            if ((hours[pi].snow || 0) > ps) { ps = hours[pi].snow || 0; psIdx = pi; }
+            const t = numOrNull(hours[pi].temp);
+            if (t !== null && (tMax === null || t > tMax)) { tMax = t; tMaxIdx = pi; }
+            if (t !== null && (tMin === null || t < tMin)) { tMin = t; tMinIdx = pi; }
+            const f = numOrNull(hours[pi].sfc);
+            if (f !== null && (fMax === null || f > fMax)) { fMax = f; fMaxIdx = pi; }
+            if (f !== null && (fMin === null || f < fMin)) { fMin = f; fMinIdx = pi; }
+            const dw = numOrNull(hours[pi].dew);
+            if (dw !== null && (dMax === null || dw > dMax)) { dMax = dw; dMaxIdx = pi; }
+            if (dw !== null && (dMin === null || dw < dMin)) { dMin = dw; dMinIdx = pi; }
+            const sv = hours[pi].sun || 0;
+            if (sv > sunMax) { sunMax = sv; sunMaxIdx = pi; }
+            if (sv > 0 && (sunMin === null || sv < sunMin)) { sunMin = sv; sunMinIdx = pi; }
+            const hv = numOrNull(hours[pi].humidity);
+            if (hv !== null && (hMax === null || hv > hMax)) { hMax = hv; hMaxIdx = pi; }
+            if (hv !== null && (hMin === null || hv < hMin)) { hMin = hv; hMinIdx = pi; }
+            const pv = numOrNull(hours[pi].prob);
+            if (pv !== null && (pMax === null || pv > pMax)) { pMax = pv; pMaxIdx = pi; }
+            if (pv !== null && (pMin === null || pv < pMin)) { pMin = pv; pMinIdx = pi; }
+            const sc = numOrNull(hours[pi].score);
+            if (sc !== null && (scMax === null || sc > scMax)) { scMax = sc; scMaxIdx = pi; }
+            if (sc !== null && (scMin === null || sc < scMin)) { scMin = sc; scMinIdx = pi; }
+        }
+        if (wMaxIdx >= 0 && wMax > 0) { peakWindSet[wMaxIdx] = true; peakWindIdx = wMaxIdx; }
+        if (wMinIdx >= 0) minWindSet[wMinIdx] = true;
+        if (prIdx >= 0 && pr >= 0.1) { peakRainSet[prIdx] = true; peakRainIdx = prIdx; }
+        if (psIdx >= 0 && ps >= 0.1) { peakSnowSet[psIdx] = true; peakSnowIdx = psIdx; }
+        if (tMaxIdx >= 0) maxTempSet[tMaxIdx] = true;
+        if (tMinIdx >= 0) { minTempSet[tMinIdx] = true; minTempIdx = tMinIdx; }
+        if (fMaxIdx >= 0) maxSfcSet[fMaxIdx] = true;
+        if (fMinIdx >= 0) { minSfcSet[fMinIdx] = true; minSfcIdx = fMinIdx; }
+        if (dMaxIdx >= 0) maxDewSet[dMaxIdx] = true;
+        if (dMinIdx >= 0) minDewSet[dMinIdx] = true;
+        if (sunMaxIdx >= 0 && sunMax > 0) maxSunSet[sunMaxIdx] = true;
+        if (sunMinIdx >= 0) minSunSet[sunMinIdx] = true;
+        if (hMaxIdx >= 0) maxHumSet[hMaxIdx] = true;
+        if (hMinIdx >= 0) minHumSet[hMinIdx] = true;
+        if (pMaxIdx >= 0) maxProbSet[pMaxIdx] = true;
+        if (pMinIdx >= 0) minProbSet[pMinIdx] = true;
+        if (scMaxIdx >= 0) maxScoreSet[scMaxIdx] = true;
+        if (scMinIdx >= 0) minScoreSet[scMinIdx] = true;
+    } else if (dailyPeakVals) {
+        const perDay = {};
+        const newDay = () => ({
+            wMax: -1, wMaxIdx: -1, wMin: null, wMinIdx: -1,
+            pr: -1, prIdx: -1, ps: -1, psIdx: -1,
+            tMax: null, tMaxIdx: -1, tMin: null, tMinIdx: -1,
+            fMax: null, fMaxIdx: -1, fMin: null, fMinIdx: -1,
+            dMax: null, dMaxIdx: -1, dMin: null, dMinIdx: -1,
+            sunMax: -1, sunMaxIdx: -1, sunMin: null, sunMinIdx: -1,
+            hMax: null, hMaxIdx: -1, hMin: null, hMinIdx: -1,
+            pMax: null, pMaxIdx: -1, pMin: null, pMinIdx: -1,
+            scMax: null, scMaxIdx: -1, scMin: null, scMinIdx: -1
+        });
+        for (let pi = 0; pi < n; pi++) {
+            const key = dayKeyOf(pi);
+            if (!perDay[key]) perDay[key] = newDay();
+            const d = perDay[key];
+            const g = Math.max(hours[pi].wind || 0, hours[pi].gust || 0);
+            if (g > d.wMax) { d.wMax = g; d.wMaxIdx = pi; }
+            if (d.wMin === null || g < d.wMin) { d.wMin = g; d.wMinIdx = pi; }
+            if ((hours[pi].rain || 0) > d.pr) { d.pr = hours[pi].rain || 0; d.prIdx = pi; }
+            if ((hours[pi].snow || 0) > d.ps) { d.ps = hours[pi].snow || 0; d.psIdx = pi; }
+            const t = numOrNull(hours[pi].temp);
+            if (t !== null && (d.tMax === null || t > d.tMax)) { d.tMax = t; d.tMaxIdx = pi; }
+            if (t !== null && (d.tMin === null || t < d.tMin)) { d.tMin = t; d.tMinIdx = pi; }
+            const f = numOrNull(hours[pi].sfc);
+            if (f !== null && (d.fMax === null || f > d.fMax)) { d.fMax = f; d.fMaxIdx = pi; }
+            if (f !== null && (d.fMin === null || f < d.fMin)) { d.fMin = f; d.fMinIdx = pi; }
+            const dw = numOrNull(hours[pi].dew);
+            if (dw !== null && (d.dMax === null || dw > d.dMax)) { d.dMax = dw; d.dMaxIdx = pi; }
+            if (dw !== null && (d.dMin === null || dw < d.dMin)) { d.dMin = dw; d.dMinIdx = pi; }
+            const sv = hours[pi].sun || 0;
+            if (sv > d.sunMax) { d.sunMax = sv; d.sunMaxIdx = pi; }
+            if (sv > 0 && (d.sunMin === null || sv < d.sunMin)) { d.sunMin = sv; d.sunMinIdx = pi; }
+            const hv = numOrNull(hours[pi].humidity);
+            if (hv !== null && (d.hMax === null || hv > d.hMax)) { d.hMax = hv; d.hMaxIdx = pi; }
+            if (hv !== null && (d.hMin === null || hv < d.hMin)) { d.hMin = hv; d.hMinIdx = pi; }
+            const pv = numOrNull(hours[pi].prob);
+            if (pv !== null && (d.pMax === null || pv > d.pMax)) { d.pMax = pv; d.pMaxIdx = pi; }
+            if (pv !== null && (d.pMin === null || pv < d.pMin)) { d.pMin = pv; d.pMinIdx = pi; }
+            const sc = numOrNull(hours[pi].score);
+            if (sc !== null && (d.scMax === null || sc > d.scMax)) { d.scMax = sc; d.scMaxIdx = pi; }
+            if (sc !== null && (d.scMin === null || sc < d.scMin)) { d.scMin = sc; d.scMinIdx = pi; }
+        }
+        const keys = Object.keys(perDay);
+        for (let k = 0; k < keys.length; k++) {
+            const d = perDay[keys[k]];
+            if (d.wMaxIdx >= 0 && d.wMax > 0) { peakWindSet[d.wMaxIdx] = true; if (peakWindIdx < 0) peakWindIdx = d.wMaxIdx; }
+            if (d.wMinIdx >= 0) minWindSet[d.wMinIdx] = true;
+            if (d.prIdx >= 0 && d.pr >= 0.1) { peakRainSet[d.prIdx] = true; if (peakRainIdx < 0) peakRainIdx = d.prIdx; }
+            if (d.psIdx >= 0 && d.ps >= 0.1) { peakSnowSet[d.psIdx] = true; if (peakSnowIdx < 0) peakSnowIdx = d.psIdx; }
+            if (d.tMaxIdx >= 0) maxTempSet[d.tMaxIdx] = true;
+            if (d.tMinIdx >= 0) { minTempSet[d.tMinIdx] = true; if (minTempIdx < 0) minTempIdx = d.tMinIdx; }
+            if (d.fMaxIdx >= 0) maxSfcSet[d.fMaxIdx] = true;
+            if (d.fMinIdx >= 0) { minSfcSet[d.fMinIdx] = true; if (minSfcIdx < 0) minSfcIdx = d.fMinIdx; }
+            if (d.dMaxIdx >= 0) maxDewSet[d.dMaxIdx] = true;
+            if (d.dMinIdx >= 0) minDewSet[d.dMinIdx] = true;
+            if (d.sunMaxIdx >= 0 && d.sunMax > 0) maxSunSet[d.sunMaxIdx] = true;
+            if (d.sunMinIdx >= 0) minSunSet[d.sunMinIdx] = true;
+            if (d.hMaxIdx >= 0) maxHumSet[d.hMaxIdx] = true;
+            if (d.hMinIdx >= 0) minHumSet[d.hMinIdx] = true;
+            if (d.pMaxIdx >= 0) maxProbSet[d.pMaxIdx] = true;
+            if (d.pMinIdx >= 0) minProbSet[d.pMinIdx] = true;
+            if (d.scMaxIdx >= 0) maxScoreSet[d.scMaxIdx] = true;
+            if (d.scMinIdx >= 0) minScoreSet[d.scMinIdx] = true;
+        }
+    }
+    const dn = (o && o.dayNight) || {};
+    const dnEnabled = dn.enabled === undefined || dn.enabled === null ? true : !!dn.enabled;
+    const dayBg = (typeof dn.dayBg === "string" && dn.dayBg) ? dn.dayBg : "#1e2733";
+    const nightBg = (typeof dn.nightBg === "string" && dn.nightBg) ? dn.nightBg : "#111111";
+    const u = (o && o.units) || "metric";
+    const axTemp = (v) => {
+        const x = isImperial(u) ? v * 9 / 5 + 32 : v;
+        return x.toFixed(0) + tempAxisUnit(u);
+    };
+    const axRainMax = isImperial(u) ? (maxRain / 25.4).toFixed(2) + "in" : maxRain.toFixed(0) + "mm";
     let s = "";
     s += '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" font-family="sans-serif">\n';
-    s += '<rect width="' + W + '" height="' + H + '" fill="#111"/>\n';
+    s += '<rect width="' + W + '" height="' + H + '" fill="' + escXml(dayBg) + '"/>\n';
+    if (dnEnabled) {
+        for (let bi = 0; bi < n; bi++) {
+            if (!graphIsDay(hours[bi])) {
+                const bx = (padL + slot * bi).toFixed(1);
+                s += '<rect x="' + bx + '" y="' + padT + '" width="' + slot.toFixed(1) +
+                    '" height="' + plotH + '" fill="' + escXml(nightBg) + '"/>\n';
+            }
+        }
+    }
     s += '<text x="' + padL + '" y="24" fill="#fff" font-size="17" font-weight="bold">' + escXml(o.title || "") + '</text>\n';
     s += '<text x="' + padL + '" y="44" fill="#bbb" font-size="12">' + escXml(o.subtitle || "") + '</text>\n';
-    const windRowY = padT - 14;
-    s += '<text x="' + (padL - 5) + '" y="' + (windRowY + 4) + '" fill="#999" font-size="10" text-anchor="end">W</text>\n';
-    for (let i = 0; i < n; i++) {
-        const cx = padL + slot * i + slot / 2;
-        const wd = hours[i].wdir;
-        const arr = (wd === null || wd === undefined) ? "" : windArrow(wd);
-        s += '<text x="' + cx.toFixed(1) + '" y="' + windRowY + '" fill="#ccc" font-size="10" text-anchor="middle">' +
-            arr + Math.round(hours[i].wind || 0) + '</text>\n';
+    s += '<text x="' + (padL - 5) + '" y="' + (tempY(tMax) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + axTemp(tMax) + '</text>\n';
+    s += '<text x="' + (padL - 5) + '" y="' + (tempY((tMin + tMax) / 2) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + axTemp((tMin + tMax) / 2) + '</text>\n';
+    s += '<text x="' + (padL - 5) + '" y="' + (tempY(tMin) + 4).toFixed(1) + '" fill="#999" font-size="10" text-anchor="end">' + axTemp(tMin) + '</text>\n';
+    s += '<text x="' + (W - padR) + '" y="' + (padT + 10) + '" fill="#3377ff" font-size="10" text-anchor="end">' + axRainMax + '</text>\n';
+    if (drawHum || drawProb) {
+        s += '<text x="' + (W - padR) + '" y="' + (humY(50) + 4).toFixed(1) + '" fill="' + PROB_COLOR + '" font-size="10" text-anchor="end">50%</text>\n';
+        s += '<text x="' + (W - padR) + '" y="' + (humY(0) + 4).toFixed(1) + '" fill="' + PROB_COLOR + '" font-size="10" text-anchor="end">0%</text>\n';
     }
-    const sunRowY = padT - 30;
-    s += '<text x="' + (padL - 5) + '" y="' + (sunRowY + 4) + '" fill="#999" font-size="10" text-anchor="end">\u2600</text>\n';
-    for (let i = 0; i < n; i++) {
-        const cx = padL + slot * i + slot / 2;
-        const sunMin = Math.round((hours[i].sun || 0) / 60);
-        if (sunMin > 0) {
-            s += '<text x="' + cx.toFixed(1) + '" y="' + sunRowY + '" fill="#ffd24a" font-size="10" text-anchor="middle">' + sunMin + 'm</text>\n';
+    const isNewDayAt = function (idx) {
+        if (idx <= 0 || idx >= n) return false;
+        const a = hours[idx - 1].time, b = hours[idx].time;
+        if (!(a instanceof Date) || isNaN(a) || !(b instanceof Date) || isNaN(b)) return false;
+        return a.getFullYear() !== b.getFullYear() ||
+            a.getMonth() !== b.getMonth() || a.getDate() !== b.getDate();
+    };
+    let labelEvery = 1;
+    if (n > 24) {
+        labelEvery = Math.ceil(n / 12);
+        const pxEvery = Math.ceil(50 / Math.max(slot, 1));
+        if (pxEvery > labelEvery) labelEvery = pxEvery;
+    }
+    const shownList = [0];
+    const collidesShown = function (idx) {
+        for (let c = 0; c < shownList.length; c++) {
+            if (Math.abs(idx - shownList[c]) * slot < 40) return true;
         }
+        return false;
+    };
+    const midnightHourHidden = {};
+    for (let m = 1; m < n; m++) {
+        if (!isNewDayAt(m)) continue;
+        if (collidesShown(m)) { midnightHourHidden[m] = true; }
+        else { shownList.push(m); }
     }
-    s += '<line x1="' + padL + '" y1="' + (padT - 4) + '" x2="' + (W - padR) + '" y2="' + (padT - 4) + '" stroke="#222"/>\n';
-    const names = ["SAFE", "SLIGHT", "MODERATE", "HIGH", "CRITICAL"];
-    for (let k = 0; k < names.length; k++) {
-        const y = riskY(names[k]);
-        s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#333"/>\n';
-        s += '<text x="' + (padL - 5) + '" y="' + (y + 4) + '" fill="' + GRAPH_FILL[names[k]] + '" font-size="10" text-anchor="end">' + names[k] + '</text>\n';
+    for (let g = 1; g < n; g++) {
+        if (isNewDayAt(g) || midnightHourHidden[g]) continue;
+        if (n > 24 && (g % labelEvery !== 0)) continue;
+        if (!collidesShown(g)) shownList.push(g);
     }
+    const isShownLabel = function (idx) {
+        for (let c = 0; c < shownList.length; c++) {
+            if (shownList[c] === idx) return true;
+        }
+        return false;
+    };
     for (let i = 0; i < n; i++) {
-        const cx = padL + slot * i + slot / 2;
+        const cx = cxOf(i);
         const hh = hours[i];
-        const rh = (hh.rain / maxRain) * rainH;
-        if (rh > 0.5) {
-            s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + (padT + plotH - rh).toFixed(1) + '" width="' + barW.toFixed(1) +
+        const rh = ((hh.rain || 0) / maxRain) * barMaxH;
+        const sh = ((hh.snow || 0) / maxSnow) * barMaxH * 0.6;
+        const x = (cx - barW / 2).toFixed(1);
+        if (drawPrecip && rh > 0.5) {
+            s += '<rect x="' + x + '" y="' + (base - rh).toFixed(1) + '" width="' + barW.toFixed(1) +
                 '" height="' + rh.toFixed(1) + '" fill="#3377ff"/>\n';
         }
-        const lvl = GRAPH_NUM[hh.name] || 0;
-        const bh = (lvl / 5) * riskH;
-        const by = base - bh;
-        s += '<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + barW.toFixed(1) + '" height="' +
-            Math.max(3, bh).toFixed(1) + '" fill="' + (GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA) + '" fill-opacity="' + (i === 0 ? 1 : 0.75) + '"/>\n';
-        const gy = base - ((hh.gust || 0) / maxGust) * riskH;
-        const wy = base - ((hh.wind || 0) / maxGust) * riskH;
-        s += '<line x1="' + (cx - 8).toFixed(1) + '" y1="' + wy.toFixed(1) + '" x2="' + (cx + 8).toFixed(1) + '" y2="' + wy.toFixed(1) + '" stroke="#fff" stroke-width="2"/>\n';
-        s += '<circle cx="' + cx.toFixed(1) + '" cy="' + gy.toFixed(1) + '" r="3.2" fill="#fff"/>\n';
-        s += '<text x="' + cx.toFixed(1) + '" y="' + (padT + plotH + 14) + '" fill="#999" font-size="10" text-anchor="middle">' + escXml(hourLabel(hh.time, i === 0)) + '</text>\n';
-        if (hh.rain >= 0.1) {
-            s += '<text x="' + cx.toFixed(1) + '" y="' + (padT + plotH - rh - 4).toFixed(1) + '" fill="#9ec1ff" font-size="9" text-anchor="middle">' + hh.rain.toFixed(1) + '</text>\n';
+        if (drawPrecip && sh > 0.5) {
+            const sy = base - rh - sh;
+            s += '<rect x="' + x + '" y="' + sy.toFixed(1) + '" width="' + barW.toFixed(1) +
+                '" height="' + sh.toFixed(1) + '" fill="#b3e5fc"/>\n';
+        }
+        const rc = GRAPH_FILL[hh.name] || GRAPH_FILL.NO_DATA;
+        const isIceStart = (i === iceStartIdx);
+        s += '<rect x="' + x + '" y="' + stripY + '" width="' + barW.toFixed(1) + '" height="' + stripH + '" fill="' + rc + '"' +
+            (hh.ice ? ' stroke="#4dd0e1" stroke-width="' + (isIceStart ? "2.5" : "1.5") + '"' : '') + '/>\n';
+        const isNewDay = isNewDayAt(i);
+        if (isNewDay) {
+            const sepX = (cx - slot / 2).toFixed(1);
+            s += '<line x1="' + sepX + '" y1="' + padT + '" x2="' + sepX + '" y2="' + base + '" stroke="#555" stroke-width="1" stroke-dasharray="4,3"/>\n';
+        }
+        if (isIceStart && iceStartIdx > 0) {
+            const ix = (cx - slot / 2).toFixed(1);
+            s += '<line x1="' + ix + '" y1="' + padT + '" x2="' + ix + '" y2="' + base + '" stroke="#4dd0e1" stroke-width="2" stroke-dasharray="6,3"/>\n';
+        }
+        const showLabel = isShownLabel(i);
+        if (showLabel) {
+            s += '<line x1="' + cx.toFixed(1) + '" y1="' + (stripY + stripH) + '" x2="' + cx.toFixed(1) + '" y2="' + (hourY - 3) + '" stroke="#888" stroke-width="1"/>\n';
+        }
+        s += '<text x="' + cx.toFixed(1) + '" y="' + hourY + '" fill="#999" font-size="10" text-anchor="middle">' + (showLabel ? escXml(hourLabel(hh.time, i === 0)) : "") + '</text>\n';
+        if (showVals && drawPrecip && ((hh.rain || 0) >= 0.1 || (hh.snow || 0) >= 0.1)) {
+            let pv = "";
+            if ((hh.rain || 0) >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakRainSet[i])) pv += isImperial(u) ? (hh.rain / 25.4).toFixed(2) : (hh.rain).toFixed(1);
+            if ((hh.snow || 0) >= 0.1 && (!peakVals ? (!alternateVals || i % 2 === 0) : peakSnowSet[i])) pv += (pv ? "+" : "") + (isImperial(u) ? (hh.snow / 2.54).toFixed(2) : (hh.snow).toFixed(1)) + "s";
+            if (pv) s += '<text x="' + cx.toFixed(1) + '" y="' + (base - rh - sh - 5).toFixed(1) + '" fill="#9ec1ff" font-size="9" text-anchor="middle">' + pv + '</text>\n';
+        }
+        if (hh.ice) {
+            s += '<text x="' + cx.toFixed(1) + '" y="' + (padT - 6) + '" fill="#4dd0e1" font-size="13" text-anchor="middle">❄</text>\n';
+        }
+        if (drawWind && showVals && (peakVals ? (peakWindSet[i] || minWindSet[i]) : (!alternateVals || i % 2 === 0))) {
+            const wdirV = (hh.wdir === undefined || hh.wdir === null) ? hh.windDir : hh.wdir;
+            const wArr = (wdirV === undefined || wdirV === null) ? "" : windArrow(wdirV);
+            const wSpd = fmtSpeedNum(hh.wind || 0, u);
+            const wSize = (hh.wind || 0) >= 35 || (hh.gust || 0) >= 45 ? 15 :
+                ((hh.wind || 0) >= 25 || (hh.gust || 0) >= 35 ? 13 :
+                    ((hh.wind || 0) >= 18 ? 12 : 11));
+            const wY = windMarkY(i);
+            s += '<text x="' + cx.toFixed(1) + '" y="' + wY.toFixed(1) + '" fill="#fff" font-size="' + wSize + '" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+                escXml(wArr + wSpd) + '</text>\n';
+        }
+
+        if (drawScoreBadges && numOrNull(hh.score) !== null &&
+            (scoreInStrip || (showVals &&
+                (peakVals ? (maxScoreSet[i] || minScoreSet[i]) : (!alternateVals || i % 2 === 0))))) {
+            const scoreColor = scoreInStrip ? "#000" :
+                (hh.score >= 7.5 ? "#4caf50" : (hh.score >= 5.0 ? "#ffeb3b" : "#ff5252"));
+            const badgeY = scoreInStrip ? stripY + stripH / 2 + 3.5 : scoreY(hh.score) - 6;
+            const fitWidth = scoreInStrip && barW < 28 ?
+                ' textLength="' + (barW - 2).toFixed(1) + '" lengthAdjust="spacingAndGlyphs"' : "";
+            s += '<text x="' + cx.toFixed(1) + '" y="' + badgeY.toFixed(1) +
+                 '" fill="' + scoreColor + '"' + fitWidth + ' font-size="10" font-weight="bold" text-anchor="middle">' +
+                 hh.score.toFixed(1) + '</text>\n';
         }
     }
-    const ly1 = padT + plotH + 30;
-    s += '<text x="' + padL + '" y="' + ly1 + '" fill="#bbb" font-size="11">Risk color = level · <tspan fill="#3377ff">blue = rain mm/h</tspan> · ' +
-        '<tspan fill="#fff">— sustained, ● gust</tspan> · <tspan fill="#ffd24a">☀ sun min/h</tspan> · W = blow-to arrow + speed</text>\n';
+    const daySegs = [];
+    for (let di = 0; di < n; di++) {
+        const key = dayKeyOf(di);
+        const last = daySegs.length ? daySegs[daySegs.length - 1] : null;
+        const t = hours[di] && hours[di].time;
+        const valid = (t instanceof Date && !isNaN(t)) ? t : null;
+        if (last && last.key === key) {
+            last.end = di;
+            if (!last.time && valid) last.time = valid;
+        } else {
+            daySegs.push({ key: key, start: di, end: di, time: valid });
+        }
+    }
+    for (let si = 0; si < daySegs.length; si++) {
+        const seg = daySegs[si];
+        if (!seg.time) continue;
+        const cx = (cxOf(seg.start) + cxOf(seg.end)) / 2;
+        let iceMark = "";
+        for (let hi = seg.start; hi <= seg.end; hi++) {
+            if (hours[hi] && hours[hi].ice) {
+                iceMark = "❄";
+                break;
+            }
+        }
+        s += '<text x="' + cx.toFixed(1) + '" y="' + dayY + '" fill="#fff" font-size="10" text-anchor="middle" font-weight="bold">' +
+            iceMark + " " + escXml(dayRowLabel(seg.time, dayMode)) + '</text>\n';
+    }
+    if (iceStartIdx >= 0) {
+        const iceCx = cxOf(iceStartIdx);
+        const iceTx = Math.min(Math.max(iceCx, padL + 80), W - padR - 80);
+        s += '<text x="' + iceTx.toFixed(1) + '" y="' + (padT - 26) + '" fill="#4dd0e1" font-size="13" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+            escXml(iceStartLabel()) + '</text>\n';
+    }
+
+    for (let i = 0; i < n - 1; i++) {
+        const x1 = cxOf(i).toFixed(1);
+        const y1 = scoreY(hours[i].score).toFixed(1);
+        const x2 = cxOf(i + 1).toFixed(1);
+        const y2 = scoreY(hours[i + 1].score).toFixed(1);
+        const avgScore = (hours[i].score + hours[i + 1].score) / 2;
+        const segColor = avgScore >= 7.5 ? "#4caf50" : (avgScore >= 5.0 ? "#ffeb3b" : "#ff5252");
+        s += '<line data-trace="score" x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + segColor + '" stroke-width="3.5" stroke-linecap="round"/>\n';
+    }
+
+    const traceDefs = [
+        { key: "temp", label: "Air temp", legend: "air temp " + tempScaleUnit(u), enabled: drawTemp,
+            color: "#ff5252", width: 2, dash: "", value: (i) => hours[i].temp, y: tempY },
+        { key: "sfc", label: "Surface temp", legend: "surface temp " + tempScaleUnit(u), enabled: drawSfc,
+            color: SFC_COLOR, width: 2, dash: "12,5", value: (i) => hours[i].sfc, y: tempY },
+        { key: "dew", label: "Dewpoint", legend: "dewpoint", enabled: drawDew,
+            color: "#bdbdbd", width: 2, dash: "4,4", value: (i) => hours[i].dew, y: tempY },
+        { key: "sun", label: "Sunshine", legend: "sunshine", enabled: drawSun,
+            color: "#ffd24a", width: 1.5, dash: "", marker: "circle", value: (i) => hours[i].sun, y: sunY },
+        { key: "wind", label: "Wind", legend: "wind+gust max (" + speedUnit(u) + ")", enabled: drawWind,
+            color: "#fff", width: 1.5, dash: "10,4,2,4",
+            value: (i) => Math.max(hours[i].wind || 0, hours[i].gust || 0), y: windY },
+        { key: "hum", label: "Humidity", legend: "humidity %", enabled: drawHum,
+            color: "#4dd0e1", width: 1.5, dash: "12,6", marker: "square", value: (i) => hours[i].humidity, y: humY },
+        { key: "prob", label: "Precip prob", legend: "precip prob %", enabled: drawProb,
+            color: PROB_COLOR, width: 1.5, dash: "0.1,5", value: (i) => hours[i].prob, y: probY },
+    ];
+    const traceStyle = (D) => ' fill="none" stroke="' + D.color + '" stroke-width="' + D.width +
+        '" stroke-linecap="round"' + (D.dash ? ' stroke-dasharray="' + D.dash + '"' : "");
+    const traceMarker = (D, x, y) => {
+        if (D.marker === "circle") {
+            return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3"' + traceStyle(D) + '/>\n';
+        }
+        if (D.marker === "square") {
+            return '<rect x="' + (x - 3).toFixed(1) + '" y="' + (y - 3).toFixed(1) +
+                '" width="6" height="6" fill="' + D.color + '"/>\n';
+        }
+        return "";
+    };
+    const markerEvery = Math.max(1, Math.ceil(n / 12), Math.ceil(90 / slot));
+    for (let di = traceDefs.length - 1; di >= 0; di--) {
+        const D = traceDefs[di];
+        if (!D.enabled) continue;
+        s += '<path data-trace="' + D.key + '" d="' + linePath((i) => D.y(D.value(i))) + '"' + traceStyle(D) + '/>\n';
+        if (!D.marker) continue;
+        for (let mi = 0; mi < n; mi += markerEvery) {
+            const v = numOrNull(D.value(mi));
+            if (v !== null && isFinite(v)) s += traceMarker(D, cxOf(mi), D.y(v));
+        }
+    }
+    const endpointLabels = [];
+    for (let di = 0; di < traceDefs.length; di++) {
+        const D = traceDefs[di];
+        const v = numOrNull(D.value(n - 1));
+        if (!D.enabled || v === null || !isFinite(v)) continue;
+        const y = D.y(v);
+        if (y < padT || y > base) continue;
+        endpointLabels.push({ def: D, y: y });
+    }
+    endpointLabels.sort((a, b) => a.y - b.y);
+    let lastEndpointY = padT - 16;
+    const endpointX = W - padR + 10;
+    for (let ei = 0; ei < endpointLabels.length; ei++) {
+        const E = endpointLabels[ei];
+        const y = Math.max(padT + 6, Math.min(base - 6, E.y));
+        if (y - lastEndpointY < 16) continue;
+        s += '<line x1="' + (cxOf(n - 1) + 4).toFixed(1) + '" y1="' + E.y.toFixed(1) +
+            '" x2="' + (endpointX - 4) + '" y2="' + y.toFixed(1) +
+            '" stroke="' + E.def.color + '" stroke-width="0.75" stroke-opacity="0.6"/>\n';
+        s += '<text data-endpoint="' + E.def.key + '" x="' + endpointX + '" y="' + (y + 3.5).toFixed(1) +
+            '" fill="' + E.def.color + '" font-size="11">' + escXml(E.def.label) + '</text>\n';
+        lastEndpointY = y;
+    }
+    if (peakVals && showVals) {
+        const clampY = (y) => Math.min(Math.max(y, 12), base - 2);
+        const extLabel = (idx, y, color, size, txt) => {
+            s += '<text x="' + cxOf(idx).toFixed(1) + '" y="' + clampY(y).toFixed(1) + '" fill="' + color + '" font-size="' + size + '" font-weight="bold" text-anchor="middle" stroke="#000" stroke-opacity="0.7" stroke-width="3" paint-order="stroke">' +
+                escXml(txt) + '</text>\n';
+        };
+        const fmtPct = (v) => String(Math.round(v)) + "%";
+        const fmtSun = (v) => String(Math.round(v / 60)) + "m";
+        const extDefs = [
+            {
+                set: maxTempSet, color: "#ff5252", size: 11, dy: -8, need: drawTemp,
+                yOf: (ii) => tempY(hours[ii].temp), vOf: (ii) => hours[ii].temp, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: minTempSet, color: "#ff5252", size: 11, dy: -8, need: drawTemp,
+                yOf: (ii) => tempY(hours[ii].temp), vOf: (ii) => hours[ii].temp, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: maxSfcSet, color: SFC_COLOR, size: 11, dy: 14, need: drawSfc,
+                yOf: (ii) => tempY(hours[ii].sfc), vOf: (ii) => hours[ii].sfc, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: minSfcSet, color: SFC_COLOR, size: 11, dy: 14, need: drawSfc,
+                yOf: (ii) => tempY(hours[ii].sfc), vOf: (ii) => hours[ii].sfc, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: maxDewSet, color: "#bdbdbd", size: 10, dy: -20, need: drawDew,
+                yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: minDewSet, color: "#bdbdbd", size: 10, dy: 26, need: drawDew,
+                yOf: (ii) => tempY(hours[ii].dew), vOf: (ii) => hours[ii].dew, f: (vv) => fmtTemp(vv, u)
+            },
+            {
+                set: maxSunSet, color: "#ffd24a", size: 10, dy: -8, need: drawSun,
+                yOf: (ii) => sunY(hours[ii].sun), vOf: (ii) => hours[ii].sun, f: (vv) => fmtSun(vv)
+            },
+            {
+                set: minSunSet, color: "#ffd24a", size: 10, dy: 14, need: drawSun,
+                yOf: (ii) => sunY(hours[ii].sun), vOf: (ii) => hours[ii].sun, f: (vv) => fmtSun(vv)
+            },
+            {
+                set: maxHumSet, color: "#4dd0e1", size: 10, dy: -8, need: drawHum,
+                yOf: (ii) => humY(hours[ii].humidity), vOf: (ii) => hours[ii].humidity, f: (vv) => fmtPct(vv)
+            },
+            {
+                set: minHumSet, color: "#4dd0e1", size: 10, dy: 14, need: drawHum,
+                yOf: (ii) => humY(hours[ii].humidity), vOf: (ii) => hours[ii].humidity, f: (vv) => fmtPct(vv)
+            },
+            {
+                set: maxProbSet, color: PROB_COLOR, size: 10, dy: -20, need: drawProb,
+                yOf: (ii) => probY(hours[ii].prob), vOf: (ii) => hours[ii].prob, f: (vv) => fmtPct(vv)
+            },
+            {
+                set: minProbSet, color: PROB_COLOR, size: 10, dy: 26, need: drawProb,
+                yOf: (ii) => probY(hours[ii].prob), vOf: (ii) => hours[ii].prob, f: (vv) => fmtPct(vv)
+            },
+        ];
+        for (let di = 0; di < extDefs.length; di++) {
+            const D = extDefs[di];
+            if (!D.need) continue;
+            for (let ei = 0; ei < n; ei++) {
+                if (!D.set[ei]) continue;
+                const vv = D.vOf(ei);
+                if (vv === null || vv === undefined || isNaN(vv)) continue;
+                extLabel(ei, D.yOf(ei) + D.dy, D.color, D.size, D.f(vv));
+            }
+        }
+    }
+    const ly1 = hourY + 28;
+    const legendY = ly1 - 4;
+    for (let si = 0; si < 3; si++) {
+        s += '<line x1="' + (padL + si * 10) + '" y1="' + legendY + '" x2="' + (padL + (si + 1) * 10) +
+            '" y2="' + legendY + '" stroke="' + ["#4caf50", "#ffeb3b", "#ff5252"][si] +
+            '" stroke-width="3.5" stroke-linecap="round"/>\n';
+    }
+    s += '<text x="' + (padL + 38) + '" y="' + ly1 + '" fill="#bbb" font-size="11">ride score (0–10)</text>\n';
+    let legendX = padL + 170;
+    for (let di = 0; di < traceDefs.length; di++) {
+        const D = traceDefs[di];
+        if (!D.enabled) continue;
+        s += '<g data-legend="' + D.key + '">\n<line x1="' + legendX + '" y1="' + legendY +
+            '" x2="' + (legendX + 30) + '" y2="' + legendY + '"' + traceStyle(D) + '/>\n';
+        s += traceMarker(D, legendX + 15, legendY);
+        s += '<text x="' + (legendX + 38) + '" y="' + ly1 + '" fill="' + D.color +
+            '" font-size="11">' + escXml(D.legend) + '</text>\n</g>\n';
+        legendX += 52 + D.legend.length * 7;
+    }
+    s += '<text x="' + legendX + '" y="' + ly1 + '" fill="#bbb" font-size="11">left ' +
+        escXml(tempScaleUnit(u)) + ' temp scale · right % humidity/prob scale</text>\n';
+    const colSegs = [];
+    if (drawPrecip) {
+        colSegs.push('<tspan fill="#3377ff">blue column = rain ' + rainRateUnit(u) + '</tspan>');
+        colSegs.push('<tspan fill="#b3e5fc">pale column = snow ' + snowRateUnit(u) + '</tspan>');
+    }
+    colSegs.push('strip = risk level');
+    colSegs.push('❄ = ICE hour + cyan strip outline');
+    if (drawWind && showVals) colSegs.push('wind markers ride dash-dot line (higher = stronger)');
+    if (peakVals && showVals) colSegs.push(dailyPeakVals ? 'max + min labeled per day' : 'max + min labeled');
+    if (dnEnabled) colSegs.push('<tspan fill="#8fa3bf">shaded = night</tspan>');
+    const ly2 = ly1 + 14;
+    s += '<text x="' + padL + '" y="' + ly2 + '" fill="#bbb" font-size="11">' +
+        colSegs.join(' · ') + '</text>\n';
     const advItems = (o.advice && o.advice.length) ? o.advice : ["—"];
     const advLines = wrapAdviceLines(advItems, 100);
     for (let k = 0; k < advLines.length; k++) {
-        s += '<text x="' + padL + '" y="' + (ly1 + 15 + k * 13) + '" fill="#888" font-size="10">' +
+        s += '<text x="' + padL + '" y="' + (ly2 + 15 + k * 13) + '" fill="#888" font-size="10">' +
             (k === 0 ? "advice: " : "") + escXml(advLines[k]) + '</text>\n';
     }
     s += "</svg>\n";
     return s;
 }
 
-// Mirrors BackgroundService.mc fetchOpenMeteoData(), plus
-// apparent_temperature for the feels-like row. Multiple locations are sent
-// as comma-separated latitude/longitude lists so Open-Meteo returns all
-// forecasts in one response (a JSON array, one object per coordinate).
-function buildUrl(locs) {
+function buildUrl(locs, forecastHours) {
     const lats = locs.map((l) => l.lat).join(",");
     const lons = locs.map((l) => l.lon).join(",");
+    let fh = parseInt(forecastHours, 10);
+    if (isNaN(fh) || fh < 1) fh = 12;
+    if (fh > 336) fh = 336;
     const q = [
         "latitude=" + encodeURIComponent(lats),
         "longitude=" + encodeURIComponent(lons),
         "hourly=" + encodeURIComponent("temperature_2m,relativehumidity_2m,dewpoint_2m,apparent_temperature,showers,rain,snowfall,precipitation_probability,surface_temperature,wind_speed_10m,wind_gusts_10m,wind_direction_10m,sunshine_duration"),
         "past_hours=12",
-        "forecast_hours=12",
+        "forecast_hours=" + fh,
         "timezone=auto",
         "timeformat=unixtime",
         "minutely_15=" + encodeURIComponent("rain,snowfall"),
@@ -822,7 +1583,7 @@ function buildUrl(locs) {
 }
 
 // ---------------------------------------------------------------------------
-// Applet shell (Cinnamon-specific, thin wrapper around the engine above).
+// Applet shell
 // ---------------------------------------------------------------------------
 
 function SlipperyApplet(metadata, orientation, panelHeight, instanceId) {
@@ -835,26 +1596,38 @@ SlipperyApplet.prototype = {
     _init: function (metadata, orientation, panelHeight, instanceId) {
         Applet.TextApplet.prototype._init.call(this, orientation, panelHeight, instanceId);
 
-        // Install folder of this applet (for shipped pictures like warning.png).
         this._appletPath = (metadata && metadata.path) ? metadata.path : "";
         this.s = {};
         this.settings = new Settings.AppletSettings(this.s, UUID, instanceId);
         const keys = ["location-1-name", "location-1-coords",
-            "location-2-name", "location-2-coords",
-            "location-3-name", "location-3-coords",
-            "location-4-name", "location-4-coords",
-            "location-5-name", "location-5-coords",
+            "location-2-name", "location-2-coords", "location-2-enabled",
+            "location-3-name", "location-3-coords", "location-3-enabled",
+            "location-4-name", "location-4-coords", "location-4-enabled",
+            "location-5-name", "location-5-coords", "location-5-enabled",
             "refresh-minutes", "startup-delay-sec", "forecast-hours",
+            "forecast-days", "units",
             "show-temperature", "color-mode", "color-min-level",
             "use-hsp-text", "hsp-threshold",
-            "show-advice", "show-peak-risk", "panel-chip-locations",
+            "popup-display-mode", "show-advice", "compact-advice", "show-details",
+            "show-peak-risk", "panel-chip-locations",
+            "panel-chip-alert-level", "panel-alert-mon", "panel-alert-tue",
+            "panel-alert-wed", "panel-alert-thu", "panel-alert-fri",
+            "panel-alert-sat", "panel-alert-sun", "panel-alert-current-day",
+            "show-best-hour", "hide-calm-days",
+            "ice-chip-enabled", "ice-chip-hours", "ice-chip-color", "ice-chip-color-reset",
+            "graph-daynight", "graph-day-bg", "graph-night-bg",
+            "graph-colors-reset", "graph-day-labels",
+            "graph-show-score-badges", "graph-score-badge-position",
+            "graph-show-temp", "graph-show-surface", "graph-show-dew",
+            "graph-show-sun", "graph-show-wind", "graph-show-humidity",
+            "graph-show-prob", "graph-show-precip", "graph-values",
             "thresh-ice-alert", "thresh-high-crosswind", "thresh-cross-gust",
             "thresh-heavy-wind", "thresh-sustained-wind", "thresh-headwind",
             "thresh-heat-stress", "thresh-precip-ahead"];
         for (let i = 0; i < keys.length; i++) {
             try {
                 this.settings.bind(keys[i], keys[i], this._onSettingsChanged.bind(this));
-            } catch (e) { /* unknown key on old Cinnamon: ignore */ }
+            } catch (e) { /* ignore */ }
         }
 
         this.menuManager = new PopupMenu.PopupMenuManager(this);
@@ -869,8 +1642,6 @@ SlipperyApplet.prototype = {
         this.set_applet_label("…");
         this.set_applet_tooltip("Slippery: fetching Open-Meteo…");
         this._schedule();
-        // Fetch right away on (re)load. The extra delayed fetch below only
-        // covers login before the network is up (see startup-delay-sec).
         this.refresh();
         const delay = this._startupDelaySec();
         if (delay > 0) {
@@ -913,15 +1684,25 @@ SlipperyApplet.prototype = {
 
     _forecastHours: function () {
         let h = parseInt(this.s["forecast-hours"], 10);
-        if (isNaN(h) || h < 1) h = 8;
-        if (h > 12) h = 12;
+        if (isNaN(h) || h < 1) h = 12;
+        if (h > 336) h = 336;
         return h;
     },
 
+    _forecastDays: function () {
+        let d = parseInt(this.s["forecast-days"], 10);
+        if (isNaN(d) || d < 0) d = 0;
+        if (d > 14) d = 14;
+        return d;
+    },
+
+    _fetchHours: function () {
+        const h = this._forecastHours();
+        const d = this._forecastDays();
+        return Math.min(336, Math.max(h, d * 24));
+    },
+
     _thresholds: function () {
-        // Mirror SlipperyApp.mc / AlertStateAnalyzer.mc defaults. Only the
-        // ice threshold drives the popup (big ICE banner); the rest stay
-        // configurable like the Connect IQ app without cluttering the popup.
         const f = (key, dflt) => {
             const v = parseNum(this.s[key]);
             return isNaN(v) ? dflt : v;
@@ -938,11 +1719,10 @@ SlipperyApplet.prototype = {
         };
     },
 
-    // todo.md: one paste-friendly "lat, lon" field per point (max 5).
-    // Empty/invalid coordinates = slot disabled.
     _locations: function () {
         const locs = [];
         for (let n = 1; n <= 5; n++) {
+            if (n > 1 && this.s["location-" + n + "-enabled"] === false) continue;
             let nm = String(this.s["location-" + n + "-name"] || "").trim();
             if (!nm) nm = (n === 1) ? "Home" : ("Point " + n);
             const c = parseCoordField(this.s["location-" + n + "-coords"]);
@@ -973,6 +1753,8 @@ SlipperyApplet.prototype = {
 
     refresh: function () {
         if (this._busy) return;
+        this._maybeResetGraphColors();
+        this._maybeResetIceChipColor();
         const locs = this._locations();
         if (locs.length === 0) {
             this._showError("No valid location: paste lat, lon in settings (e.g. 52.3875, 4.7199).");
@@ -986,10 +1768,35 @@ SlipperyApplet.prototype = {
         });
     },
 
-    // One request for all points: Open-Meteo answers with a JSON array, one
-    // forecast object per coordinate (a single location stays a flat object).
+    _persistSetting: function (key, value) {
+        this.s[key] = value;
+        const attempts = ["setValue", "set_value", "setString", "set_string", "setBoolean"];
+        for (let i = 0; i < attempts.length; i++) {
+            try {
+                const fn = this.settings && this.settings[attempts[i]];
+                if (typeof fn === "function") {
+                    fn.call(this.settings, key, value);
+                    break;
+                }
+            } catch (e) { /* try next */ }
+        }
+    },
+
+    _maybeResetGraphColors: function () {
+        if (!this.s["graph-colors-reset"]) return;
+        this._persistSetting("graph-day-bg", GRAPH_DAY_BG_DEFAULT);
+        this._persistSetting("graph-night-bg", GRAPH_NIGHT_BG_DEFAULT);
+        this._persistSetting("graph-colors-reset", false);
+    },
+
+    _maybeResetIceChipColor: function () {
+        if (!this.s["ice-chip-color-reset"]) return;
+        this._persistSetting("ice-chip-color", "#add8e6");
+        this._persistSetting("ice-chip-color-reset", false);
+    },
+
     _fetchAll: function (locs, done) {
-        const url = buildUrl(locs);
+        const url = buildUrl(locs, this._fetchHours());
         this._fetchJson(url, (err, data) => {
             if (err) {
                 done(locs.map((loc) => ({ loc: loc, parsed: null, error: err })));
@@ -1004,8 +1811,10 @@ SlipperyApplet.prototype = {
                 } catch (e) {
                     parsed = null;
                 }
-                acc.push({ loc: locs[i], parsed: parsed,
-                           error: parsed ? null : "Empty response from Open-Meteo." });
+                acc.push({
+                    loc: locs[i], parsed: parsed,
+                    error: parsed ? null : "Empty response from Open-Meteo."
+                });
             }
             done(acc);
         });
@@ -1044,28 +1853,74 @@ SlipperyApplet.prototype = {
         this.menu.addMenuItem(item);
     },
 
-    // Renders the full-size SVG graph (same layout as nodetest/graph.js) from
-    // the already-fetched forecast, writes it to the temp dir and opens it
-    // in the default image viewer. No network, no npm, no extra packages.
+    _graphDayNightOpts: function () {
+        let enabled = this.s["graph-daynight"];
+        if (enabled === undefined || enabled === null) enabled = true;
+        return {
+            enabled: !!enabled,
+            dayBg: String(this.s["graph-day-bg"] || GRAPH_DAY_BG_DEFAULT),
+            nightBg: String(this.s["graph-night-bg"] || GRAPH_NIGHT_BG_DEFAULT),
+        };
+    },
+
+    _panelAlertsToday: function () {
+        const days = ["panel-alert-sun", "panel-alert-mon", "panel-alert-tue",
+            "panel-alert-wed", "panel-alert-thu", "panel-alert-fri",
+            "panel-alert-sat"];
+        return this.s[days[new Date().getDay()]] !== false;
+    },
+
+    _graphTracesOpts: function () {
+        const on = (key) => this.s[key] !== false;
+        return {
+            scoreBadges: on("graph-show-score-badges"),
+            temp: on("graph-show-temp"),
+            sfc: on("graph-show-surface"),
+            dew: on("graph-show-dew"),
+            sun: on("graph-show-sun"),
+            wind: on("graph-show-wind"),
+            hum: on("graph-show-humidity"),
+            prob: on("graph-show-prob"),
+            precip: on("graph-show-precip"),
+        };
+    },
+
     _openGraph: function (entry) {
         try {
             if (!entry || !entry.parsed || !entry.profile) return;
+            this._maybeResetGraphColors();
+            this._maybeResetIceChipColor();
             const parsed = entry.parsed;
+            const units = String(this.s["units"] || "metric");
             const hours = entry.profile.map((h) => ({
                 time: h.time, name: h.name,
                 rain: h.rain || 0, snow: h.snow || 0,
                 wind: h.windSpeed || 0, gust: h.windGust || 0,
                 wdir: (h.windDir === undefined) ? null : h.windDir,
                 sun: h.sun || 0,
+                temp: (h.airTemp === undefined) ? null : h.airTemp,
+                sfc: (h.surfaceTemp === undefined) ? null : h.surfaceTemp,
+                dew: (h.dewPoint === undefined) ? null : h.dewPoint,
+                humidity: (h.humidity === undefined) ? null : h.humidity,
+                prob: (h.prob === undefined || h.prob === null) ? null : h.prob,
+                ice: !!h.ice,
+                score: h.score !== undefined ? h.score : 10.0,
             }));
             const svg = buildGraphSvg({
                 title: entry.loc.name + ": " + parsed.risk.name + " — " +
                     (parsed.risk.hazards.join(" + ") || "No hazards"),
                 subtitle: parsed.time.toLocaleString() + " · lat " + entry.loc.lat + ", lon " + entry.loc.lon +
                     " · season " + parsed.season +
-                    " · wind " + Math.round(parsed.windSpeed) + " km/h, gust " + Math.round(parsed.windGust) + " km/h",
+                    " · wind " + fmtSpeedNum(parsed.windSpeed, units) + " " + speedUnit(units) +
+                    ", gust " + fmtSpeedNum(parsed.windGust, units) + " " + speedUnit(units),
                 hours: hours,
                 advice: parsed.risk.advice,
+                dayNight: this._graphDayNightOpts(),
+                units: units,
+                traces: this._graphTracesOpts(),
+                scoreBadgePosition: String(this.s["graph-score-badge-position"] || "curve"),
+                values: String(this.s["graph-values"] || "all"),
+                dayLabels: String(this.s["graph-day-labels"] || "date"),
             });
             if (!svg || !ByteArray) return;
             const path = GLib.build_filenamev([GLib.get_tmp_dir(), "slippery-graph.svg"]);
@@ -1080,11 +1935,6 @@ SlipperyApplet.prototype = {
         }
     },
 
-    // Picture row in the popup (yes, pictures are possible): a custom
-    // PopupBaseMenuItem holding an St.Icon plus bold text. Tries the shipped
-    // picture file first (this._appletPath + "/" + fileName, e.g. warning.png),
-    // then a stock theme icon, and returns false so the caller can fall back
-    // to a plain text row when neither works.
     _addBannerWithIcon: function (text, fileName, stockIcon) {
         if (!St || !PopupMenu.PopupBaseMenuItem) return false;
         let icon = null;
@@ -1109,14 +1959,10 @@ SlipperyApplet.prototype = {
         return true;
     },
 
-    // Colored popup row: the risk background color (same settings as the
-    // panel chip: bright/modest palette, color-min-level, HSP text color)
-    // behind the location name + risk label. Returns false when St is not
-    // available so callers can fall back to a plain text row.
     _addRiskRow: function (text, levelNum, riskName, opts) {
         if (!St) return false;
         const css = chipStyle(opts.colorMode, opts.minLevel, levelNum, riskName,
-            opts.useHsp, opts.hspT);
+            opts.useHsp, opts.hspT, opts.iceChip);
         try {
             const item = new PopupMenu.PopupBaseMenuItem({ reactive: false });
             const box = new St.BoxLayout({ style: css || "" });
@@ -1129,13 +1975,11 @@ SlipperyApplet.prototype = {
         return true;
     },
 
-    // Panel chip in single-point mode: the stock TextApplet label with one
-    // risk background on the whole chip. Clears any multi-segment box first.
     _renderChipSingle: function (label, levelNum, riskName, opts) {
         this._clearChipBox();
         this.set_applet_label(label);
         this.actor.set_style(chipStyle(opts.colorMode, opts.minLevel, levelNum,
-            riskName, opts.useHsp, opts.hspT));
+            riskName, opts.useHsp, opts.hspT, opts.iceChip));
     },
 
     _clearChipBox: function () {
@@ -1146,12 +1990,6 @@ SlipperyApplet.prototype = {
         try { if (this._applet_label) this._applet_label.show(); } catch (e) { /* ignore */ }
     },
 
-    // Panel chip in all-points mode: one segment per location, each with its
-    // own risk background (e.g. H SAFE|I CRITICAL). Hides the stock label
-    // and builds a box of per-segment labels instead. A segment flagged
-    // plain:true stays on the theme background (no risk color) — used so a
-    // calm first point stays plain next to a critical one. Returns false
-    // (caller falls back to the single-point chip) when custom actors fail.
     _renderChipMulti: function (segments, opts) {
         if (!St) return false;
         try {
@@ -1165,8 +2003,13 @@ SlipperyApplet.prototype = {
                 if (segments[i].plain) {
                     css = "padding: 0 4px;";
                 } else {
+                    const iceChip = opts.iceChip && {
+                        enabled: opts.iceChip.enabled,
+                        color: opts.iceChip.color,
+                        hasIce: !!segments[i].hasIceInWindow
+                    };
                     css = chipStyle(opts.colorMode, opts.minLevel,
-                        segments[i].level, segments[i].name, opts.useHsp, opts.hspT);
+                        segments[i].level, segments[i].name, opts.useHsp, opts.hspT, iceChip);
                     css += (css && css.charAt(css.length - 1) !== ";" ? ";" : "") + "padding: 0 4px;";
                 }
                 box.add_actor(new St.Label({ text: segments[i].text, style: css }));
@@ -1180,50 +2023,68 @@ SlipperyApplet.prototype = {
         }
     },
 
-    // Per-location block: compact status row (extra points only — the
-    // primary point's full status is already in the above section), then a
-    // graph button labelled with location name + risk level, then the short
-    // coming-hours summary (or a calm placeholder so every point has one).
-    // A summary whose peak coming risk reaches SLIGHT is highlighted with
-    // the risk background color (same settings as the panel chip); the calm
-    // placeholder stays plain. Warning glyphs inside the summary text (from
-    // comingSummary) carry the alert even when colors are off.
-    _addLocationBlock: function (r, idx, th, hours, opts) {
+    _addLocationBlock: function (r, idx, th, hours, days, opts) {
         if (!r.parsed) {
             this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
                 r.loc.name + ": " + (r.error || "no data"), { reactive: false }));
             return;
         }
-        // if (idx > 0) {
-        //     let row = r.loc.name + ": " + (SHORT_LABEL[r.parsed.risk.name] || "?") +
-        //         " " + Math.round(r.parsed.airTemp) + "° " +
-        //         r.parsed.rainCurrent.toFixed(1) + "mm";
-        //     if (r.parsed.snowCurrent >= 0.05) row += "+" + r.parsed.snowCurrent.toFixed(1) + "s";
-        //     if (r.iceNow) row = "\u2744 " + row + " ICE";
-        //     else if (r.iceAhead) row = row + " (\u2744>)";
-        //     const rowOk = this._addRiskRow(row, r.parsed.risk.level, r.parsed.risk.name, opts);
-        //     if (!rowOk) {
-        //         this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
-        //     }
-        // }
-        const gi = new PopupMenu.PopupMenuItem(
-            r.loc.name + ": " + r.parsed.risk.name + " — Hourly graph");
+
+        const units = String(this.s["units"] || "metric");
+        const currentRisk = r.parsed.risk.name;
+        const peak = peakComingRisk(r.profile);
+        const maxWarn = peak ? peak.name : currentRisk;
+        const sum = comingSummary(r.profile, th, units) || "calm";
+
+        const col1 = r.loc.name + " (" + currentRisk + ")";
+        const col2 = sum;        
+        const buttonText = col1 + " | " + col2;
+
+        const gi = new PopupMenu.PopupMenuItem(buttonText);
         gi.connect("activate", ((entry) => () => this._openGraph(entry))(r));
         this.menu.addMenuItem(gi);
-        const sum = comingSummary(r.profile, th);
-        if (sum) {
+
+        const popupMode = String(this.s["popup-display-mode"] || "all");
+        if (popupMode === "buttons-only") {
+            return;
+        }
+
+        if (sum !== "calm") {
             let highlighted = false;
-            const peak = peakComingRisk(r.profile);
             if (peak && peak.level >= RiskLevel.SLIGHT) {
                 highlighted = this._addRiskRow(sum, peak.level, peak.name, opts);
             }
             if (!highlighted) {
                 this.menu.addMenuItem(new PopupMenu.PopupMenuItem(sum, { reactive: false }));
             }
-        } else {
-            const n = (r.profile && r.profile.length > 1) ? (r.profile.length - 1) : hours;
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                "Next " + n + "h: calm", { reactive: false }));
+        }
+
+        if (popupMode !== "warnings-only" && this.s["show-best-hour"] !== false) {
+            const bestText = bestHourText(r.profile, bestComingHour(r.profile), units);
+            if (bestText) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(bestText, { reactive: false }));
+            }
+        }
+
+        let nDays = parseInt(days, 10);
+        if (!isNaN(nDays) && nDays > 0 && popupMode !== "warnings-only") {
+            const groups = (r.daily && r.daily.length) ? r.daily :
+                groupComingByDay(r.fullProfile || r.profile, nDays);
+            const iceT = (th && th.ice !== undefined) ? th.ice : 3.0;
+            for (let di = 0; di < groups.length; di++) {
+                const g = groups[di];
+                if (!g.hours || g.hours.length === 0) continue;
+                const ds = summarizeDay(g.hours, iceT);
+                if (this.s["hide-calm-days"] === true && ds.maxLvl < RiskLevel.SLIGHT) continue;
+                const row = formatDailyRow(g.label, ds, th, units);
+                if (ds.maxLvl >= RiskLevel.SLIGHT) {
+                    if (!this._addRiskRow(row, ds.maxLvl, ds.maxName, opts)) {
+                        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                    }
+                } else {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(row, { reactive: false }));
+                }
+            }
         }
     },
 
@@ -1236,62 +2097,93 @@ SlipperyApplet.prototype = {
         const th = this._thresholds();
         const iceT = th.ice;
         const hours = this._forecastHours();
+        const days = this._forecastDays();
+        const fetchH = this._fetchHours();
         const colorMode = String(this.s["color-mode"] || "bright");
         const colorMin = String(this.s["color-min-level"] || "always");
         const useHsp = !!this.s["use-hsp-text"];
         const hspT = this.s["hsp-threshold"];
-        // Hazards are always shown (the show-hazards setting was removed).
-        const showAdv = this.s["show-advice"] !== false;
+        const popupMode = String(this.s["popup-display-mode"] || "all");
+        const showAdv = (popupMode !== "buttons-only") && (this.s["show-advice"] !== false);
         const showPeak = this.s["show-peak-risk"] !== false;
+        const units = String(this.s["units"] || "metric");
+        const iceChipEnabled = this.s["ice-chip-enabled"] === true;
+        const iceChipHours = Math.max(1, parseInt(this.s["ice-chip-hours"] || 24));
+        const iceChipColor = this.s["ice-chip-color"] || "#add8e6";
 
-        // Enrich every location: forecast profile + ICE flags.
         let iceAnywhere = false;
+        let iceTodayAnywhere = false;
         let worstLevel = primary.parsed.risk.level;
         let worstName = primary.parsed.risk.name;
+
         for (let i = 0; i < results.length; i++) {
             const r = results[i];
             if (!r.parsed) continue;
-            r.profile = calculateProfile(r.parsed, hours);
+            r.fullProfile = calculateProfile(r.parsed, fetchH);
+            r.profile = r.fullProfile.slice(0, Math.min(r.fullProfile.length, hours + 1));
+            r.daily = groupComingByDay(r.fullProfile, days);
             r.iceNow = hasIceHazard(r.parsed.risk.hazards) || r.parsed.surfaceTemp <= iceT;
             r.iceAhead = false;
-            for (let h = 1; h < r.profile.length; h++) {
-                // Hazard-based ICE hour, or surface-temp margin (<= ice threshold)
-                // in a coming hour — same rule as iceNow, projected forward.
-                if (r.profile[h].ice) { r.iceAhead = true; break; }
-                const stH = r.profile[h].surfaceTemp;
+
+            r.hasIceInWindow = iceChipEnabled ? hasIceWithinHours(r.profile, iceChipHours) : false;
+
+            for (let h = 1; h < r.fullProfile.length; h++) {
+                if (r.fullProfile[h].ice) { r.iceAhead = true; break; }
+                const stH = r.fullProfile[h].surfaceTemp;
                 if (stH !== undefined && stH !== null && stH <= iceT) { r.iceAhead = true; break; }
             }
-            // Fallback for profiles without surface temps (should not happen
-            // anymore): scan the raw hourly array directly.
-            if (!r.iceAhead && r.profile.length === 0 && r.parsed._data && r.parsed._data.hourly) {
+            if (!r.iceAhead && r.fullProfile.length === 0 && r.parsed._data && r.parsed._data.hourly) {
                 const st = pickHourly(r.parsed._data.hourly, ["surface_temperature"], 0);
                 for (let h = r.parsed._targetIdx + 1;
-                     h < Math.min(st.length, r.parsed._targetIdx + 1 + hours); h++) {
+                    h < Math.min(st.length, r.parsed._targetIdx + 1 + fetchH); h++) {
                     if (st[h] != null && st[h] <= iceT) { r.iceAhead = true; break; }
                 }
             }
-            r.lows = forecastLows(r.profile);
+            r.iceToday = !!r.iceNow;
+            r.peakTodayLvl = 0;
+            if (r.fullProfile.length > 0 &&
+                r.fullProfile[0].time instanceof Date && !isNaN(r.fullProfile[0].time)) {
+                const d0 = r.fullProfile[0].time;
+                for (let h = 0; h < r.fullProfile.length; h++) {
+                    const th = r.fullProfile[h].time;
+                    if (!(th instanceof Date) || isNaN(th)) continue;
+                    if (th.getFullYear() !== d0.getFullYear() ||
+                        th.getMonth() !== d0.getMonth() || th.getDate() !== d0.getDate()) break;
+                    if ((r.fullProfile[h].level || 0) > r.peakTodayLvl) {
+                        r.peakTodayLvl = r.fullProfile[h].level;
+                    }
+                    if (!r.iceToday && h > 0) {
+                        if (r.fullProfile[h].ice) { r.iceToday = true; continue; }
+                        const stH = r.fullProfile[h].surfaceTemp;
+                        if (stH !== undefined && stH !== null && stH <= iceT) { r.iceToday = true; }
+                    }
+                }
+            }
+            r.lows = forecastLows(r.fullProfile);
             if (r.iceNow || r.iceAhead) iceAnywhere = true;
+            if (r.iceToday) iceTodayAnywhere = true;
             if (r.parsed.risk.level > worstLevel) {
                 worstLevel = r.parsed.risk.level;
                 worstName = r.parsed.risk.name;
             }
         }
 
-        // --- Panel chip (short risk labels: Ok/Low/Mod/Hig/Crt) ---
-        // At most two segments, so the chip stays narrow: the 1st point
-        // plus the one other point with the highest risk level.
-        // "primary" (default): stock label with the first point; ICE
-        // anywhere prefixes a snowflake. A CRITICAL other point is
-        // appended (H Ok|I Crt): the calm part stays plain, the critical
-        // part gets its risk background.
-        // "all": first point plus highest-risk point, each with its own
-        // risk background, e.g. H Ok|I Crt.
-        // With show-peak-risk, segments show the peak of the coming hours.
         const p = primary.parsed;
         const chipMode = String(this.s["panel-chip-locations"] || "primary");
-        const chipOpts = { colorMode: colorMode, minLevel: colorMin,
-                           useHsp: useHsp, hspT: hspT };
+        const chipOpts = {
+            colorMode: colorMode, minLevel: colorMin,
+            useHsp: useHsp, hspT: hspT,
+            iceChip: { enabled: iceChipEnabled, color: iceChipColor, hasIce: !!primary.hasIceInWindow }
+        };
+        const alertNeed = chipAlertLevelNum(this.s["panel-chip-alert-level"]);
+        let showAlerts = this._panelAlertsToday();
+        if (!showAlerts && this.s["panel-alert-current-day"] !== false) {
+            for (let qi = 0; qi < results.length; qi++) {
+                const qr = results[qi];
+                if (!qr.parsed) continue;
+                if (qr.iceToday || (qr.peakTodayLvl || 0) >= alertNeed) { showAlerts = true; break; }
+            }
+        }
         const chipSegs = [];
         for (let ci = 0; ci < results.length; ci++) {
             const cr = results[ci];
@@ -1304,14 +2196,29 @@ SlipperyApplet.prototype = {
             const nm = pk ? pk.name : cr.parsed.risk.name;
             const lv = pk ? pk.level : cr.parsed.risk.level;
             let tx = initial + " " + (SHORT_LABEL[nm] || nm);
-            if (this.s["show-temperature"]) tx += " " + Math.round(cr.parsed.airTemp) + "°";
+            if (this.s["show-temperature"]) tx += " " + fmtTempInt(cr.parsed.airTemp, units);
             if (cr.iceNow || cr.iceAhead) tx = "❄ " + tx;
-            chipSegs.push({ text: tx, level: lv, name: nm });
+            chipSegs.push({ text: tx, level: lv, name: nm,
+                hasIceInWindow: !!cr.hasIceInWindow });
         }
-        if (chipMode === "all" && chipSegs.length > 0) {
-            // Chip shows the 1st point plus the one other point with the
-            // highest risk level (first one wins ties) — never every point,
-            // so the chip stays narrow enough for the panel.
+
+        let alertIdx = -1;
+        for (let ai = 1; ai < chipSegs.length; ai++) {
+            if (chipSegs[ai].level >= alertNeed) { alertIdx = ai; break; }
+        }
+
+        if (!showAlerts) {
+            const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
+            let quiet = locInitial + " " + (SHORT_LABEL[p.risk.name] || p.risk.name);
+            if (this.s["show-temperature"]) quiet += " " + fmtTempInt(p.airTemp, units);
+            if (iceTodayAnywhere) quiet = "❄ " + quiet;
+            this._renderChipSingle(quiet, 0, "NO_DATA",
+                {
+                    colorMode: chipOpts.colorMode, minLevel: "never",
+                    useHsp: chipOpts.useHsp, hspT: chipOpts.hspT,
+                    iceChip: chipOpts.iceChip
+                });
+        } else if (chipMode === "all" && chipSegs.length > 0) {
             const topSegs = [chipSegs[0]];
             let best = -1;
             for (let mi = 1; mi < chipSegs.length; mi++) {
@@ -1320,103 +2227,86 @@ SlipperyApplet.prototype = {
             if (best !== -1) topSegs.push(chipSegs[best]);
             const multiOk = this._renderChipMulti(topSegs, chipOpts);
             if (!multiOk) {
-                // Fallback when custom actors fail: joined single label with
-                // the worst background.
                 const joined = topSegs.map((s) => s.text).join("|");
-                this._renderChipSingle(joined, worstLevel, worstName, chipOpts);
+                this._renderChipSingle(joined, worstLevel, worstName, {
+                    ...chipOpts,
+                    iceChip: { ...chipOpts.iceChip, hasIce: topSegs.some((s) => s.hasIceInWindow) }
+                });
             }
         } else {
-            // Single-point chip: primary point, with the ICE marker when
-            // any point is icy. If another point is at CRITICAL, only the
-            // first-highest one is appended next to it (e.g. H Ok|I Crt):
-            // the calm part stays on the theme background while the
-            // critical part gets its risk background (per-part rendering
-            // via _renderChipMulti, with a plain single-label fallback
-            // carrying the worst background).
             const peakPrimary = showPeak ? peakComingRisk(primary.profile) : null;
             const shownName = peakPrimary ? peakPrimary.name : p.risk.name;
             const shownLevel = peakPrimary ? peakPrimary.level : p.risk.level;
             const locInitial = ((primary.loc.name || "?").trim().charAt(0) || "?").toUpperCase();
             let label = locInitial + " " + (SHORT_LABEL[shownName] || shownName);
-            if (this.s["show-temperature"]) label += " " + Math.round(p.airTemp) + "°";
+            if (this.s["show-temperature"]) label += " " + fmtTempInt(p.airTemp, units);
             if (iceAnywhere) label = "❄ " + label;
             let chipLevel = shownLevel, chipName = shownName;
-            let critIdx = -1;
-            for (let ai = 1; ai < chipSegs.length; ai++) {
-                if (chipSegs[ai].level >= RiskLevel.CRITICAL) { critIdx = ai; break; }
-            }
-            if (critIdx === -1) {
+            
+            if (alertIdx === -1) {
                 this._renderChipSingle(label, chipLevel, chipName, chipOpts);
             } else {
-                // Segment texts carry their own "❄ " prefix when icy;
-                // strip it here, the chip-wide marker above already
-                // covers ice.
-                label += "|" + chipSegs[critIdx].text.replace(/^❄ /, "");
-                if (chipSegs[critIdx].level > chipLevel) {
-                    chipLevel = chipSegs[critIdx].level;
-                    chipName = chipSegs[critIdx].name;
+                label += "|" + chipSegs[alertIdx].text.replace(/^❄ /, "");
+                if (chipSegs[alertIdx].level > chipLevel) {
+                    chipLevel = chipSegs[alertIdx].level;
+                    chipName = chipSegs[alertIdx].name;
                 }
                 const alertSegs = [
-                    { text: chipSegs[0].text, level: chipSegs[0].level,
-                      name: chipSegs[0].name,
-                      plain: chipSegs[0].level < RiskLevel.CRITICAL },
-                    { text: chipSegs[critIdx].text, level: chipSegs[critIdx].level,
-                      name: chipSegs[critIdx].name, plain: false },
+                    {
+                        text: chipSegs[0].text, level: chipSegs[0].level,
+                        name: chipSegs[0].name,
+                        hasIceInWindow: chipSegs[0].hasIceInWindow,
+                        plain: chipSegs[0].level < alertNeed
+                    },
+                    {
+                        text: chipSegs[alertIdx].text, level: chipSegs[alertIdx].level,
+                        name: chipSegs[alertIdx].name,
+                        hasIceInWindow: chipSegs[alertIdx].hasIceInWindow, plain: false
+                    },
                 ];
                 if (!this._renderChipMulti(alertSegs, chipOpts)) {
-                    this._renderChipSingle(label, chipLevel, chipName, chipOpts);
+                    this._renderChipSingle(label, chipLevel, chipName, {
+                        ...chipOpts,
+                        iceChip: { ...chipOpts.iceChip, hasIce: alertSegs.some((s) => s.hasIceInWindow) }
+                    });
                 }
             }
         }
 
-        let tip = "Slippery: " + p.risk.name + " @ " + primary.loc.name +
-            (p.risk.hazards.length > 0 ? "\n" + p.risk.hazards.join("\n") : "\nNo hazards") +
-            "\nWind " + Math.round(p.windSpeed) + " km/h " + compass16(p.windDir) +
-            ", gust " + Math.round(p.windGust) + " km/h" +
-            " · rain 12h " + p.rain12.toFixed(1) + " mm";
-        if (showPeak) {
-            const peakPrimary = peakComingRisk(primary.profile);
-            if (peakPrimary) tip += "\n" + peakComingText(primary.profile, peakPrimary);
-        }
-        if (results.length > 1) tip += "\nWorst of " + results.length + " points: " + worstName;
-        if (iceAnywhere) tip += "\n\u2744 ICE WARNING — check popup";
-        // Hover details for extra points (the primary point is detailed
-        // above), so the tooltip covers all locations, not just the first.
-        // Only points reaching "Show colors only when risk is above" are
-        // listed — the same gate as the chip colors. Errors are always
-        // shown so a dead point is never silently hidden.
-        for (let ti = 1; ti < results.length; ti++) {
-            const tr = results[ti];
-            if (!tr.parsed) {
-                tip += "\n" + tr.loc.name + ": " + (tr.error || "no data");
-                continue;
-            }
-            const tipPeak = showPeak ? peakComingRisk(tr.profile) : null;
-            const tipLevel = tipPeak ? tipPeak.level : tr.parsed.risk.level;
-            if (!colorPassesMinLevel(colorMin, tipLevel)) continue;
-            tip += "\n" + tr.loc.name + ": " + tr.parsed.risk.name +
-                " — air " + tr.parsed.airTemp.toFixed(1) + "° sfc " +
-                tr.parsed.surfaceTemp.toFixed(1) + "°" +
-                " · gust " + Math.round(tr.parsed.windGust) + " km/h" +
-                " · rain 12h " + tr.parsed.rain12.toFixed(1) + " mm";
-            if (tr.parsed.risk.hazards.length > 0) {
-                tip += "\n  " + tr.parsed.risk.hazards.join("; ");
-            }
-            if (tr.iceNow || tr.iceAhead) tip += " ❄";
-        }
-        this.set_applet_tooltip(tip);
+        let tipParts = [];
+        const primaryPeak = showPeak ? peakComingRisk(primary.profile) : null;
+        const primarySummary = comingSummary(primary.profile, th, units);
+        let primaryTipText = primary.loc.name + ": " + (primaryPeak ? primaryPeak.name : p.risk.name);
+        if (primarySummary) primaryTipText += " — " + primarySummary;
+        tipParts.push(primaryTipText);
 
-        // --- Compact popup menu ---
-        // Above section: general warning for all locations (ICE banner +
-        // per-icy-point temps), then hazards and threshold warnings.
+        if (alertIdx !== -1 && alertIdx < results.length) {
+            const alertRes = results[alertIdx];
+            const alertPeak = showPeak ? peakComingRisk(alertRes.profile) : null;
+            const alertSummary = comingSummary(alertRes.profile, th, units);
+            let alertTipText = alertRes.loc.name + ": " + (alertPeak ? alertPeak.name : alertRes.parsed.risk.name);
+            if (alertSummary) alertTipText += " — " + alertSummary;
+            tipParts.push(alertTipText);
+        } else if (results.length > 1 && chipMode === "all") {
+            const secondaryRes = results[1];
+            if (secondaryRes && secondaryRes.parsed) {
+                const secPeak = showPeak ? peakComingRisk(secondaryRes.profile) : null;
+                const secSummary = comingSummary(secondaryRes.profile, th, units);
+                let secTipText = secondaryRes.loc.name + ": " + (secPeak ? secPeak.name : secondaryRes.parsed.risk.name);
+                if (secSummary) secTipText += " — " + secSummary;
+                tipParts.push(secTipText);
+            }
+        }
+
+        if (iceAnywhere) {
+            tipParts.unshift("❄ ICE WARNING — check popup");
+        }
+
+        this.set_applet_tooltip("Slippery:\n" + tipParts.join("\n"));
+
         this.menu.removeAll();
 
-        // todo.md: "ICE or ICE coming hours is big warning" — top banner.
-        // The banner used to be generic ("now or coming") while the details
-        // below only showed the current hour, so a cold forecast hour
-        // triggered ICE with no visible low temperature. Now each icy point
-        // gets its own temperature explanation row right under the banner.
-        if (iceAnywhere) {
+        if (iceAnywhere && popupMode !== "buttons-only") {
             let bannerOk = false;
             try {
                 bannerOk = this._addBannerWithIcon("ICE — freezing surface now or coming",
@@ -1430,17 +2320,17 @@ SlipperyApplet.prototype = {
                 const r = results[i];
                 if (!r.parsed || (!r.iceNow && !r.iceAhead)) continue;
                 let line = "\u2744 " + r.loc.name + ": sfc " +
-                    r.parsed.surfaceTemp.toFixed(1) + "° · air " +
-                    r.parsed.airTemp.toFixed(1) + "°";
+                    fmtTemp(r.parsed.surfaceTemp, units) + " · air " +
+                    fmtTemp(r.parsed.airTemp, units);
                 if (r.iceNow) line += " — now";
                 if (r.iceAhead && r.lows &&
                     (r.lows.minSfc !== null || r.lows.minAir !== null)) {
                     line += (r.iceNow ? "; " : " → ") + "low sfc " +
-                        (r.lows.minSfc !== null ? r.lows.minSfc.toFixed(1) + "°" : "?") +
-                        (r.lows.minSfcTime ? " @" + hourLabel(r.lows.minSfcTime, false) : "") +
+                        (r.lows.minSfc !== null ? fmtTemp(r.lows.minSfc, units) : "?") +
+                        (r.lows.minSfcTime ? " (" + fmtRelHours(Date.now(), r.lows.minSfcTime.getTime()) + ")" : "") +
                         " · air " +
-                        (r.lows.minAir !== null ? r.lows.minAir.toFixed(1) + "°" : "?") +
-                        (r.lows.minAirTime ? " @" + hourLabel(r.lows.minAirTime, false) : "");
+                        (r.lows.minAir !== null ? fmtTemp(r.lows.minAir, units) : "?") +
+                        (r.lows.minAirTime ? " (" + fmtRelHours(Date.now(), r.lows.minAirTime.getTime()) + ")" : "");
                 } else if (r.iceAhead) {
                     line += " → colder coming hours";
                 }
@@ -1449,72 +2339,87 @@ SlipperyApplet.prototype = {
             this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        const primaryText = primary.loc.name + ": " + p.risk.name + " — " + p.time.toLocaleString();
-        const primaryRowOk = this._addRiskRow(primaryText, p.risk.level, p.risk.name,
-            { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
-        if (!primaryRowOk) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(primaryText, { reactive: false }));
-        }
+        if (popupMode !== "buttons-only") {
+            const primaryText = primary.loc.name + ": " + p.risk.name + " — " +
+                p.time.toLocaleDateString() + " " + hourLabel(p.time, false);
+            const primaryRowOk = this._addRiskRow(primaryText, p.risk.level, p.risk.name,
+                { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT, iceChip: chipOpts.iceChip });
+            if (!primaryRowOk) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(primaryText, { reactive: false }));
+            }
 
-        p.risk.hazards.forEach((hz) => {
-            const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(iceMark + hz, { reactive: false }));
-        });
-        if (showAdv) {
-            p.risk.advice.forEach((ad) => {
-                this.menu.addMenuItem(new PopupMenu.PopupMenuItem("\u2192 " + ad, { reactive: false }));
+            p.risk.hazards.forEach((hz) => {
+                const iceMark = hasIceHazard([hz]) ? "\u2744 " : "\u26A0 ";
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem(iceMark + hz, { reactive: false }));
             });
-        }
-        if (p.risk.hazards.length === 0 && (!showAdv || p.risk.advice.length === 0)) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem("No hazards — good ride", { reactive: false }));
-        }
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        // todo.md: short summary, each group only when relevant (near thresholds).
-        // Pass the forecast profile so a warm current hour with a cold night
-        // ahead still shows the temperature row (with forecast low).
-        const det = relevantDetails(p, th, primary.profile);
-        let shownDetail = false;
-        if (det.windRow) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (det.tempRow) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.tempRow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (det.precip) {
-            let prow = "Rain " + p.rainCurrent.toFixed(1) + " \u00b7 12h " + p.rain12.toFixed(1) + "mm";
-            if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
-                prow += " \u00b7 snow " + p.snowCurrent.toFixed(1) + "/" + p.snow12.toFixed(1) + "cm";
+            if (showAdv) {
+                if (this.s["compact-advice"] === true && p.risk.advice.length > 0) {
+                    const advLines = wrapAdviceLines(p.risk.advice, 70);
+                    for (let k = 0; k < advLines.length; k++) {
+                        this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                            (k === 0 ? "\u2192 " : "   ") + advLines[k], { reactive: false }));
+                    }
+                } else {
+                    p.risk.advice.forEach((ad) => {
+                        this.menu.addMenuItem(new PopupMenu.PopupMenuItem("\u2192 " + ad, { reactive: false }));
+                    });
+                }
             }
-            if (p.immRain === 0) prow += " \u00b7 rain NOW";
-            else if (p.immRain > 0) prow += " \u00b7 rain " + p.immRain + "min";
-            if (p.immSnow === 0) prow += " \u00b7 snow NOW";
-            else if (p.immSnow > 0) prow += " \u00b7 snow " + p.immSnow + "min";
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prow, { reactive: false }));
-            shownDetail = true;
-        }
-        if (!shownDetail) {
-            this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
-                "Details calm \u2014 nothing near thresholds", { reactive: false }));
+            if (p.risk.hazards.length === 0 && (!showAdv || p.risk.advice.length === 0)) {
+                this.menu.addMenuItem(new PopupMenu.PopupMenuItem("No hazards — good ride", { reactive: false }));
+            }
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+            if (this.s["show-details"] !== false) {
+                const det = relevantDetails(p, th, primary.profile, units);
+                let shownDetail = false;
+                if (det.windRow) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.windRow, { reactive: false }));
+                    shownDetail = true;
+                }
+                if (det.tempRow) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(det.tempRow, { reactive: false }));
+                    shownDetail = true;
+                }
+                if (det.precip) {
+                    let prow = "Rain " + fmtRain(p.rainCurrent, units) + " \u00b7 12h " + fmtRain(p.rain12, units);
+                    if (p.snowCurrent >= 0.05 || p.snow12 >= SNOW_THRESHOLD) {
+                        prow += " \u00b7 snow " + fmtSnow(p.snowCurrent, units) + "/" + fmtSnow(p.snow12, units);
+                    }
+                    if (p.immRain === 0) prow += " \u00b7 rain NOW";
+                    else if (p.immRain > 0) prow += " \u00b7 rain " + p.immRain + "min";
+                    if (p.immSnow === 0) prow += " \u00b7 snow NOW";
+                    else if (p.immSnow > 0) prow += " \u00b7 snow " + p.immSnow + "min";
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(prow, { reactive: false }));
+                    shownDetail = true;
+                }
+                if (!shownDetail) {
+                    this.menu.addMenuItem(new PopupMenu.PopupMenuItem(
+                        "Details calm \u2014 nothing near thresholds", { reactive: false }));
+                }
+            }
+            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
 
-        // --- Per active location: graph button (name + risk level) -------
-        // followed by the short coming-hours summary.
-        // (The per-hour rows were removed; the full graph covers them.)
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._addLocationBlock(primary, 0, th, hours,
-            { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
+        for (let i = 0; i < results.length; i++) {
+            const r = results[i];
+            const locIceChipOpts = {
+                enabled: iceChipEnabled,
+                color: iceChipColor,
+                hasIce: r.hasIceInWindow || false
+            };
+            const locOpts = {
+                colorMode: colorMode,
+                minLevel: colorMin,
+                useHsp: useHsp,
+                hspT: hspT,
+                iceChip: locIceChipOpts
+            };
 
-        // Remaining points, one block each (results[0] is the primary
-        // location shown above, so start at 1).
-        if (results.length > 1) {
-            for (let i = 1; i < results.length; i++) {
+            if (i > 0) {
                 this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-                this._addLocationBlock(results[i], i, th, hours,
-                    { colorMode: colorMode, minLevel: colorMin, useHsp: useHsp, hspT: hspT });
             }
+            this._addLocationBlock(r, i, th, hours, days, locOpts);
         }
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());

@@ -9,7 +9,7 @@ function getApplicationProperty(
   key as Application.PropertyKeyType,
   dflt as Application.PropertyValueType
 ) as Application.PropertyValueType {
- try {
+  try {
     var val = Properties.getValue(key);
     if (val != null) {
       return val;
@@ -20,7 +20,11 @@ function getApplicationProperty(
   return dflt;
 }
 
-function getDictionaryValue(data as Dictionary, key as String, defaultValue as Object?) as Object? {
+function getDictionaryValue(
+  data as Dictionary,
+  key as String,
+  defaultValue as Object?
+) as Object? {
   var value = data.get(key);
   if (value == null) {
     return defaultValue;
@@ -28,7 +32,11 @@ function getDictionaryValue(data as Dictionary, key as String, defaultValue as O
   return value as Numeric;
 }
 
-function getActivityValue(info as Activity.Info?, symbol as Symbol, dflt as Lang.Object) as Lang.Object {
+function getActivityValue(
+  info as Activity.Info?,
+  symbol as Symbol,
+  dflt as Lang.Object
+) as Lang.Object {
   if (info == null) {
     return dflt;
   }
@@ -69,4 +77,52 @@ function getStringValue(value as String?, def as String?) as String? {
     return def;
   }
   return value;
+}
+
+// Save a number value in array and save to storage
+// Note key contains `storageKey|index` or `storageKey`
+function setStorageValueOrArray(
+  key as String,
+  value as Application.PropertyValueType
+) as Void {
+  if (key == "") {
+    return;
+  }
+
+  // Extract selected storage key and index
+  var storageKey = $.stringLeft(key, "|", key);
+  var idx = $.stringRight(key, "|", "").toNumber();
+  // System.println(["setStorageValueOrArray storageKey|idx", storageKey, idx]);
+  if (idx == null || idx == "") {
+    Storage.setValue(storageKey, value);
+    return;
+  }
+
+  // System.println(["setStorageValueArray:", storageKey, idx, value]);
+
+  // Get current array
+  var array =
+    $.getStorageValue(storageKey, []) as Array<Application.PropertyValueType>;
+  if (idx > -1 && idx < array.size()) {
+    // Update array
+    array[idx] = value;
+    Storage.setValue(
+      storageKey,
+      array //as Lang.Array<Application.PropertyValueType>
+    );
+  }
+}
+
+// Objects are passed by reference
+function ensureArraySize(
+  array as Array<Application.PropertyValueType>,
+  size as Number,
+  value as Application.PropertyValueType
+) as Boolean {
+  var changed = false;
+  while (array.size() < size) {
+    array.add(value);
+    changed = true;
+  }
+  return changed;
 }

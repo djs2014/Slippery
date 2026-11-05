@@ -50,3 +50,30 @@ function stringReplacePos(
   return pre + result;
 }
 
+function stringLeft(str as String, marker as String, dflt as String) as String {
+  if (str.length() == 0 || marker.length() == 0) {
+    return dflt;
+  }
+
+  var index = str.find(marker);
+  if (index == null) {
+    return dflt;
+  }
+  return str.substring(0, index) as String;
+}
+
+function stringRight(
+  str as String,
+  marker as String,
+  dflt as String
+) as String {
+  if (str.length() == 0 || marker.length() == 0) {
+    return dflt;
+  }
+
+  var index = str.find(marker);
+  if (index == null || index + 1 >= str.length()) {
+    return dflt;
+  }
+  return str.substring(index + 1, str.length()) as String;
+}

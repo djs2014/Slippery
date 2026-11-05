@@ -4,7 +4,7 @@ import Toybox.Math;
 import Toybox.Time;
 import Toybox.System;
 
-(:extendedCode) 
+(:extendedCode)
 class PredictiveSparkline {
     public static function drawComfort(
         dc as Graphics.Dc,
@@ -129,12 +129,18 @@ class PredictiveSparkline {
         width as Number,
         height as Number,
         metrics as WeatherMetrics,
-        riskProfile as Array<RiskLevel>,
+        assessment as RiskAssessment,
         isDark as Boolean,
         showLabels as Boolean,
         showBadges as Boolean,
         showForecastHour as ShowForecastHour,
-        edgeField as EdgeField
+        simplifyWind as Boolean,
+        showRiskBackground as Boolean,
+        edgeField as EdgeField,
+        showSun as Boolean,
+        showPrecipProb as Boolean,
+        showWind as Boolean,
+        showTemp as Boolean
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
         if (numHours == 0) {
@@ -154,10 +160,12 @@ class PredictiveSparkline {
             standardBarWidth * metrics.hourFractionRemaining
         ).toNumber();
         var baselineY = y + height; //- (showLabels ? 16 : 0);
-        var chartHeight = baselineY - y;//  - (showLabels ? 14 : 0);
+        var chartHeight = baselineY - y; //  - (showLabels ? 14 : 0);
 
         // PASS 1 range scan in its own frame (locals freed before PASS 2).
-        var ranges = computePrecipRanges(metrics, numHours);
+        var ranges = computePrecipRanges(
+            metrics, numHours, assessment.hourlyIceHazards
+        );
 
         var textColor = isDark
             ? Graphics.COLOR_LT_GRAY
@@ -178,7 +186,10 @@ class PredictiveSparkline {
             :offsetIceBars => showLabels ? 12 : 0,
             :baselineY => baselineY,
             :chartHeight => chartHeight,
-            :riskBlockY => y + (height - chartHeight - 4) + 2 + (chartHeight * 0.33).toNumber(),
+            :riskBlockY => y +
+            (height - chartHeight - 4) +
+            2 +
+            (chartHeight * 0.33).toNumber(),
             :riskBlockHeight => (chartHeight * 0.66).toNumber(),
             :hourColor => AppState.getColor(ThemeManager.COLOR_BG),
             :haloColor => isDark ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE,
@@ -189,10 +200,17 @@ class PredictiveSparkline {
             :minSt => ranges[:minSt],
             :maxSt => ranges[:maxSt],
             :hasIceAhead => ranges[:hasIceAhead],
+            :iceHazards => assessment.hourlyIceHazards,
             :hasTempData => ranges[:hasTempData],
             :hasSunshineData => ranges[:hasSunshineData],
             :firstShowerIdx => ranges[:firstShowerIdx],
             :firstRainIdx => ranges[:firstRainIdx],
+            :simplifyWind => simplifyWind,
+            :showRiskBackground => showRiskBackground,
+            :showSun => showSun,
+            :showPrecipProb => showPrecipProb,
+            :showWind => showWind,
+            :showTemp => showTemp,
         };
 
         // Baseline Line
@@ -203,11 +221,16 @@ class PredictiveSparkline {
         // Same order as the old combined loop (background > risk > precip >
         // temp/sun/wind lines); layers are independent and track their own
         // previous-point state internally.
-        drawRiskLayer(dc, metrics, riskProfile, ctx);
+        drawRiskLayer(dc, metrics, assessment.hourlyRisksLevels, ctx);
         drawPrecipLayer(dc, metrics, ctx);
-        var firstStY = drawTempLayer(dc, metrics, riskProfile, ctx);
+        drawProbLayer(dc, metrics, ctx);
+        var firstStY = drawTempLayer(
+            dc, metrics, assessment.hourlyRisksLevels, ctx
+        );
         var firstSunY = drawSunLayer(dc, metrics, ctx);
-        var firstWindY = drawWindLayer(dc, metrics, riskProfile, ctx);
+        var firstWindY = drawWindLayer(
+            dc, metrics, assessment.hourlyRisksLevels, ctx
+        );
         drawMinutelyOverlay(dc, metrics, ctx);
 
         // --- LINE UNDER THE SPARKLINE ---
@@ -225,7 +248,8 @@ class PredictiveSparkline {
     // keeping the peak VM stack small (see draw() note).
     private static function computePrecipRanges(
         metrics as WeatherMetrics,
-        numHours as Number
+        numHours as Number,
+        iceHazards as Array<Boolean>
     ) as Dictionary {
         var rainForecast = metrics.rainForecast;
         var showersForecast = metrics.showersForecast;
@@ -259,7 +283,9 @@ class PredictiveSparkline {
             var probP =
                 i < precipProbForecast.size()
                     ? precipProbForecast[i]
-                    : (totalP > 0.05f ? 100 : 0);
+                    : totalP > 0.05f
+                      ? 100
+                      : 0;
             if (
                 firstShowerIdx < 0 &&
                 i < showersForecast.size() &&
@@ -277,12 +303,13 @@ class PredictiveSparkline {
                 firstRainIdx = i;
             }
 
-            // 4. Temp Range & Ice check
+            if (i < iceHazards.size() && iceHazards[i]) {
+                hasIceAhead = true;
+            }
+
+            // 4. Temp Range
             if (hasTempData && i < surfaceTempForecast.size()) {
                 var st = surfaceTempForecast[i];
-                if (st <= 0.0f) {
-                    hasIceAhead = true;
-                }
                 if (st < minSt) {
                     minSt = st;
                 }
@@ -314,7 +341,7 @@ class PredictiveSparkline {
         };
     }
 
-    // PASS 2 layer A+B of draw(): freezing-temp background + risk heatmap
+    // PASS 2 layer A+B of draw(): ice-hazard background + risk heatmap
     // with hour labels. Own frame (see draw() note).
     private static function drawRiskLayer(
         dc as Graphics.Dc,
@@ -324,8 +351,7 @@ class PredictiveSparkline {
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
         var currentHour = metrics.currentHour;
-        var surfaceTempForecast = metrics.surfaceTempForecast;
-        var hasTempData = ctx[:hasTempData] as Boolean;
+        var iceHazards = ctx[:iceHazards] as Array<Boolean>;
         var x = ctx[:x] as Number;
         var y = ctx[:y] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
@@ -340,9 +366,7 @@ class PredictiveSparkline {
         var showForecastHour = ctx[:showForecastHour] as ShowForecastHour;
         var hourColor = ctx[:hourColor] as Graphics.ColorType;
         var isDark = ctx[:isDark] as Boolean;
-        // Risk heatmap is redundant while the risk footer below carries the
-        // per-hour risk (Forecast menu): skip blocks + labels, keep geometry.
-        var showRisk = !$.riskFooterFor(ctx[:edgeField] as EdgeField);
+        var showRisk = ctx[:showRiskBackground] as Boolean;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -352,16 +376,14 @@ class PredictiveSparkline {
             var currentRisk =
                 i < riskProfile.size() ? riskProfile[i] : RiskLevelSafe;
 
-            // --- LAYER A: FREEZING TEMP BACKGROUND ---
+            // --- LAYER A: ICE HAZARD BACKGROUND ---
             // Height ends exactly at the chart bottom (no slot overflow now
             // that chartHeight spans the full slot height).
-            if (
-                hasTempData &&
-                i < surfaceTempForecast.size() &&
-                surfaceTempForecast[i] <= 0.0f
-            ) {
+            if (i < iceHazards.size() && iceHazards[i]) {
                 dc.setColor(
-                    AppState.getColor(ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND),
+                    AppState.getColor(
+                        ThemeManager.COLOR_FREEZING_TEMP_BACKGROUND
+                    ),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.fillRectangle(
@@ -422,7 +444,6 @@ class PredictiveSparkline {
         var rainForecast = metrics.rainForecast;
         var showersForecast = metrics.showersForecast;
         var snowForecast = metrics.snowForecast;
-        var precipProbForecast = metrics.precipProbForecast;
         var x = ctx[:x] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
         var barGap = ctx[:barGap] as Number;
@@ -430,15 +451,12 @@ class PredictiveSparkline {
         var leftShift = ctx[:leftShift] as Number;
         var baselineY = ctx[:baselineY] as Number;
         var chartHeight = ctx[:chartHeight] as Number;
-        var isDark = ctx[:isDark] as Boolean;
         var maxPrecip = ctx[:maxPrecip] as Float;
         var firstShowerIdx = ctx[:firstShowerIdx] as Number;
         var firstRainIdx = ctx[:firstRainIdx] as Number;
         // Significant precip floor shared with AlertStateAnalyzer
         // (threshPrecipAhead setting): drives badges, outlines, segment floor.
         var precipHlThreshold = AlertStateAnalyzer.threshPrecipAhead;
-        // Confidence floor (%): hours below render hollow (uncertain) bars.
-        var probFloor = 30;
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -459,14 +477,6 @@ class PredictiveSparkline {
                 if (barH < 3) {
                     barH = 3;
                 }
-
-                // Confidence: below-floor hours render hollow (outline)
-                // segments in the same colors instead of solid fills.
-                var prob =
-                    i < precipProbForecast.size()
-                        ? precipProbForecast[i]
-                        : 100;
-                var solidBar = prob >= probFloor;
 
                 // Proportional split; snow cap never exceeds the column.
                 var snowH = 0;
@@ -502,9 +512,7 @@ class PredictiveSparkline {
                         if (showerH > liquidH) {
                             showerH = liquidH;
                         }
-                        if (
-                            showers >= precipHlThreshold && showerH < 2
-                        ) {
+                        if (showers >= precipHlThreshold && showerH < 2) {
                             showerH = liquidH < 2 ? liquidH : 2;
                         }
                         rainH = liquidH - showerH;
@@ -522,11 +530,7 @@ class PredictiveSparkline {
                                         ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE
                                     );
                         dc.setColor(rainColor, Graphics.COLOR_TRANSPARENT);
-                        if (solidBar) {
-                            dc.fillRectangle(colX, precipY - rainH, colW, rainH);
-                        } else {
-                            dc.drawRectangle(colX, precipY - rainH, colW, rainH);
-                        }
+                        dc.fillRectangle(colX, precipY - rainH, colW, rainH);
                         precipY -= rainH;
                     }
                     if (showerH > 0) {
@@ -535,21 +539,12 @@ class PredictiveSparkline {
                             AppState.getColor(ThemeManager.COLOR_SHOWERS),
                             Graphics.COLOR_TRANSPARENT
                         );
-                        if (solidBar) {
-                            dc.fillRectangle(
-                                colX,
-                                precipY - showerH,
-                                colW,
-                                showerH
-                            );
-                        } else {
-                            dc.drawRectangle(
-                                colX,
-                                precipY - showerH,
-                                colW,
-                                showerH
-                            );
-                        }
+                        dc.fillRectangle(
+                            colX,
+                            precipY - showerH,
+                            colW,
+                            showerH
+                        );
                         precipY -= showerH;
                     }
                 }
@@ -559,11 +554,8 @@ class PredictiveSparkline {
                         AppState.getColor(ThemeManager.COLOR_SNOW_PATTERN),
                         Graphics.COLOR_TRANSPARENT
                     );
-                    if (solidBar) {
-                        dc.fillRectangle(colX, precipY - snowH, colW, snowH);
-                    } else {
-                        dc.drawRectangle(colX, precipY - snowH, colW, snowH);
-                    }
+                    dc.fillRectangle(colX, precipY - snowH, colW, snowH);
+
                     dc.setColor(
                         Graphics.COLOR_DK_GRAY,
                         Graphics.COLOR_TRANSPARENT
@@ -604,6 +596,99 @@ class PredictiveSparkline {
         }
     }
 
+    // PASS 2 layer C2 of draw(): precipitation-probability dotted line
+    // (0-100% mapped to the full chart height). Replaces the old hollow
+    // low-confidence bar outlines: confidence now reads as its own series.
+    // Own frame (see draw() note).
+    private static function drawProbLayer(
+        dc as Graphics.Dc,
+        metrics as WeatherMetrics,
+        ctx as Dictionary
+    ) as Void {
+        if (!(ctx[:showPrecipProb] as Boolean)) {
+            return;
+        }
+        var precipProbForecast = metrics.precipProbForecast;
+        if (precipProbForecast.size() == 0) {
+            return;
+        }
+        var numHours = metrics.timeStampsForeCast.size();
+        var x = ctx[:x] as Number;
+        var standardBarWidth = ctx[:standardBarWidth] as Number;
+        var barGap = ctx[:barGap] as Number;
+        var bar0Width = ctx[:bar0Width] as Number;
+        var leftShift = ctx[:leftShift] as Number;
+        var baselineY = ctx[:baselineY] as Number;
+        var chartHeight = ctx[:chartHeight] as Number;
+        var haloColor = ctx[:haloColor] as Graphics.ColorType;
+        var isDark = ctx[:isDark] as Boolean;
+        // Blueish, theme-aware: light blue on dark, deep blue on light.
+        var probColor = isDark
+            ? AppState.getColor(ThemeManager.COLOR_LIGHT_COLUMBIA_BLUE)
+            : AppState.getColor(ThemeManager.COLOR_ELECTRIC_BLUE);
+        var prevX = -1;
+        var prevY = -1;
+        for (var i = 0; i < numHours; i++) {
+            var colX =
+                i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
+            var colW = i == 0 ? bar0Width : standardBarWidth;
+            var px = colX + colW / 2;
+            var prob = i < precipProbForecast.size()
+                ? precipProbForecast[i]
+                : 0;
+            if (prob < 0) {
+                prob = 0;
+            }
+            if (prob > 100) {
+                prob = 100;
+            }
+            var py =
+                baselineY -
+                ((prob.toFloat() / 100.0f) * chartHeight).toNumber();
+            if (prevX != -1) {
+                // Solid halo underlay so the dots stay readable over bars.
+                dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+                dc.drawLine(prevX, prevY, px, py);
+                drawProbDotted(dc, prevX, prevY, px, py, probColor);
+            }
+            // Node dot anchors each hour (halo + 1px core).
+            dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(px, py, 2);
+            dc.setColor(probColor, Graphics.COLOR_TRANSPARENT);
+            dc.fillCircle(px, py, 1);
+            prevX = px;
+            prevY = py;
+        }
+    }
+
+    // Dotted segment helper for drawProbLayer: one dot every 3px along
+    // the segment. Own frame to keep drawProbLayer's stack small.
+    private static function drawProbDotted(
+        dc as Graphics.Dc,
+        x0 as Number,
+        y0 as Number,
+        x1 as Number,
+        y1 as Number,
+        color as Graphics.ColorType
+    ) as Void {
+        var dx = (x1 - x0).toFloat();
+        var dy = (y1 - y0).toFloat();
+        var len = Math.sqrt(dx * dx + dy * dy);
+        var steps = len.toNumber();
+        if (steps < 3) {
+            return;
+        }
+        dc.setColor(color, Graphics.COLOR_TRANSPARENT);
+        var s = 0;
+        while (s <= steps) {
+            var t = s.toFloat() / steps.toFloat();
+            var px = (x0.toFloat() + dx * t).toNumber();
+            var py = (y0.toFloat() + dy * t).toNumber();
+            dc.drawPoint(px, py);
+            s += 3;
+        }
+    }
+
     // PASS 2 layer D of draw(): surface-temp sparkline. Returns the first
     // point Y for the "T" badge. Own frame (see draw() note).
     private static function drawTempLayer(
@@ -612,6 +697,9 @@ class PredictiveSparkline {
         riskProfile as Array<RiskLevel>,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showTemp] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var surfaceTempForecast = metrics.surfaceTempForecast;
         var hasTempData = ctx[:hasTempData] as Boolean;
@@ -695,6 +783,9 @@ class PredictiveSparkline {
         metrics as WeatherMetrics,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showSun] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var sunshineDurationForecast = metrics.sunshineDurationForecast;
         var hasSunshineData = ctx[:hasSunshineData] as Boolean;
@@ -754,17 +845,22 @@ class PredictiveSparkline {
     // Returns the first point Y for the "W" badge. Own frame (see draw()
     // note); drawWindArrow nests one level under this small frame now.
     // Per-layout simplification (Forecast menu): simplified fields skip the
-    // connecting line and the direction arrows; gust dots keep existing rules.
+    // direction arrows only; the connecting wind line is always drawn so
+    // the trend stays visible on small fields. Gust dots keep existing rules.
     private static function drawWindLayer(
         dc as Graphics.Dc,
         metrics as WeatherMetrics,
         riskProfile as Array<RiskLevel>,
         ctx as Dictionary
     ) as Number {
+        if (!(ctx[:showWind] as Boolean)) {
+            return -1;
+        }
         var numHours = metrics.timeStampsForeCast.size();
         var windForecast = metrics.windForecast;
         var windDirForecast = metrics.windDirForecast;
         var windGustForecast = metrics.windGustForecast;
+        var gustSeverityForecast = metrics.gustSeverityForecast;
         var x = ctx[:x] as Number;
         var standardBarWidth = ctx[:standardBarWidth] as Number;
         var barGap = ctx[:barGap] as Number;
@@ -775,7 +871,7 @@ class PredictiveSparkline {
         var haloColor = ctx[:haloColor] as Graphics.ColorType;
         var smallWidth = ctx[:smallWidth] as Boolean;
         var isDark = ctx[:isDark] as Boolean;
-        var simplified = $.simplifyWindFor(ctx[:edgeField] as EdgeField);
+        var simplified = ctx[:simplifyWind] as Boolean;
         var maxWind = 60.0f;
         var prevWindX = -1;
         var prevWindY = -1;
@@ -794,6 +890,13 @@ class PredictiveSparkline {
             var windSpd = windForecast.size() > i ? windForecast[i] : 0.0f;
             var gust =
                 windGustForecast.size() > i ? windGustForecast[i] : windSpd;
+            // Precomputed per-hour severity (populated via
+            // Wind.calculateOptimalGustLevel); fall back to on-the-fly
+            // calculation for stale/legacy metrics without the array.
+            var severity =
+                i < gustSeverityForecast.size()
+                    ? gustSeverityForecast[i]
+                    : Wind.calculateOptimalGustLevel(windSpd, gust, true);
             var gustRatio = gust / maxWind;
             if (gustRatio > 1.0f) {
                 gustRatio = 1.0f;
@@ -810,10 +913,12 @@ class PredictiveSparkline {
                         ? Graphics.COLOR_WHITE
                         : Graphics.COLOR_BLACK
                     : isDark
-                      ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE)
+                      ? AppState.getColor(
+                            ThemeManager.COLOR_INTERNATIONAL_ORANGE
+                        )
                       : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED);
 
-            if (!simplified && prevWindX != -1 && i % 2 == 0) {
+            if (prevWindX != -1 && i % 2 == 0) {
                 dc.setColor(haloColor, Graphics.COLOR_TRANSPARENT);
                 dc.drawLine(prevWindX, prevWindY - 1, px, windPy - 1);
                 dc.drawLine(prevWindX, prevWindY + 1, px, windPy + 1);
@@ -845,7 +950,7 @@ class PredictiveSparkline {
                         windPy,
                         windDirForecast[i],
                         windSpd,
-                        gust,
+                        severity,
                         isDark
                     );
                 } else {
@@ -855,7 +960,7 @@ class PredictiveSparkline {
                         windPy,
                         windDirForecast[i],
                         windSpd,
-                        gust,
+                        severity,
                         isDark
                     );
                 }
@@ -899,8 +1004,10 @@ class PredictiveSparkline {
         }
         // hourFractionRemaining is quarter-quantized (1.0/0.75/0.5/0.25),
         // so this yields 4/3/2/1 quarters respectively.
-        var quartersToShow =
-            (4.0f * metrics.hourFractionRemaining + 0.99f).toNumber();
+        var quartersToShow = (
+            4.0f * metrics.hourFractionRemaining +
+            0.99f
+        ).toNumber();
         if (quartersToShow < 1) {
             quartersToShow = 1;
         }
@@ -979,7 +1086,9 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? Graphics.COLOR_YELLOW : AppState.getColor(ThemeManager.COLOR_OLIVE),
+                    isDark
+                        ? Graphics.COLOR_YELLOW
+                        : AppState.getColor(ThemeManager.COLOR_OLIVE),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -1000,7 +1109,11 @@ class PredictiveSparkline {
                     Graphics.TEXT_JUSTIFY_RIGHT | Graphics.TEXT_JUSTIFY_VCENTER
                 );
                 dc.setColor(
-                    isDark ? AppState.getColor(ThemeManager.COLOR_INTERNATIONAL_ORANGE) : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED),
+                    isDark
+                        ? AppState.getColor(
+                              ThemeManager.COLOR_INTERNATIONAL_ORANGE
+                          )
+                        : AppState.getColor(ThemeManager.COLOR_FREE_SPEECH_RED),
                     Graphics.COLOR_TRANSPARENT
                 );
                 dc.drawText(
@@ -1035,7 +1148,10 @@ class PredictiveSparkline {
         // ice (danger), showers (sudden), steady rain (expected).
         var badgeY = y;
         if (ctx[:hasIceAhead] as Boolean) {
-            dc.setColor(AppState.getColor(ThemeManager.COLOR_RED), Graphics.COLOR_TRANSPARENT);
+            dc.setColor(
+                AppState.getColor(ThemeManager.COLOR_RED),
+                Graphics.COLOR_TRANSPARENT
+            );
             dc.drawText(
                 x + width,
                 badgeY,
@@ -1085,7 +1201,7 @@ class PredictiveSparkline {
         cy as Number,
         angleDeg as Number,
         windSpeed as Float,
-        gust as Float,
+        gustSeverity as Number,
         isDark as Boolean
     ) as Void {
         // 1. LARGER TRIANGLE DIMENSIONS (Length: 12px to 18px)
@@ -1100,6 +1216,13 @@ class PredictiveSparkline {
         } else if (windSpeed >= 18.0f) {
             len = 13;
             baseHalfWidth = 5;
+        }
+
+        // Calm air carries no gust bars, so the bare triangle reads
+        // smaller than gust arrows: inflate it slightly to stay visible.
+        if (gustSeverity <= 0) {
+            len += 4;
+            baseHalfWidth += 2;
         }
 
         // Convert direction: Flip by 180 deg so arrow points WHERE wind is blowing TO
@@ -1154,15 +1277,14 @@ class PredictiveSparkline {
         // --- STEP C: STACKED GUST BARS BEHIND BASE ---
         // (Kept inline: a nested helper frame here deepened the worst-case
         // call chain and overflowed the VM stack on-device. See draw() note.)
-        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var numGustBars = 0;
-
-        if (gust >= 45.0f || gustRatio >= 1.7f) {
+        // Precomputed optimal gust level (0-3) doubles as the barb count,
+        // so no per-frame Wind.calculateOptimalGustLevel() call is needed.
+        var numGustBars = gustSeverity;
+        if (numGustBars < 0) {
+            numGustBars = 0;
+        }
+        if (numGustBars > 3) {
             numGustBars = 3;
-        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-            numGustBars = 2;
-        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-            numGustBars = 1;
         }
 
         var barSpacing = 4;
@@ -1206,7 +1328,7 @@ class PredictiveSparkline {
         cy as Number,
         angleDeg as Number,
         windSpeed as Float,
-        gust as Float,
+        gustSeverity as Number,
         isDark as Boolean
     ) as Void {
         // 1. SHAFT LENGTH BASED ON BASE WIND SPEED (Range: 8px to 14px)
@@ -1216,6 +1338,12 @@ class PredictiveSparkline {
             len = isCompact ? 10 : 14;
         } else if (windSpeed >= 25.0f) {
             len = isCompact ? 8 : 12;
+        }
+
+        // Calm-air compensation (see drawWindArrow): severity 0 renders
+        // in neutral color with no bars, so lengthen the shaft slightly.
+        if (gustSeverity <= 0) {
+            len += 2;
         }
 
         // Direction unit vector: flip by 180 deg so the arrow points WHERE
@@ -1236,18 +1364,10 @@ class PredictiveSparkline {
         var tailY = cy - (halfLen * uY).toNumber();
 
         // 2. GUST SEVERITY LEVELS
-        // Same tiers as calculateGustSeverity() and drawWindArrow(), but
-        // encoded in COLOR so the icon stays small: 0 neutral, 1 yellow,
-        // 2 orange, 3 red (see getGustSeverityColor).
-        var gustRatio = windSpeed > 1.0f ? gust / windSpeed : 1.0f;
-        var numBarbs = 0;
-        if (gust >= 45.0f || gustRatio >= 1.7f) {
-            numBarbs = 3;
-        } else if (gust >= 35.0f || gustRatio >= 1.5f) {
-            numBarbs = 2;
-        } else if (gust >= 25.0f || gustRatio >= 1.3f) {
-            numBarbs = 1;
-        }
+        // Precomputed via Wind.calculateOptimalGustLevel(), encoded in
+        // COLOR so the icon stays small: 0 neutral, 1 yellow, 2 orange,
+        // 3 red (see getGustSeverityColor).
+        var numBarbs = gustSeverity;
 
         dc.setColor(
             $.getGustSeverityColor(numBarbs, isDark),

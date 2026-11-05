@@ -1,0 +1,81 @@
+{
+  "layout": {
+    "type": "layout",
+    "pages": ["general", "locations"],
+    "general": {
+      "type": "page",
+      "title": "General",
+      "sections": ["appearance_section"]
+    },
+    "locations": {
+      "type": "page",
+      "title": "Locations",
+      "sections": ["loc1_section", "loc2_section", "loc3_section", "loc4_section", "loc5_section"]
+    },
+    "appearance_section": {
+      "type": "section",
+      "title": "Appearance & Coloring",
+      "keys": ["color-mode", "use-hsp-text", "hsp-threshold", "color-min-level"]
+    },
+    "loc1_section": { "type": "section", "title": "Location 1", "keys": ["location-1-enabled", "location-1-name", "location-1-coords"] },
+    "loc2_section": { "type": "section", "title": "Location 2", "keys": ["location-2-enabled", "location-2-name", "location-2-coords"] },
+    "loc3_section": { "type": "section", "title": "Location 3", "keys": ["location-3-enabled", "location-3-name", "location-3-coords"] },
+    "loc4_section": { "type": "section", "title": "Location 4", "keys": ["location-4-enabled", "location-4-name", "location-4-coords"] },
+    "loc5_section": { "type": "section", "title": "Location 5", "keys": ["location-5-enabled", "location-5-name", "location-5-coords"] }
+  },
+  "color-mode": {
+    "type": "combobox",
+    "default": "bright",
+    "description": "Color Palette Mode",
+    "options": {
+      "Bright": "bright",
+      "Modest": "modest",
+      "Follow Theme": "follow-theme"
+    }
+  },
+  "use-hsp-text": {
+    "type": "checkbox",
+    "default": true,
+    "description": "Auto-contrast text color (HSP)"
+  },
+  "hsp-threshold": {
+    "type": "spinbutton",
+    "default": 127,
+    "min": 0,
+    "max": 255,
+    "step": 1,
+    "description": "HSP contrast threshold"
+  },
+  "color-min-level": {
+    "type": "combobox",
+    "default": "always",
+    "description": "Minimum risk level for coloring",
+    "options": {
+      "Always": "always",
+      "Slight+": "slight",
+      "Moderate+": "moderate",
+      "High+": "high",
+      "Critical only": "critical",
+      "Never": "never"
+    }
+  },
+  "location-1-enabled": { "type": "checkbox", "default": true, "description": "Enable Location 1" },
+  "location-1-name": { "type": "entry", "default": "London", "description": "Location 1 Name" },
+  "location-1-coords": { "type": "entry", "default": "51.5074, -0.1278", "description": "Location 1 Coordinates (Lat, Lon)" },
+
+  "location-2-enabled": { "type": "checkbox", "default": false, "description": "Enable Location 2" },
+  "location-2-name": { "type": "entry", "default": "", "description": "Location 2 Name" },
+  "location-2-coords": { "type": "entry", "default": "", "description": "Location 2 Coordinates (Lat, Lon)" },
+
+  "location-3-enabled": { "type": "checkbox", "default": false, "description": "Enable Location 3" },
+  "location-3-name": { "type": "entry", "default": "", "description": "Location 3 Name" },
+  "location-3-coords": { "type": "entry", "default": "", "description": "Location 3 Coordinates (Lat, Lon)" },
+
+  "location-4-enabled": { "type": "checkbox", "default": false, "description": "Enable Location 4" },
+  "location-4-name": { "type": "entry", "default": "", "description": "Location 4 Name" },
+  "location-4-coords": { "type": "entry", "default": "", "description": "Location 4 Coordinates (Lat, Lon)" },
+
+  "location-5-enabled": { "type": "checkbox", "default": false, "description": "Enable Location 5" },
+  "location-5-name": { "type": "entry", "default": "", "description": "Location 5 Name" },
+  "location-5-coords": { "type": "entry", "default": "", "description": "Location 5 Coordinates (Lat, Lon)" }
+}
