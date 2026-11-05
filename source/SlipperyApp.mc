@@ -77,6 +77,8 @@ class SlipperyApp extends Application.AppBase {
                 Storage.setValue("threshHeadwind", 12.0f);
                 Storage.setValue("threshHeatStress", 32.0f);
                 Storage.setValue("threshPrecipAhead", 0.5f);
+
+                Storage.setValue("riskPreset", PresetNormal);
             }
 
             var hadConversionToArrays = Storage.getValue("show_one_field");
@@ -167,6 +169,10 @@ class SlipperyApp extends Application.AppBase {
             );
             AlertStateAnalyzer.setTreshPrecipAhead(
                 $.getStorageValue("threshPrecipAhead", 0.5f) as Float
+            );
+
+            RiskCalculator.setPreset(
+                $.getStorageValue("riskPreset", PresetNormal) as RiskPreset
             );
         } catch (ex) {
             System.println(ex.getErrorMessage());

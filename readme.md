@@ -183,3 +183,16 @@ rules keep protecting you regardless.
 Rule of thumb: move in 2–3 km/h (wind) or 1 °C (ice/heat) steps, ride one week, then adjust again.
 If the banner nags constantly, you went too far — reset that one value, not everything.
 Use Reset to defaults to restore the table above.
+
+
+## Risk presets
+
+### Comparison of the 5-Level Scale
+
+| Preset Level | Ice Temp (`ICE_T`) | Rain/Snow Multiplier | Wind Multiplier | Ideal Rider Profile |
+| :--- | :--- | :--- | :--- | :--- |
+| **Very Cautious** | 4.5 °C | 0.3x | 0.7x | Commuters on road slicks, riders avoiding any frost/wet risk. |
+| **Cautious** | 4.0 °C | 0.5x | 0.8x | General recreational riders wanting early hazard alerts. |
+| **Normal** | 3.0 °C | 1.0x | 1.0x | Standard baseline calculation[cite: 1] for average conditions. |
+| **Sport** | 2.0 °C | 1.25x | 1.1x | Experienced road/gravel cyclists comfortable with damp tarmac. |
+| **Tough** | 1.0 °C | 1.75x | 1.3x | Winter training or hardcore cyclists who only want severe warnings. |

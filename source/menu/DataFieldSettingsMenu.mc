@@ -389,14 +389,21 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
 
       var mi;
 
+      mi = new WatchUi.MenuItem("Risk Preset", null, "riskPreset", null);
+      var value =
+        getStorageValue(mi.getId() as String, PresetNormal) as RiskPreset;
+      mi.setSubLabel($.getRiskPresetText(value));
+      advMenu.addItem(mi);
+
       mi = new WatchUi.MenuItem(
         "Forecast hours",
         null,
         "showForecastHour",
         null
       );
-      var value =
-        getStorageValue(mi.getId() as String, $.gShowForecastHour) as ShowForecastHour;
+      value =
+        getStorageValue(mi.getId() as String, $.gShowForecastHour) as
+        ShowForecastHour;
       mi.setSubLabel($.getShowForecastHourText(value));
       advMenu.addItem(mi);
 
@@ -483,6 +490,15 @@ class GeneralMenuDelegate extends WatchUi.Menu2InputDelegate {
       var sp = new selectionMenuPicker("Minimal GPS", id as String);
       for (var i = 0; i <= 4; i++) {
         sp.add($.getMinimalGPSqualityText(i), null, i);
+      }
+      sp.setOnSelected(self, :onSelectedSelection, item);
+      sp.show();
+      return;
+    }
+    if (id instanceof String && id.equals("riskPreset")) {
+      var sp = new selectionMenuPicker("Risk Preset", id as String);
+      for (var i = 0; i < MaxPresetItems; i++) {
+        sp.add($.getRiskPresetText(i as RiskPreset), null, i);
       }
       sp.setOnSelected(self, :onSelectedSelection, item);
       sp.show();

@@ -2,7 +2,86 @@ import Toybox.System;
 import Toybox.Lang;
 import Toybox.Graphics;
 import Toybox.Time;
-(:extendedCode) 
+
+var MaxPresetItems = 5;
+(:extendedCode)
+public enum RiskPreset {
+    PresetVeryCautious = 0,
+    PresetCautious = 1,
+    PresetNormal = 2,
+    PresetSport = 3,
+    PresetTough = 4,
+}
+
+(:extendedCode)
+function getRiskPresetText(value as RiskPreset) as String {
+    switch (value) {
+        case PresetVeryCautious:
+            return "Very Cautious";
+        case PresetCautious:
+            return "Cautious";
+        case PresetNormal:
+            return "Normal";
+        case PresetSport:
+            return "Sport";
+        case PresetTough:
+            return "Tough";
+        default:
+            return "--";
+    }
+}
+
+(:extendedCode)
+public class RiskConfig {
+    public var iceT as Float = 3.0f;
+    public var threshRain as Float = 1.0f;
+    public var threshSnow as Float = 1.0f;
+    public var threshWind as Float = 1.0f;
+    public var threshGustRatio as Float = 1.0f;
+
+    public function initialize(preset as RiskPreset) {
+        switch (preset) {
+            case PresetVeryCautious:
+                iceT = 4.5f; // Highly conservative ice buffer
+                threshRain = 0.3f; // Extremely low tolerance for rain
+                threshSnow = 0.3f; // Warns at slightest trace of snow
+                threshWind = 0.7f; // Triggers wind warnings early
+                threshGustRatio = 0.8f;
+                break;
+            case PresetCautious:
+                iceT = 4.0f;
+                threshRain = 0.5f;
+                threshSnow = 0.5f;
+                threshWind = 0.8f;
+                threshGustRatio = 0.9f;
+                break;
+            case PresetSport:
+                iceT = 2.0f; // Tighter ice window
+                threshRain = 1.25f; // Slightly higher precipitation requirement
+                threshSnow = 1.25f;
+                threshWind = 1.1f; // Ignores minor breezes
+                threshGustRatio = 1.05f;
+                break;
+            case PresetTough:
+                iceT = 1.0f; // Only warn right at/below freezing
+                threshRain = 1.75f; // High rain threshold before triggering High/Critical
+                threshSnow = 1.75f;
+                threshWind = 1.3f; // High wind tolerance
+                threshGustRatio = 1.15f;
+                break;
+            case PresetNormal:
+            default:
+                iceT = 3.0f;
+                threshRain = 1.0f;
+                threshSnow = 1.0f;
+                threshWind = 1.0f;
+                threshGustRatio = 1.0f;
+                break;
+        }
+    }
+}
+
+(:extendedCode)
 public class RiskCalculator {
     static var _riskOnly as Boolean = false;
     static var _riskLevel as RiskLevel = RiskLevelNoData;
@@ -10,12 +89,25 @@ public class RiskCalculator {
     static var _advice = [] as Array<WeatherAdvice>;
     static var _hasIceHazard as Boolean = false;
 
+    // Active configuration instance (defaults to Normal)
+    static var _config as RiskConfig = new RiskConfig(PresetNormal);
+
+    public static function setConfig(config as RiskConfig) as Void {
+        _config = config;
+    }
+
+    public static function setPreset(preset as RiskPreset) as Void {
+        _config = new RiskConfig(preset);
+    }
+
     public static function setRiskOnly(riskOnly as Boolean) as Void {
         _riskOnly = riskOnly;
     }
+
     public static function getRiskOnly() as Boolean {
         return _riskOnly;
     }
+
     public static function getRiskLevel() as RiskLevel {
         return _riskLevel;
     }
@@ -27,15 +119,18 @@ public class RiskCalculator {
     public static function getAdvice() as Array<WeatherAdvice> {
         return _advice;
     }
+
     public static function hasIceHazard() as Boolean {
         return _hasIceHazard;
     }
+
     private static function reset() as Void {
         _riskLevel = RiskLevelSafe;
         _hazards = [];
         _advice = [];
         _hasIceHazard = false;
     }
+
     public static function evaluateRisk(
         airTemp as Float,
         surfaceTemp as Float,
@@ -56,16 +151,12 @@ public class RiskCalculator {
     ) as RiskLevel {
         reset();
 
-        // Shared meaningful-precipitation thresholds, used by every rule so
-        // live assessment and forecast projection agree.
-        // Rain/showers are mm/h, snowfall is cm/h (Open-Meteo unit);
-        // 0.1 cm snow ~= 1 mm snow ~= 0.1 mm rain water equivalent.
-        var RAIN_THRESHOLD = 0.1f;
-        var SNOW_THRESHOLD = 0.1f;
-        // Ice reference temperature
-        var ICE_T = 3.0f;
+        // --- Configurable Thresholds scaling from multipliers ---
+        var RAIN_THRESHOLD = 0.1f * _config.threshRain;
+        var SNOW_THRESHOLD = 0.1f * _config.threshSnow;
+        var ICE_T = _config.iceT;
 
-        // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---
+        // --- 1. CRITICAL: Black Ice & Freezing Wet Asphalt ---[cite: 1]
         if (
             (surfaceTemp <= ICE_T || airTemp <= ICE_T * 0.5f + 0.5f) &&
             (runningRainAndShower12h >= RAIN_THRESHOLD ||
@@ -79,20 +170,15 @@ public class RiskCalculator {
             addAdvice(AdviceLowerTirePressure);
         }
 
-        // --- 2. CRITICAL: Hoarfrost / Freezing Fog ---
-        // Humid air is required: dry cold alone cannot deposit frost.
-        if (
-            surfaceTemp <= ICE_T &&
-            surfaceDewSpread <= 2.0 &&
-            humidity >= 80
-        ) {
+        // --- 2. CRITICAL: Hoarfrost / Freezing Fog ---[cite: 1]
+        if (surfaceTemp <= ICE_T && surfaceDewSpread <= 2.0 && humidity >= 80) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardRoadSurfaceFrost);
             addAdvice(AdviceWatchOutForShadedAreasBridgesTreeLinedRoads);
             addAdvice(AdviceAvoidSuddenBraking);
         }
 
-        // --- 3. HIGH: Bridge Deck Freeze ---
+        // --- 3. HIGH: Bridge Deck Freeze ---[cite: 1]
         if (
             airTemp >= ICE_T - 4.0f &&
             airTemp <= ICE_T + 0.5f &&
@@ -105,10 +191,7 @@ public class RiskCalculator {
             addAdvice(AdviceWatchOutForShadedAreasBridgesTreeLinedRoads);
         }
 
-        // --- 4. HIGH: Snow / Slush Accumulation ---
-        // Only when temperatures allow snow to settle; ignores trace amounts
-        // and warm conditions where past snow has melted.
-        // (runningSnow12h already includes the current hour.)
+        // --- 4. HIGH: Snow / Slush Accumulation ---[cite: 1]
         if (
             runningSnow12h >= SNOW_THRESHOLD &&
             (surfaceTemp <= ICE_T - 3.0f || airTemp <= ICE_T - 1.5f)
@@ -119,50 +202,39 @@ public class RiskCalculator {
             addAdvice(AdviceTreadPatternRequired);
         }
 
-        // --- 5. RAIN ---
-        // --- CRITICAL: Torrential / Violent Downpour ---
-        if (rainAndShowerCurrent >= 15.0f) {
+        // --- 5. RAIN ---[cite: 1]
+        if (rainAndShowerCurrent >= 15.0f * _config.threshRain) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardHeavyRainHydroplaning);
             addAdvice(AdviceReduceSpeedAndIncreaseGripMargin);
             addAdvice(AdviceIncreaseBreakingDistance);
-        }
-        // --- HIGH: Heavy Rain & Standing Water ---
-        else if (rainAndShowerCurrent >= 7.5f) {
+        } else if (rainAndShowerCurrent >= 7.5f * _config.threshRain) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardHeavyRainHydroplaning);
             addAdvice(AdviceIncreaseBreakingDistance);
             addAdvice(AdviceReduceSpeedAndIncreaseGripMargin);
-        }
-        // --- MODERATE: Summer/Spring First Rain ("Oil Slick") ---
-        // Light rain (0.1 - 2.5 mm/h) releases oil film without flushing it away
-        else if (
+        } else if (
             (season == SeasonSummer || season == SeasonSpring) &&
-            rainAndShowerCurrent >= 0.1f &&
-            rainAndShowerCurrent < 2.5f &&
-            runningDryStreak >= 10 // Dry hours preceding rain
+            rainAndShowerCurrent >= 0.1f * _config.threshRain &&
+            rainAndShowerCurrent < 2.5f * _config.threshRain &&
+            runningDryStreak >= 10
         ) {
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardFirstRainReleasingDirtOils);
             addAdvice(AdviceAsphaltSlippery);
             addAdvice(AdviceTractionImprovesAfterHeavierRain);
-        }
-        // --- MODERATE: Steady Rain ---
-        else if (rainAndShowerCurrent >= 2.5f) {
+        } else if (rainAndShowerCurrent >= 2.5f * _config.threshRain) {
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardWetAsphaltSurface);
             addAdvice(AdviceIncreaseBreakingDistance);
             addAdvice(AdviceReduceCorneringLeanAngle);
-        }
-        // --- SLIGHT: Light Rain / Drizzle ---
-        else if (rainAndShowerCurrent >= 0.2f) {
+        } else if (rainAndShowerCurrent >= 0.2f * _config.threshRain) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardWetAsphaltSurface);
             addAdvice(AdviceIncreaseBreakingDistance);
         }
 
-        // --- 6. MODERATE: Autumn Wet Leaves ---
-        // Requires actual wetness. Damp air alone is covered by the dew rule (7).
+        // --- 6. MODERATE: Autumn Wet Leaves ---[cite: 1]
         if (
             season == SeasonAutumn &&
             (runningRainAndShower12h >= RAIN_THRESHOLD ||
@@ -176,7 +248,7 @@ public class RiskCalculator {
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
-        // --- 7. SLIGHT: Dew Condensation ("Sweating Road") ---
+        // --- 7. SLIGHT: Dew Condensation ---[cite: 1]
         if (surfaceTemp > 0.0 && humidity > 90 && surfaceDewSpread <= 1.0) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardWetAsphaltSurface);
@@ -184,19 +256,16 @@ public class RiskCalculator {
             addAdvice(AdviceReduceCorneringLeanAngle);
         }
 
-        // --- GUST RATIO CALCULATION ---
+        // --- GUST RATIO CALCULATION ---[cite: 1]
         var gustRatio = windSpeed > 1.0f ? windGust / windSpeed : 1.0f;
+        var wLimit = _config.threshWind;
+        var gRatioLimit = _config.threshGustRatio;
 
-        // --- 8. CRITICAL: Gale-Force Winds or Extreme Gusts ---
-        // Absolute gust/speed thresholds are deliberately one tier stricter than
-        // the sparkline gust bars (which warn early at 45/35/25): the bars show
-        // exposure, this rule upgrades the ride risk.
-        // Ratio spikes need a base-wind floor so that e.g. 2 -> 4 km/h gusts
-        // (ratio 2.0) at near-calm conditions do not trigger Critical.
+        // --- 8. CRITICAL: Gale-Force Winds or Extreme Gusts ---[cite: 1]
         if (
-            windSpeed >= 45.0f ||
-            windGust >= 60.0f ||
-            (windSpeed >= 35.0f && gustRatio >= 1.7f)
+            windSpeed >= 45.0f * wLimit ||
+            windGust >= 60.0f * wLimit ||
+            (windSpeed >= 35.0f * wLimit && gustRatio >= 1.7f * gRatioLimit)
         ) {
             upgradeRisk(RiskLevelCritical);
             addHazard(HazardGaleForceWinds);
@@ -204,72 +273,57 @@ public class RiskCalculator {
             addAdvice(AdviceHoldHandlebarsFirmly);
             addAdvice(AdviceConsiderLowerProfileWheels);
         }
-        // --- 9. HIGH: Strong Crosswinds / Heavy Gusts ---
+        // --- 9. HIGH: Strong Crosswinds / Heavy Gusts ---[cite: 1]
         else if (
-            windSpeed >= 35.0f ||
-            windGust >= 45.0f ||
-            (windSpeed >= 25.0f && gustRatio >= 1.5f)
+            windSpeed >= 35.0f * wLimit ||
+            windGust >= 45.0f * wLimit ||
+            (windSpeed >= 25.0f * wLimit && gustRatio >= 1.5f * gRatioLimit)
         ) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardStrongCrosswinds);
             addAdvice(AdviceBewareOfOpenFieldsAndBridges);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
-        // --- 10. MODERATE: Moderate Winds / Gust Spikes ---
+        // --- 10. MODERATE: Moderate Winds / Gust Spikes ---[cite: 1]
         else if (
-            windSpeed >= 25.0f ||
-            windGust >= 35.0f ||
-            (windSpeed >= 18.0f && gustRatio >= 1.3f)
+            windSpeed >= 25.0f * wLimit ||
+            windGust >= 35.0f * wLimit ||
+            (windSpeed >= 18.0f * wLimit && gustRatio >= 1.3f * gRatioLimit)
         ) {
             upgradeRisk(RiskLevelModerate);
             addHazard(HazardStrongCrosswinds);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
-        // --- 11. SLIGHT: Noticeable Breeze ---
-        // Names the cause so the UI never shows an unexplained Slight level.
-        else if (windSpeed >= 20.0f) {
+        // --- 11. SLIGHT: Noticeable Breeze ---[cite: 1]
+        else if (windSpeed >= 20.0f * wLimit) {
             upgradeRisk(RiskLevelSlight);
             addHazard(HazardStrongCrosswinds);
             addAdvice(AdviceHoldHandlebarsFirmly);
         }
 
-        // --- 12. IMMEDIATE: Imminent Rain ---
-        // -1 no immediate precipitation, 0 active now, >0 minutes until start.
-        // Suppressed while it is already raining (covered by the rain ladder).
-        // Scaled by coming intensity so drizzle does not outrank actual rain:
-        // steady rain (>= 2.5 mm/h, same tier as the rain ladder) warns High,
-        // lighter imminent rain warns Moderate.
+        // --- 12. IMMEDIATE: Imminent Rain ---[cite: 1]
         if (
             immediateRainAndShower >= 0 &&
             rainAndShowerCurrent < RAIN_THRESHOLD
         ) {
-            if (upcomingRainAndShower >= 2.5f) {
+            if (upcomingRainAndShower >= 2.5f * _config.threshRain) {
                 upgradeRisk(RiskLevelHigh);
             } else {
                 upgradeRisk(RiskLevelModerate);
             }
             addHazard(HazardImminentRain);
-            // if (immediateRainAndShower == 0) {
-            //     addAdvice(AdviceRainStartingNow);
-            // } else {
-            //     addAdvice(AdviceRainExpectedShortly);
-            // }
         }
-        // --- 13. IMMEDIATE: Imminent Snow ---
+
+        // --- 13. IMMEDIATE: Imminent Snow ---[cite: 1]
         if (immediateSnow >= 0 && snowCurrent < SNOW_THRESHOLD) {
             upgradeRisk(RiskLevelHigh);
             addHazard(HazardImminentSnow);
-            // if (immediateSnow == 0) {
-            //     addAdvice(AdviceSnowStartingNow);
-            // } else {
-            //     addAdvice(AdviceSnowExpectedShortly);
-            // }
         }
 
         return _riskLevel;
     }
 
-    // --- HELPER UTILITIES FOR SAFE ARRAY & RISK MANAGEMENT ---
+    // --- HELPER UTILITIES ---
 
     static function upgradeRisk(newLevel as RiskLevel) as Void {
         if (newLevel > _riskLevel) {
@@ -278,7 +332,6 @@ public class RiskCalculator {
     }
 
     static function addHazard(hazard as WeatherHazard) as Void {
-        // Forecast projections skip hazard lists but still need the ice flag.
         if (
             hazard == HazardBlackIceFreezingWetRoad ||
             hazard == HazardRoadSurfaceFrost ||
