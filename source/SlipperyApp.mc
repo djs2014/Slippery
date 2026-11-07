@@ -243,6 +243,7 @@ class SlipperyApp extends Application.AppBase {
             true, // show precip probability line
             true, // show wind line
             true, // show temperature line
+            true, // show 0 °C line
         ]);
 
         Storage.setValue("show_large_field", [
@@ -258,6 +259,7 @@ class SlipperyApp extends Application.AppBase {
             true, // show precip probability line
             true, // show wind line
             true, // show temperature line
+            true, // show 0 °C line
         ]);
 
         Storage.setValue("show_wide_field", [
@@ -273,6 +275,7 @@ class SlipperyApp extends Application.AppBase {
             true, // show precip probability line
             true, // show wind line
             true, // show temperature line
+            true, // show 0 °C line
         ]);
 
         Storage.setValue("show_small_field", [
@@ -288,6 +291,7 @@ class SlipperyApp extends Application.AppBase {
             true, // show precip probability line
             true, // show wind line
             true, // show temperature line
+            true, // show 0 °C line
         ]);
     }
 
@@ -329,4 +333,4 @@ var gShowForecastHour as ShowForecastHour = ForecastHourAbsolute;
 var gHideUnitsWhenActive as Boolean = true;
 
 (:typecheck(disableBackgroundCheck))
-var gSizeArrFieldItems = 12; // Included the 0 index
+var gSizeArrFieldItems = 13; // Included the 0 index

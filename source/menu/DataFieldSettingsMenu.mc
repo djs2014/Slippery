@@ -227,7 +227,7 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       var storageKey = id.toString();
 
       var array = $.getStorageValue(storageKey, []) as Array<Number or Boolean>;
-      // Check size
+      // Check size !!Change gSizeArrFieldItems if you add new fields
       if (
         $.ensureArraySize(
           array as Array<Application.PropertyValueType>,
@@ -357,6 +357,15 @@ class DataFieldSettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
       $.addToggleMenuItem(
         fieldMenu,
         "Show temperature",
+        null,
+        $.getKeyAndIndex(storageKey, index),
+        array[index] == true
+      );
+
+      index = 12;
+      $.addToggleMenuItem(
+        fieldMenu,
+        "Show 0 °C line",
         null,
         $.getKeyAndIndex(storageKey, index),
         array[index] == true

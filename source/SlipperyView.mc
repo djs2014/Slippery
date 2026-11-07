@@ -69,6 +69,7 @@ class SlipperyView extends WatchUi.DataField {
     private var mShowPrecipProb as Boolean = true;
     private var mShowWind as Boolean = true;
     private var mShowTemp as Boolean = true;
+    private var mShowZeroCLine as Boolean = true;
 
     function initialize() {
         DataField.initialize();
@@ -210,6 +211,7 @@ class SlipperyView extends WatchUi.DataField {
         mShowPrecipProb = getFieldFlag(arrShowField, 9, true);
         mShowWind = getFieldFlag(arrShowField, 10, true);
         mShowTemp = getFieldFlag(arrShowField, 11, true);
+        mShowZeroCLine = getFieldFlag(arrShowField, 12, true);
     }
 
     // Bounds-safe read of a per-field boolean flag.
@@ -599,7 +601,8 @@ class SlipperyView extends WatchUi.DataField {
             mShowSun,
             mShowPrecipProb,
             mShowWind,
-            mShowTemp
+            mShowTemp,
+            mShowZeroCLine
         );
         drawRiskFooter(
             dc,
@@ -712,7 +715,8 @@ class SlipperyView extends WatchUi.DataField {
             mShowSun,
             mShowPrecipProb,
             mShowWind,
-            mShowTemp
+            mShowTemp,
+            mShowZeroCLine
         );
         drawRiskFooter(
             dc,
@@ -803,7 +807,8 @@ class SlipperyView extends WatchUi.DataField {
             mShowSun,
             mShowPrecipProb,
             mShowWind,
-            mShowTemp
+            mShowTemp,
+            mShowZeroCLine
         );
 
         linePos += drawH;
@@ -963,7 +968,8 @@ class SlipperyView extends WatchUi.DataField {
             mShowSun,
             mShowPrecipProb,
             mShowWind,
-            mShowTemp
+            mShowTemp,
+            mShowZeroCLine
         );
         linePos += drawH;
         drawRiskFooter(dc, rightX, linePos, remainingWidth, footerH, isDark);

@@ -140,7 +140,8 @@ class PredictiveSparkline {
         showSun as Boolean,
         showPrecipProb as Boolean,
         showWind as Boolean,
-        showTemp as Boolean
+        showTemp as Boolean,
+        showZeroCLine as Boolean
     ) as Void {
         var numHours = metrics.timeStampsForeCast.size();
         if (numHours == 0) {
@@ -164,7 +165,9 @@ class PredictiveSparkline {
 
         // PASS 1 range scan in its own frame (locals freed before PASS 2).
         var ranges = computePrecipRanges(
-            metrics, numHours, assessment.hourlyIceHazards
+            metrics,
+            numHours,
+            assessment.hourlyIceHazards
         );
 
         var textColor = isDark
@@ -211,6 +214,7 @@ class PredictiveSparkline {
             :showPrecipProb => showPrecipProb,
             :showWind => showWind,
             :showTemp => showTemp,
+            :showZeroCLine => showZeroCLine,
         };
 
         // Baseline Line
@@ -225,11 +229,17 @@ class PredictiveSparkline {
         drawPrecipLayer(dc, metrics, ctx);
         drawProbLayer(dc, metrics, ctx);
         var firstStY = drawTempLayer(
-            dc, metrics, assessment.hourlyRisksLevels, ctx
+            dc,
+            metrics,
+            assessment.hourlyRisksLevels,
+            ctx
         );
         var firstSunY = drawSunLayer(dc, metrics, ctx);
         var firstWindY = drawWindLayer(
-            dc, metrics, assessment.hourlyRisksLevels, ctx
+            dc,
+            metrics,
+            assessment.hourlyRisksLevels,
+            ctx
         );
         drawMinutelyOverlay(dc, metrics, ctx);
 
@@ -633,9 +643,8 @@ class PredictiveSparkline {
                 i == 0 ? x : x + i * (standardBarWidth + barGap) - leftShift;
             var colW = i == 0 ? bar0Width : standardBarWidth;
             var px = colX + colW / 2;
-            var prob = i < precipProbForecast.size()
-                ? precipProbForecast[i]
-                : 0;
+            var prob =
+                i < precipProbForecast.size() ? precipProbForecast[i] : 0;
             if (prob < 0) {
                 prob = 0;
             }
@@ -717,6 +726,15 @@ class PredictiveSparkline {
         var prevStX = -1;
         var prevStY = -1;
         var firstStY = -1;
+        // Only when temperature is around 0°C do we show the zero line
+        var zeroCY = 0;
+        var showZeroCLine = ctx[:showZeroCLine] as Boolean;
+        showZeroCLine = showZeroCLine && minSt <= 0.0f && maxSt >= 0.0f && minSt <= maxSt;
+        if (showZeroCLine) {
+            var normalizedZero = (0.0f - minSt) / (maxSt - minSt);
+            zeroCY = baselineY - (normalizedZero * chartHeight).toNumber();
+        }
+
         for (var i = 0; i < numHours; i++) {
             // Common column geometries
             var colX =
@@ -771,6 +789,14 @@ class PredictiveSparkline {
 
                 prevStX = px;
                 prevStY = py;
+
+                if (i > 0 && showZeroCLine) {
+                    dc.setColor(
+                        AppState.getColor(ThemeManager.COLOR_LABEL_LIGHT),
+                        Graphics.COLOR_TRANSPARENT
+                    );
+                    dc.drawLine(px - 4, zeroCY, px + 4, zeroCY);
+                }
             }
         }
         return firstStY;
