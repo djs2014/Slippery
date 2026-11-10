@@ -275,8 +275,9 @@ class SlipperyView extends WatchUi.DataField {
 
     hidden var mAlertCategory as AlertCategory = CATEGORY_NONE_TEMP;
     function UpdateAlertState() as Void {
-        var defaultCategory =
-            mUseWinddataAsDefault ? CATEGORY_NONE_WIND : CATEGORY_NONE_TEMP;
+        var defaultCategory = mUseWinddataAsDefault
+            ? CATEGORY_NONE_WIND
+            : CATEGORY_NONE_TEMP;
         // No weather data yet: fresh WeatherMetrics defaults to
         // surfaceTemp 0.0, which would trip the ice rule (STATE_ICE_ALERT /
         // CATEGORY_COLD) and then stick via the 30-cycle hysteresis hold.
@@ -654,6 +655,7 @@ class SlipperyView extends WatchUi.DataField {
         // Grid metrics mirror drawEdgeOneField (the 4th NET WIND/CROSS GUST
         // row is always drawn when the footer is empty).
         var dividerY = topGridHeight;
+
         var footerHazards = mShortHazards
             ? mHazardStringsShortened
             : mHazardStrings;
@@ -662,12 +664,17 @@ class SlipperyView extends WatchUi.DataField {
             (mShowAdvice && mAdviceStrings.size() > 0);
         if (!hasFooterContent) {
             var topHdrH = (topGridHeight * 0.15).toNumber();
-            var topRowH = ((topGridHeight * 0.46).toNumber()) / 3;
+            var topRowH = (topGridHeight * 0.46).toNumber() / 3;
             var contentEnd = topHdrH + 4 + 4 * topRowH;
             if (topGridHeight - contentEnd >= 16) {
                 dividerY = contentEnd + 2;
             }
         }
+
+        // TEST Dynamic dividerY adjustment
+        // 2. Draw Top Metrics Section (y = 0 to dividerY)
+        dividerY = drawEdgeOneField(dc, 0, 0, width, dividerY, isDark);
+        dividerY += 4;
 
         // 3. Draw Divider Line
         var dividerColor = AppState.getColor(ThemeManager.COLOR_DIVIDER);
@@ -728,7 +735,7 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         // 2. Draw Top Metrics Section (y = 0 to dividerY)
-        drawEdgeOneField(dc, 0, 0, width, dividerY, isDark);
+        // TEST drawEdgeOneField(dc, 0, 0, width, dividerY, isDark);
     }
     private function drawEdgeLargeFieldWithSparkline(
         dc as Graphics.Dc,
@@ -812,7 +819,14 @@ class SlipperyView extends WatchUi.DataField {
         );
 
         linePos += drawH;
-        drawRiskFooter(dc, paddingX, linePos, width - paddingX * 2, footerH, isDark);
+        drawRiskFooter(
+            dc,
+            paddingX,
+            linePos,
+            width - paddingX * 2,
+            footerH,
+            isDark
+        );
 
         // --- CURRENT WIND ARROW CENTERED IN FIELD ---
         CurrentWindWidget.draw(
@@ -982,6 +996,7 @@ class SlipperyView extends WatchUi.DataField {
         dc.drawLine(x + leftWidth, y + 4, x + leftWidth, y + height - 4);
     }
 
+    // Draws the edge field with a single field (e.g., risk level) at the top of the view. Returns the y-coordinate after drawing.
     private function drawEdgeOneField(
         dc as Graphics.Dc,
         x as Number,
@@ -989,7 +1004,7 @@ class SlipperyView extends WatchUi.DataField {
         w as Number,
         h as Number,
         isDark as Boolean
-    ) as Void {
+    ) as Number {
         var riskColor = getRiskColor(mRiskAssessment.riskLevel, isDark);
         var riskLevelText = getRiskLevelString(mRiskAssessment.riskLevel);
         var isRiskColorLight = $.isColorLight(riskColor);
@@ -1036,7 +1051,7 @@ class SlipperyView extends WatchUi.DataField {
 
         AlertCategoryRenderer.drawCategoryIcon(
             dc,
-            y + headerTextLength + iconSize,
+            x + headerTextLength + iconSize,
             centerHeaderY - 2 + iconSize / 2,
             iconSize,
             mAlertCategory,
@@ -1367,6 +1382,8 @@ class SlipperyView extends WatchUi.DataField {
                 y + h
             );
         }
+
+        return linePos;
     }
 
     private function drawGridCell(
