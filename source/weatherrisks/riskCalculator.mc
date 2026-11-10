@@ -42,21 +42,21 @@ public class RiskConfig {
     public function initialize(preset as RiskPreset) {
         switch (preset) {
             case PresetVeryCautious:
-                iceT = 4.5f; // Highly conservative ice buffer
+                iceT = 4.0f; // Highly conservative ice buffer
                 threshRain = 0.3f; // Extremely low tolerance for rain
                 threshSnow = 0.3f; // Warns at slightest trace of snow
                 threshWind = 0.7f; // Triggers wind warnings early
                 threshGustRatio = 0.8f;
                 break;
             case PresetCautious:
-                iceT = 4.0f;
+                iceT = 3.5f;
                 threshRain = 0.5f;
                 threshSnow = 0.5f;
                 threshWind = 0.8f;
                 threshGustRatio = 0.9f;
                 break;
             case PresetSport:
-                iceT = 2.0f; // Tighter ice window
+                iceT = 1.5f; // Tighter ice window
                 threshRain = 1.25f; // Slightly higher precipitation requirement
                 threshSnow = 1.25f;
                 threshWind = 1.1f; // Ignores minor breezes
@@ -71,7 +71,7 @@ public class RiskConfig {
                 break;
             case PresetNormal:
             default:
-                iceT = 3.0f;
+                iceT = 2.5f;
                 threshRain = 1.0f;
                 threshSnow = 1.0f;
                 threshWind = 1.0f;
