@@ -33,7 +33,7 @@ function getRiskPresetText(value as RiskPreset) as String {
 
 (:extendedCode)
 public class RiskConfig {
-    public var iceT as Float = 3.0f;
+    public var iceT as Float = 2.5f;
     public var threshRain as Float = 1.0f;
     public var threshSnow as Float = 1.0f;
     public var threshWind as Float = 1.0f;
